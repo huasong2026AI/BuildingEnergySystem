@@ -3,7 +3,7 @@ import type { BuildingSubItem, EquipmentCalcResult, UserEquipmentOverrides } fro
 import { calculateEquipmentForSubItem, checkDiscrepancies } from '../hvacEngine/calculator';
 import { SYSTEM_TYPES_META } from '../hvacEngine/constants';
 import { 
-  AlertTriangle, CheckCircle, Calculator, Info, RotateCcw, Thermometer, ChevronDown, ChevronUp, Cpu, Flame, Wind, Link2 
+  AlertTriangle, CheckCircle, Calculator, Info, RotateCcw, Thermometer, ChevronDown, ChevronUp, Cpu, Flame, Wind, Link2, Layers2 
 } from 'lucide-react';
 
 interface Props {
@@ -15,12 +15,15 @@ interface Props {
 export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [], onUpdateSubItem }) => {
   const [showFormulas, setShowFormulas] = useState(true);
 
-  // 实时计算当前建筑子项（及共用机房合并负荷）的标准工程推导结果
   const calc: EquipmentCalcResult = calculateEquipmentForSubItem(subItem, allSubItems);
   const discrepancies = checkDiscrepancies(subItem, calc);
   const custom: UserEquipmentOverrides = subItem.customEquipment || {};
 
   const sysMeta = SYSTEM_TYPES_META[subItem.systemType];
+  const isAchp = subItem.systemType === 'air_heat_pump';
+
+  const defaultHwSupply = isAchp ? 45 : 60;
+  const defaultHwReturn = isAchp ? 40 : 50;
 
   const handleCustomChange = (key: keyof UserEquipmentOverrides, val: number | undefined) => {
     const newCustom = { ...custom, [key]: val };
@@ -53,7 +56,6 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
     });
   };
 
-  // 如果此建筑勾选了共用集中冷热源机房，提示合并后的总面积与总负荷
   const sharedGroup = subItem.useSharedPlant ? allSubItems.filter(s => s.useSharedPlant && s.systemType === subItem.systemType) : [];
   const isShared = sharedGroup.length > 1;
   const sharedAreaSum = sharedGroup.reduce((acc, curr) => acc + curr.area, 0);
@@ -74,11 +76,17 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                 <span>集中共用冷热源合并计算 (总面积: {sharedAreaSum.toLocaleString()} m²)</span>
               </span>
             )}
+            {subItem.systemType === 'hybrid' && (
+              <span className="px-3 py-1 bg-purple-500/20 text-purple-300 font-bold text-xs rounded-full border border-purple-500/30 flex items-center space-x-1">
+                <Layers2 className="w-3.5 h-3.5" />
+                <span>复合空调系统组合</span>
+              </span>
+            )}
             <h2 className="text-lg font-bold text-white">空调系统主设备配置与计算校验</h2>
           </div>
           <p className="text-xs text-slate-400 mt-1">
             当前系统：<span className="text-blue-300 font-semibold">{sysMeta.name}</span>。
-            {isShared ? `已自动合并共享机房建筑【${sharedGroup.map(g => g.name).join(' + ')}】的总负荷进行主机与水泵选型推导。` : '根据所选系统的真实设备组成展现配比表，可自主修改并触发红字偏差预警！'}
+            {isAchp ? '风冷热泵包含夏季冷水(缺省7/12°C)与冬季热水(缺省45/40°C)两套独立水温工况设置。' : '设备容量在推荐计算值的 95% ~ 110% 范围内均判定为可行匹配！'}
           </p>
         </div>
 
@@ -110,7 +118,7 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2 text-xs font-bold text-slate-200">
               <Thermometer className="w-4 h-4 text-emerald-400" />
-              <span>水系统供回水温度工况设置（仅显示当前系统包含的水路）</span>
+              <span>水系统供回水温度工况设置（包含冷水 7/12°C 与 热水 {isAchp ? '45/40°C' : '60/50°C'}）</span>
             </div>
             <span className="text-[11px] text-slate-400">
               * 改变温差将改变水泵流量公式：G = Q × 3.6 / (4.186 × ΔT)
@@ -121,7 +129,7 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
             {sysMeta.hasChilledWaterPump && (
               <div className="bg-slate-900/90 p-3 rounded-lg border border-slate-750 space-y-2">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-blue-300 font-semibold">冷冻水/冷水供回水温度</span>
+                  <span className="text-blue-300 font-semibold">冷冻水/冷水供回水温度 (制冷)</span>
                   <span className="text-blue-400 font-bold bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
                     ΔT = {calc.deltaTchw} ℃
                   </span>
@@ -187,7 +195,9 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
             {sysMeta.hasHotWaterPump && (
               <div className="bg-slate-900/90 p-3 rounded-lg border border-slate-750 space-y-2">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-rose-300 font-semibold">热水供回水温度</span>
+                  <span className="text-rose-300 font-semibold">
+                    {isAchp ? '风冷热泵热水供回水温度 (制热)' : '锅炉热水供回水温度'}
+                  </span>
                   <span className="text-rose-400 font-bold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
                     ΔT = {calc.deltaThw} ℃
                   </span>
@@ -198,7 +208,7 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                     <input
                       type="number"
                       step="1"
-                      value={subItem.hwSupplyTemp ?? 60}
+                      value={subItem.hwSupplyTemp ?? defaultHwSupply}
                       onChange={(e) => handleWaterTempChange('hwSupplyTemp', Number(e.target.value))}
                       className="w-full bg-slate-800 border border-slate-700 rounded px-2.5 py-1 text-white text-xs font-bold focus:ring-1 focus:ring-blue-500"
                     />
@@ -208,7 +218,7 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                     <input
                       type="number"
                       step="1"
-                      value={subItem.hwReturnTemp ?? 50}
+                      value={subItem.hwReturnTemp ?? defaultHwReturn}
                       onChange={(e) => handleWaterTempChange('hwReturnTemp', Number(e.target.value))}
                       className="w-full bg-slate-800 border border-slate-700 rounded px-2.5 py-1 text-white text-xs font-bold focus:ring-1 focus:ring-blue-500"
                     />
@@ -238,28 +248,27 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
         <div className="bg-blue-950/40 border border-blue-500/30 rounded-xl p-4 space-y-2 text-xs">
           <div className="flex items-center space-x-2 font-bold text-blue-300">
             <Info className="w-4 h-4 text-blue-400" />
-            <span>程序内置空调设备选型工程计算公式手册</span>
+            <span>程序内置空调设备选型工程计算公式与 95%~110% 产品配比说明</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-slate-300 pt-1">
             <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-800">
-              <span className="font-semibold text-blue-200 block mb-1">① 冷水机组/锅炉容量</span>
+              <span className="font-semibold text-blue-200 block mb-1">① 机组选型负荷 (K_sim=1.0)</span>
               <p className="text-[11px] text-slate-400">
-                Q_chiller = Area × q_cool × K_sim / 1000 (kW)<br/>
+                Q_chiller = Area × q_cool × 1.0 / 1000 (kW)<br/>
                 Q_boiler = Area × q_heat × 1.1 / 1000 (kW)
               </p>
             </div>
             <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-800">
-              <span className="font-semibold text-blue-200 block mb-1">② 水泵流量公式</span>
+              <span className="font-semibold text-blue-200 block mb-1">② 水泵流量推导</span>
               <p className="text-[11px] text-slate-400">
                 G_chw = Q_chiller × 3.6 / (4.186 × ΔT_chw) (m³/h)<br/>
                 G_hw = Q_boiler × 3.6 / (4.186 × ΔT_hw) (m³/h)
               </p>
             </div>
             <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-800">
-              <span className="font-semibold text-blue-200 block mb-1">③ 冷却塔选型</span>
+              <span className="font-semibold text-blue-200 block mb-1">③ 市场产品配比范围</span>
               <p className="text-[11px] text-slate-400">
-                Q_cond = Q_chiller × (1 + 1/COP)<br/>
-                G_ct = G_cw × 1.15 (仅适用于冷水机组)
+                结合离心机/螺杆机规格，用户选型在推荐计算值的 <span className="text-emerald-400 font-bold">95% ~ 110%</span> 之间均判定为正常合格选型！
               </p>
             </div>
             <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-800">
@@ -277,7 +286,7 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
         <div className="bg-red-950/60 border-2 border-red-500 rounded-xl p-4 space-y-3 animate-pulse">
           <div className="flex items-center space-x-2 font-bold text-red-400 text-sm">
             <AlertTriangle className="w-5 h-5 text-red-500" />
-            <span>【红字警报】检测到 {discrepancies.length} 项设备容量与推荐标准不匹配！</span>
+            <span>【红字警报】检测到 {discrepancies.length} 项设备容量超出 95%~110% 合理产品选型区间！</span>
           </div>
 
           <div className="space-y-2">
@@ -307,17 +316,17 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
               <th className="py-3 px-4">程序推荐标准计算值</th>
               <th className="py-3 px-4 text-blue-300">用户自定义配置值 (可修改)</th>
               <th className="py-3 px-4">单位</th>
-              <th className="py-3 px-4">偏差状态与能耗后果</th>
+              <th className="py-3 px-4">95%~110% 选型可行性状态与后果</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800 text-slate-200">
 
             {/* 1. 冷水机组 */}
-            {subItem.systemType === 'chiller_boiler' && (
+            {(subItem.systemType === 'chiller_boiler' || subItem.systemType === 'hybrid') && (
               <tr className="hover:bg-slate-850/60 transition-colors">
                 <td className="py-3 px-4 font-bold flex items-center space-x-2 text-white">
                   <Cpu className="w-4 h-4 text-blue-400" />
-                  <span>冷水机组 (螺杆/离心式)</span>
+                  <span>冷水机组 (螺杆/离心/磁悬浮)</span>
                 </td>
                 <td className="py-3 px-4 text-slate-300">额定制冷容量 (kW)</td>
                 <td className="py-3 px-4 font-semibold text-slate-400">{calc.chillerCapacitykW.toFixed(1)}</td>
@@ -328,7 +337,7 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                     placeholder={calc.chillerCapacitykW.toFixed(1)}
                     onChange={(e) => handleCustomChange('chillerCapacitykW', e.target.value ? Number(e.target.value) : undefined)}
                     className={`w-32 bg-slate-900 border rounded px-2.5 py-1 font-bold text-xs focus:ring-2 focus:outline-none ${
-                      custom.chillerCapacitykW && Math.abs(custom.chillerCapacitykW - calc.chillerCapacitykW) / calc.chillerCapacitykW >= 0.08
+                      custom.chillerCapacitykW && (custom.chillerCapacitykW / calc.chillerCapacitykW < 0.95 || custom.chillerCapacitykW / calc.chillerCapacitykW > 1.10)
                         ? 'text-red-500 border-red-500 focus:ring-red-500 font-extrabold bg-red-950/30'
                         : 'text-white border-slate-700 focus:ring-blue-500'
                     }`}
@@ -342,7 +351,7 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
             )}
 
             {/* 2. 燃气锅炉 */}
-            {subItem.systemType === 'chiller_boiler' && (
+            {(subItem.systemType === 'chiller_boiler' || subItem.systemType === 'hybrid') && (
               <tr className="hover:bg-slate-850/60 transition-colors">
                 <td className="py-3 px-4 font-bold flex items-center space-x-2 text-white">
                   <Flame className="w-4 h-4 text-rose-500" />
@@ -357,7 +366,7 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                     placeholder={calc.boilerCapacitykW.toFixed(1)}
                     onChange={(e) => handleCustomChange('boilerCapacitykW', e.target.value ? Number(e.target.value) : undefined)}
                     className={`w-32 bg-slate-900 border rounded px-2.5 py-1 font-bold text-xs focus:ring-2 focus:outline-none ${
-                      custom.boilerCapacitykW && Math.abs(custom.boilerCapacitykW - calc.boilerCapacitykW) / calc.boilerCapacitykW >= 0.08
+                      custom.boilerCapacitykW && (custom.boilerCapacitykW / calc.boilerCapacitykW < 0.95 || custom.boilerCapacitykW / calc.boilerCapacitykW > 1.10)
                         ? 'text-red-500 border-red-500 focus:ring-red-500 font-extrabold bg-red-950/30'
                         : 'text-white border-slate-700 focus:ring-blue-500'
                     }`}
@@ -383,7 +392,7 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                     placeholder={calc.chwPumpFlow.toFixed(1)}
                     onChange={(e) => handleCustomChange('chwPumpFlow', e.target.value ? Number(e.target.value) : undefined)}
                     className={`w-32 bg-slate-900 border rounded px-2.5 py-1 font-bold text-xs focus:ring-2 focus:outline-none ${
-                      custom.chwPumpFlow && Math.abs(custom.chwPumpFlow - calc.chwPumpFlow) / calc.chwPumpFlow >= 0.08
+                      custom.chwPumpFlow && (custom.chwPumpFlow / calc.chwPumpFlow < 0.95 || custom.chwPumpFlow / calc.chwPumpFlow > 1.10)
                         ? 'text-red-500 border-red-500 focus:ring-red-500 font-extrabold bg-red-950/30'
                         : 'text-white border-slate-700 focus:ring-blue-500'
                     }`}
@@ -411,7 +420,7 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                     placeholder={calc.hwPumpFlow.toFixed(1)}
                     onChange={(e) => handleCustomChange('hwPumpFlow', e.target.value ? Number(e.target.value) : undefined)}
                     className={`w-32 bg-slate-900 border rounded px-2.5 py-1 font-bold text-xs focus:ring-2 focus:outline-none ${
-                      custom.hwPumpFlow && Math.abs(custom.hwPumpFlow - calc.hwPumpFlow) / calc.hwPumpFlow >= 0.08
+                      custom.hwPumpFlow && (custom.hwPumpFlow / calc.hwPumpFlow < 0.95 || custom.hwPumpFlow / calc.hwPumpFlow > 1.10)
                         ? 'text-red-500 border-red-500 focus:ring-red-500 font-extrabold bg-red-950/30'
                         : 'text-white border-slate-700 focus:ring-blue-500'
                     }`}
@@ -437,7 +446,7 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                     placeholder={calc.cwPumpFlow.toFixed(1)}
                     onChange={(e) => handleCustomChange('cwPumpFlow', e.target.value ? Number(e.target.value) : undefined)}
                     className={`w-32 bg-slate-900 border rounded px-2.5 py-1 font-bold text-xs focus:ring-2 focus:outline-none ${
-                      custom.cwPumpFlow && Math.abs(custom.cwPumpFlow - calc.cwPumpFlow) / calc.cwPumpFlow >= 0.08
+                      custom.cwPumpFlow && (custom.cwPumpFlow / calc.cwPumpFlow < 0.95 || custom.cwPumpFlow / calc.cwPumpFlow > 1.10)
                         ? 'text-red-500 border-red-500 focus:ring-red-500 font-extrabold bg-red-950/30'
                         : 'text-white border-slate-700 focus:ring-blue-500'
                     }`}
@@ -463,7 +472,7 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                     placeholder={calc.coolingTowerFlow.toFixed(1)}
                     onChange={(e) => handleCustomChange('coolingTowerFlow', e.target.value ? Number(e.target.value) : undefined)}
                     className={`w-32 bg-slate-900 border rounded px-2.5 py-1 font-bold text-xs focus:ring-2 focus:outline-none ${
-                      custom.coolingTowerFlow && Math.abs(custom.coolingTowerFlow - calc.coolingTowerFlow) / calc.coolingTowerFlow >= 0.08
+                      custom.coolingTowerFlow && (custom.coolingTowerFlow / calc.coolingTowerFlow < 0.95 || custom.coolingTowerFlow / calc.coolingTowerFlow > 1.10)
                         ? 'text-red-500 border-red-500 focus:ring-red-500 font-extrabold bg-red-950/30'
                         : 'text-white border-slate-700 focus:ring-blue-500'
                     }`}
@@ -477,7 +486,7 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
             )}
 
             {/* 7. 风冷热泵主机 */}
-            {subItem.systemType === 'air_heat_pump' && (
+            {(subItem.systemType === 'air_heat_pump' || (subItem.systemType === 'hybrid' && calc.achpCoolingkW > 0)) && (
               <tr className="hover:bg-slate-850/60 transition-colors">
                 <td className="py-3 px-4 font-bold text-white">风冷热泵主机模块</td>
                 <td className="py-3 px-4 text-slate-300">总制冷容量 (kW)</td>
@@ -489,7 +498,7 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                     placeholder={calc.achpCoolingkW.toFixed(1)}
                     onChange={(e) => handleCustomChange('achpCoolingkW', e.target.value ? Number(e.target.value) : undefined)}
                     className={`w-32 bg-slate-900 border rounded px-2.5 py-1 font-bold text-xs focus:ring-2 focus:outline-none ${
-                      custom.achpCoolingkW && Math.abs(custom.achpCoolingkW - calc.achpCoolingkW) / calc.achpCoolingkW >= 0.08
+                      custom.achpCoolingkW && (custom.achpCoolingkW / calc.achpCoolingkW < 0.95 || custom.achpCoolingkW / calc.achpCoolingkW > 1.10)
                         ? 'text-red-500 border-red-500 focus:ring-red-500 font-extrabold bg-red-950/30'
                         : 'text-white border-slate-700 focus:ring-blue-500'
                     }`}
@@ -503,7 +512,7 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
             )}
 
             {/* 8. VRF 多联机室外机 */}
-            {subItem.systemType === 'vrf' && (
+            {(subItem.systemType === 'vrf' || (subItem.systemType === 'hybrid' && calc.vrfCoolingkW > 0)) && (
               <tr className="hover:bg-slate-850/60 transition-colors">
                 <td className="py-3 px-4 font-bold text-white">VRF 多联机室外机</td>
                 <td className="py-3 px-4 text-slate-300">总制冷容量 (kW)</td>
@@ -515,7 +524,7 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                     placeholder={calc.vrfCoolingkW.toFixed(1)}
                     onChange={(e) => handleCustomChange('vrfCoolingkW', e.target.value ? Number(e.target.value) : undefined)}
                     className={`w-32 bg-slate-900 border rounded px-2.5 py-1 font-bold text-xs focus:ring-2 focus:outline-none ${
-                      custom.vrfCoolingkW && Math.abs(custom.vrfCoolingkW - calc.vrfCoolingkW) / calc.vrfCoolingkW >= 0.08
+                      custom.vrfCoolingkW && (custom.vrfCoolingkW / calc.vrfCoolingkW < 0.95 || custom.vrfCoolingkW / calc.vrfCoolingkW > 1.10)
                         ? 'text-red-500 border-red-500 focus:ring-red-500 font-extrabold bg-red-950/30'
                         : 'text-white border-slate-700 focus:ring-blue-500'
                     }`}
@@ -524,32 +533,6 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                 <td className="py-3 px-4 text-slate-400">kW</td>
                 <td className="py-3 px-4">
                   {renderDiscrepancyBadge(calc.vrfCoolingkW, custom.vrfCoolingkW, () => handleResetField('vrfCoolingkW'))}
-                </td>
-              </tr>
-            )}
-
-            {/* 9. 地源热泵 */}
-            {subItem.systemType === 'ground_heat_pump' && (
-              <tr className="hover:bg-slate-850/60 transition-colors">
-                <td className="py-3 px-4 font-bold text-white">地源热泵主机</td>
-                <td className="py-3 px-4 text-slate-300">额定制冷容量 (kW)</td>
-                <td className="py-3 px-4 font-semibold text-slate-400">{calc.gshpCoolingkW.toFixed(1)}</td>
-                <td className="py-3 px-4">
-                  <input
-                    type="number"
-                    value={custom.gshpCoolingkW ?? ''}
-                    placeholder={calc.gshpCoolingkW.toFixed(1)}
-                    onChange={(e) => handleCustomChange('gshpCoolingkW', e.target.value ? Number(e.target.value) : undefined)}
-                    className={`w-32 bg-slate-900 border rounded px-2.5 py-1 font-bold text-xs focus:ring-2 focus:outline-none ${
-                      custom.gshpCoolingkW && Math.abs(custom.gshpCoolingkW - calc.gshpCoolingkW) / calc.gshpCoolingkW >= 0.08
-                        ? 'text-red-500 border-red-500 focus:ring-red-500 font-extrabold bg-red-950/30'
-                        : 'text-white border-slate-700 focus:ring-blue-500'
-                    }`}
-                  />
-                </td>
-                <td className="py-3 px-4 text-slate-400">kW</td>
-                <td className="py-3 px-4">
-                  {renderDiscrepancyBadge(calc.gshpCoolingkW, custom.gshpCoolingkW, () => handleResetField('gshpCoolingkW'))}
                 </td>
               </tr>
             )}
@@ -571,29 +554,31 @@ function renderDiscrepancyBadge(
     return (
       <span className="inline-flex items-center space-x-1 text-emerald-400 text-xs font-semibold">
         <CheckCircle className="w-3.5 h-3.5" />
-        <span>匹配标准配置</span>
+        <span>匹配标准推荐 (100%)</span>
       </span>
     );
   }
 
+  const ratio = userVal / calcVal;
   const diffPercent = ((userVal - calcVal) / calcVal) * 100;
-  if (Math.abs(diffPercent) < 8) {
+
+  if (ratio >= 0.95 && ratio <= 1.10) {
     return (
       <span className="inline-flex items-center space-x-1 text-emerald-400 text-xs font-semibold">
-        <CheckCircle className="w-3.5 h-3.5" />
-        <span>在正常合理误差范围内 ({diffPercent > 0 ? `+${diffPercent.toFixed(1)}%` : `${diffPercent.toFixed(1)}%`})</span>
+        <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+        <span>在售产品合理选型范围 ({diffPercent > 0 ? `+${diffPercent.toFixed(1)}%` : `${diffPercent.toFixed(1)}%`})</span>
       </span>
     );
   }
 
-  const isOversized = diffPercent > 0;
+  const isOversized = ratio > 1.10;
 
   return (
     <div className="flex items-center space-x-2">
       <span className="text-red-500 font-extrabold text-xs flex items-center space-x-1 animate-pulse">
         <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
         <span>
-          【红字提醒】{isOversized ? `偏大 +${diffPercent.toFixed(1)}%` : `偏小 ${diffPercent.toFixed(1)}%`}
+          【红字提醒】{isOversized ? `超出 >110% (+${diffPercent.toFixed(1)}%)` : `低于下限 <95% (${diffPercent.toFixed(1)}%)`}
         </span>
       </span>
 

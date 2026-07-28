@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import type { BuildingSubItem, BuildingType, SystemType } from '../types/hvac';
+import type { BuildingSubItem, BuildingType, SystemType, HybridSubSystemConfig } from '../types/hvac';
 import { BUILDING_TYPES_META, SYSTEM_TYPES_META } from '../hvacEngine/constants';
 import { 
   Building2, Hotel, ShoppingBag, ShoppingCart, Utensils, Cross, Building, 
-  Plus, Trash2, Layers, Settings2, Link2, Share2 
+  Plus, Trash2, Layers, Settings2, Link2, Share2, Layers2 
 } from 'lucide-react';
 
 interface Props {
@@ -62,6 +62,10 @@ export const BuildingSubItemsManager: React.FC<Props> = ({
       heatingIndex: meta.defaultHeatingIndex,
       operatingHours: meta.defaultOperatingHours,
       systemType: newSubItem.systemType,
+      hybridSubSystems: newSubItem.systemType === 'hybrid' ? [
+        { systemType: 'chiller_boiler', ratioPercent: 60 },
+        { systemType: 'vrf', ratioPercent: 40 }
+      ] : undefined,
       useSharedPlant: newSubItem.useSharedPlant,
       chwSupplyTemp: 7,
       chwReturnTemp: 12,
@@ -75,9 +79,53 @@ export const BuildingSubItemsManager: React.FC<Props> = ({
     setIsAdding(false);
   };
 
-  // 计算共用机房汇总
   const sharedItems = subItems.filter(item => item.useSharedPlant);
   const totalSharedArea = sharedItems.reduce((acc, curr) => acc + curr.area, 0);
+
+  const activeItem = subItems.find(item => item.id === activeItemId) || subItems[0];
+
+  const handleToggleHybridSub = (item: BuildingSubItem, subSysType: SystemType) => {
+    const existing = item.hybridSubSystems || [
+      { systemType: 'chiller_boiler', ratioPercent: 60 },
+      { systemType: 'vrf', ratioPercent: 40 }
+    ];
+
+    const exists = existing.some(s => s.systemType === subSysType);
+    let updated: HybridSubSystemConfig[] = [];
+    if (exists) {
+      if (existing.length <= 1) return; // 至少保留1个子系统
+      updated = existing.filter(s => s.systemType !== subSysType);
+    } else {
+      updated = [...existing, { systemType: subSysType, ratioPercent: 30 }];
+    }
+
+    // 重新归一化分配比例
+    const totalRatio = updated.reduce((acc, curr) => acc + curr.ratioPercent, 0);
+    updated = updated.map(s => ({
+      ...s,
+      ratioPercent: Math.round((s.ratioPercent / totalRatio) * 100)
+    }));
+
+    onUpdateSubItem({
+      ...item,
+      hybridSubSystems: updated
+    });
+  };
+
+  const handleRatioChange = (item: BuildingSubItem, subSysType: SystemType, newRatio: number) => {
+    const existing = item.hybridSubSystems || [];
+    const updated = existing.map(s => {
+      if (s.systemType === subSysType) {
+        return { ...s, ratioPercent: Math.max(1, Math.min(99, newRatio)) };
+      }
+      return s;
+    });
+
+    onUpdateSubItem({
+      ...item,
+      hybridSubSystems: updated
+    });
+  };
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
@@ -90,7 +138,7 @@ export const BuildingSubItemsManager: React.FC<Props> = ({
             <h2 className="text-lg font-bold text-white">建筑分类与功能子项 (Building Sub-items)</h2>
           </div>
           <p className="text-xs text-slate-400 mt-1">
-            按商业综合体/园区划分酒店、办公、Mall、大型超市等子项。支持多个建筑子项**共用一套集中冷热源机房**！
+            按商业综合体/园区划分酒店、办公、Mall、大型超市等子项。支持**复合空调系统**（组合多种基础冷热源系统并自定义负荷占比）！
           </p>
         </div>
 
@@ -300,7 +348,17 @@ export const BuildingSubItemsManager: React.FC<Props> = ({
                 </label>
                 <select
                   value={item.systemType}
-                  onChange={(e) => onUpdateSubItem({ ...item, systemType: e.target.value as SystemType })}
+                  onChange={(e) => {
+                    const sysType = e.target.value as SystemType;
+                    onUpdateSubItem({ 
+                      ...item, 
+                      systemType: sysType,
+                      hybridSubSystems: sysType === 'hybrid' ? [
+                        { systemType: 'chiller_boiler', ratioPercent: 60 },
+                        { systemType: 'vrf', ratioPercent: 40 }
+                      ] : item.hybridSubSystems
+                    });
+                  }}
                   onClick={(e) => e.stopPropagation()}
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-blue-300 font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 >
@@ -319,6 +377,87 @@ export const BuildingSubItemsManager: React.FC<Props> = ({
           );
         })}
       </div>
+
+      {/* 复合空调系统配置拓展面板 (仅在选中项为 hybrid 时显示) */}
+      {activeItem && activeItem.systemType === 'hybrid' && (
+        <div className="bg-gradient-to-r from-purple-950/60 via-slate-900 to-indigo-950/60 border border-purple-500/40 rounded-2xl p-5 space-y-4 shadow-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-purple-500/30 pb-3">
+            <div className="flex items-center space-x-2 text-white">
+              <Layers2 className="w-5 h-5 text-purple-400" />
+              <h3 className="text-sm font-bold text-purple-200">
+                【{activeItem.name}】复合空调系统多源组合配置面板
+              </h3>
+            </div>
+            <span className="text-xs text-purple-300 font-semibold bg-purple-500/20 px-3 py-1 rounded-full border border-purple-500/30">
+              单体总冷负荷: {((activeItem.area * activeItem.coolingIndex) / 1000).toFixed(0)} kW
+            </span>
+          </div>
+
+          <p className="text-xs text-slate-300">
+            选择参与复合的基础系统类型，并自定义各个子系统承担的冷/热负荷比例 (%)：
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+            {['chiller_boiler', 'air_heat_pump', 'vrf', 'district_energy', 'ground_heat_pump'].map((sysKey) => {
+              const sysMeta = SYSTEM_TYPES_META[sysKey as SystemType];
+              const subConfigs = activeItem.hybridSubSystems || [
+                { systemType: 'chiller_boiler', ratioPercent: 60 },
+                { systemType: 'vrf', ratioPercent: 40 }
+              ];
+              const isChecked = subConfigs.some(s => s.systemType === sysKey);
+              const curConfig = subConfigs.find(s => s.systemType === sysKey);
+              const totalCooling = (activeItem.area * activeItem.coolingIndex) / 1000;
+              const subCoolingkW = curConfig ? (totalCooling * curConfig.ratioPercent) / 100 : 0;
+
+              return (
+                <div 
+                  key={sysKey}
+                  className={`p-3.5 rounded-xl border transition-all space-y-2 ${
+                    isChecked
+                      ? 'bg-slate-800/90 border-purple-500/60 ring-1 ring-purple-500/30'
+                      : 'bg-slate-900/60 border-slate-800 opacity-60'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center space-x-2 cursor-pointer font-bold text-white">
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => handleToggleHybridSub(activeItem, sysKey as SystemType)}
+                        className="rounded border-slate-700 bg-slate-900 text-purple-500 focus:ring-purple-500"
+                      />
+                      <span>{sysMeta.name.split(' ')[1] || sysMeta.name}</span>
+                    </label>
+
+                    {isChecked && (
+                      <span className="text-[10px] font-bold text-purple-300 bg-purple-500/20 px-2 py-0.5 rounded">
+                        {subCoolingkW.toFixed(0)} kW
+                      </span>
+                    )}
+                  </div>
+
+                  {isChecked && (
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-750/80">
+                      <span className="text-slate-400 text-[11px]">承担负荷占比:</span>
+                      <div className="flex items-center space-x-1">
+                        <input
+                          type="number"
+                          min={5}
+                          max={95}
+                          value={curConfig?.ratioPercent || 50}
+                          onChange={(e) => handleRatioChange(activeItem, sysKey as SystemType, Number(e.target.value))}
+                          className="w-16 bg-slate-950 border border-slate-700 rounded px-2 py-0.5 text-right font-bold text-purple-300 text-xs"
+                        />
+                        <span className="text-slate-300 font-bold">%</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
     </div>
   );

@@ -146,8 +146,8 @@ function renderSystemSVG(
 ) {
   const isCooling = season === 'cooling';
 
-  // 1. 冷水机组 + 燃气锅炉系统 (高标 CAD 图纸规范)
-  if (systemType === 'chiller_boiler') {
+  // 1. 冷水机组 + 燃气锅炉系统 (冷却塔与冷却水泵置于冷水机组左侧)
+  if (systemType === 'chiller_boiler' || systemType === 'hybrid') {
     return (
       <svg viewBox="0 0 960 450" className="w-full h-auto">
         <defs>
@@ -179,22 +179,22 @@ function renderSystemSVG(
         {/* --- 夏季供冷工况管线 --- */}
         {isCooling && (
           <g>
-            {/* 冷却水回路: 冷水机组 (x=370, y=140) -> 冷却水泵 (x=470, y=85) -> 冷却塔 (x=560, y=30) */}
-            <path d="M 370 120 L 470 120 L 470 60 L 560 60" fill="none" stroke="#ef4444" strokeWidth="3" markerEnd="url(#arrowRed)" />
-            <text x="480" y="80" fill="#f87171" fontSize="11" fontWeight="bold">37℃ 冷却水回</text>
+            {/* 冷却水回路 (位于冷水机组左侧): 机组左侧(x=260, y=120) -> 冷却水泵(x=170) -> 冷却塔(x=50, y=40) */}
+            <path d="M 260 120 L 170 120 L 170 65 L 150 65" fill="none" stroke="#ef4444" strokeWidth="3" markerEnd="url(#arrowRed)" />
+            <text x="145" y="85" fill="#f87171" fontSize="10" fontWeight="bold">37℃ 冷却水回</text>
 
-            <path d="M 560 85 L 470 85 L 470 160 L 370 160" fill="none" stroke="#10b981" strokeWidth="3" markerEnd="url(#arrowGreen)" />
-            <text x="480" y="145" fill="#34d399" fontSize="11" fontWeight="bold">32℃ 冷却水供</text>
+            <path d="M 150 90 L 170 90 L 170 160 L 260 160" fill="none" stroke="#10b981" strokeWidth="3" markerEnd="url(#arrowGreen)" />
+            <text x="145" y="145" fill="#34d399" fontSize="10" fontWeight="bold">32℃ 冷却水供</text>
 
             {/* 冷水供水管 (实线 Solid, 接入末端下部右侧 x=840, y=260) */}
-            <path d="M 370 140 L 840 140 L 840 260" fill="none" stroke="#3b82f6" strokeWidth="4" markerEnd="url(#arrowBlue)" />
-            <text x="540" y="132" fill="#60a5fa" fontSize="12" fontWeight="bold">
+            <path d="M 410 140 L 840 140 L 840 260" fill="none" stroke="#3b82f6" strokeWidth="4" markerEnd="url(#arrowBlue)" />
+            <text x="560" y="132" fill="#60a5fa" fontSize="12" fontWeight="bold">
               7℃ 冷冻水供水管 (Solid Line)
             </text>
 
-            {/* 冷水回水管 (虚线 Dashed, 从末端下部左侧 x=780, y=260 出发 -> 直角 90° 转角接回机组底部) */}
-            <path d="M 780 260 L 780 290 L 295 290 L 295 180" fill="none" stroke="#60a5fa" strokeWidth="3" strokeDasharray="8 4" markerEnd="url(#arrowBlue)" />
-            <text x="540" y="282" fill="#93c5fd" fontSize="12" fontWeight="bold">
+            {/* 冷水回水管 (虚线 Dashed, 从末端下部左侧 x=780, y=260 出发 -> 90° 转角接回机组底部) */}
+            <path d="M 780 260 L 780 290 L 335 290 L 335 180" fill="none" stroke="#60a5fa" strokeWidth="3" strokeDasharray="8 4" markerEnd="url(#arrowBlue)" />
+            <text x="560" y="282" fill="#93c5fd" fontSize="12" fontWeight="bold">
               12℃ 冷冻水回水管 (Dashed Line)
             </text>
           </g>
@@ -203,62 +203,62 @@ function renderSystemSVG(
         {/* --- 冬季供热工况管线 --- */}
         {!isCooling && (
           <g>
-            {/* 锅炉热水供水管 (实线 Solid, 从锅炉 x=370, y=320 直线出发 -> 水泵 x=520 -> 接入末端下部右侧 x=840, y=260) */}
-            <path d="M 370 320 L 840 320 L 840 260" fill="none" stroke="#ef4444" strokeWidth="4" markerEnd="url(#arrowRed)" />
+            {/* 锅炉热水供水管 (实线 Solid, 从锅炉 x=410, y=320 直线出发 -> 水泵 x=550 -> 接入末端下部右侧 x=840, y=260) */}
+            <path d="M 410 320 L 840 320 L 840 260" fill="none" stroke="#ef4444" strokeWidth="4" markerEnd="url(#arrowRed)" />
             <text x="560" y="312" fill="#fca5a5" fontSize="12" fontWeight="bold">
               60℃ 锅炉热水供水管 (Solid Line)
             </text>
 
-            {/* 锅炉热水回水管 (虚线 Dashed, 从末端下部左侧 x=780, y=260 出发 -> 走直线加 90° 转角: 下至 y=390 -> 左至 x=295 -> 上接锅炉底 y=360) */}
-            <path d="M 780 260 L 780 390 L 295 390 L 295 360" fill="none" stroke="#f87171" strokeWidth="3" strokeDasharray="8 4" markerEnd="url(#arrowRed)" />
+            {/* 锅炉热水回水管 (虚线 Dashed, 从末端下部左侧 x=780, y=260 出发 -> 走直线加 90° 转角: 下至 y=390 -> 左至 x=335 -> 上接锅炉底 y=360) */}
+            <path d="M 780 260 L 780 390 L 335 390 L 335 360" fill="none" stroke="#f87171" strokeWidth="3" strokeDasharray="8 4" markerEnd="url(#arrowRed)" />
             <text x="560" y="382" fill="#fca5a5" fontSize="12" fontWeight="bold">
               50℃ 锅炉热水回水管 (Dashed Line 90°转角)
             </text>
           </g>
         )}
 
-        {/* 设备 1: 冷水机组 */}
-        <g onClick={() => setSelectedNode('chiller')} className={`cursor-pointer ${!isCooling ? 'opacity-40' : ''}`}>
-          <rect x="220" y="100" width="150" height="80" rx="12" fill="url(#chillerGrad)" stroke={selectedNode === 'chiller' ? '#60a5fa' : '#1e40af'} strokeWidth="3" />
-          <text x="295" y="135" fill="#ffffff" fontSize="13" fontWeight="bold" textAnchor="middle">冷水机组 (Chiller)</text>
-          <text x="295" y="155" fill="#93c5fd" fontSize="11" textAnchor="middle">{data.effectiveChillerCap.toFixed(0)} kW</text>
-        </g>
-
-        {/* 设备 2: 冷水水泵 (直接绘制在冷水供水管线 x=520, y=140 上) */}
-        {isCooling && (
-          <g onClick={() => setSelectedNode('chwPump')} className="cursor-pointer">
-            <circle cx="520" cy="140" r="20" fill="#1e293b" stroke="#3b82f6" strokeWidth="3" />
-            <text x="520" y="144" fill="#60a5fa" fontSize="10" fontWeight="bold" textAnchor="middle">冷水泵</text>
-          </g>
-        )}
-
-        {/* 设备 3: 冷却塔 & 冷却水泵 (水泵绘制在冷却水进水线上 x=470, y=115) */}
+        {/* 设备 1: 冷却塔 & 冷却水泵 (位于冷水机组左侧 x=30~170) */}
         {isCooling && (
           <>
             <g onClick={() => setSelectedNode('coolingTower')} className="cursor-pointer">
-              <rect x="560" y="30" width="130" height="65" rx="12" fill="url(#towerGrad)" stroke={selectedNode === 'coolingTower' ? '#34d399' : '#065f46'} strokeWidth="3" />
-              <text x="625" y="60" fill="#ffffff" fontSize="13" fontWeight="bold" textAnchor="middle">冷却塔 (Tower)</text>
-              <text x="625" y="80" fill="#a7f3d0" fontSize="11" textAnchor="middle">{data.effectiveTowerFlow.toFixed(0)} m³/h</text>
+              <rect x="30" y="40" width="120" height="65" rx="12" fill="url(#towerGrad)" stroke={selectedNode === 'coolingTower' ? '#34d399' : '#065f46'} strokeWidth="3" />
+              <text x="90" y="70" fill="#ffffff" fontSize="12" fontWeight="bold" textAnchor="middle">冷却塔 (左侧)</text>
+              <text x="90" y="88" fill="#a7f3d0" fontSize="10" textAnchor="middle">{data.effectiveTowerFlow.toFixed(0)} m³/h</text>
             </g>
             <g onClick={() => setSelectedNode('cwPump')} className="cursor-pointer">
-              <circle cx="470" cy="115" r="18" fill="#1e293b" stroke="#10b981" strokeWidth="3" />
-              <text x="470" y="119" fill="#34d399" fontSize="9" fontWeight="bold" textAnchor="middle">冷却泵</text>
+              <circle cx="170" cy="120" r="18" fill="#1e293b" stroke="#10b981" strokeWidth="3" />
+              <text x="170" y="124" fill="#34d399" fontSize="9" fontWeight="bold" textAnchor="middle">冷却泵</text>
             </g>
           </>
         )}
 
-        {/* 设备 4: 燃气锅炉 */}
-        <g onClick={() => setSelectedNode('boiler')} className={`cursor-pointer ${isCooling ? 'opacity-40' : ''}`}>
-          <rect x="220" y="280" width="150" height="80" rx="12" fill="url(#boilerGrad)" stroke={selectedNode === 'boiler' ? '#f87171' : '#991b1b'} strokeWidth="3" />
-          <text x="295" y="315" fill="#ffffff" fontSize="13" fontWeight="bold" textAnchor="middle">燃气锅炉 (Boiler)</text>
-          <text x="295" y="335" fill="#fca5a5" fontSize="11" textAnchor="middle">{data.effectiveBoilerCap.toFixed(0)} kW</text>
+        {/* 设备 2: 冷水机组 (居中位置 x=260) */}
+        <g onClick={() => setSelectedNode('chiller')} className={`cursor-pointer ${!isCooling ? 'opacity-40' : ''}`}>
+          <rect x="260" y="100" width="150" height="80" rx="12" fill="url(#chillerGrad)" stroke={selectedNode === 'chiller' ? '#60a5fa' : '#1e40af'} strokeWidth="3" />
+          <text x="335" y="135" fill="#ffffff" fontSize="13" fontWeight="bold" textAnchor="middle">冷水机组 (Chiller)</text>
+          <text x="335" y="155" fill="#93c5fd" fontSize="11" textAnchor="middle">{data.effectiveChillerCap.toFixed(0)} kW</text>
         </g>
 
-        {/* 设备 5: 独立热水水泵 (直接绘制在锅炉热水供水管线 x=520, y=320 上) */}
+        {/* 设备 3: 冷水水泵 (直接绘制在冷水供水管线 x=550, y=140 上) */}
+        {isCooling && (
+          <g onClick={() => setSelectedNode('chwPump')} className="cursor-pointer">
+            <circle cx="550" cy="140" r="20" fill="#1e293b" stroke="#3b82f6" strokeWidth="3" />
+            <text x="550" y="144" fill="#60a5fa" fontSize="10" fontWeight="bold" textAnchor="middle">冷水泵</text>
+          </g>
+        )}
+
+        {/* 设备 4: 燃气锅炉 */}
+        <g onClick={() => setSelectedNode('boiler')} className={`cursor-pointer ${isCooling ? 'opacity-40' : ''}`}>
+          <rect x="260" y="280" width="150" height="80" rx="12" fill="url(#boilerGrad)" stroke={selectedNode === 'boiler' ? '#f87171' : '#991b1b'} strokeWidth="3" />
+          <text x="335" y="315" fill="#ffffff" fontSize="13" fontWeight="bold" textAnchor="middle">燃气锅炉 (Boiler)</text>
+          <text x="335" y="335" fill="#fca5a5" fontSize="11" textAnchor="middle">{data.effectiveBoilerCap.toFixed(0)} kW</text>
+        </g>
+
+        {/* 设备 5: 独立热水水泵 (直接绘制在锅炉热水供水管线 x=550, y=320 上) */}
         {!isCooling && (
           <g onClick={() => setSelectedNode('hwPump')} className="cursor-pointer">
-            <circle cx="520" cy="320" r="20" fill="#1e293b" stroke="#ef4444" strokeWidth="3" />
-            <text x="520" y="324" fill="#f87171" fontSize="10" fontWeight="bold" textAnchor="middle">热水泵</text>
+            <circle cx="550" cy="320" r="20" fill="#1e293b" stroke="#ef4444" strokeWidth="3" />
+            <text x="550" y="324" fill="#f87171" fontSize="10" fontWeight="bold" textAnchor="middle">热水泵</text>
           </g>
         )}
 
@@ -267,7 +267,6 @@ function renderSystemSVG(
           <rect x="740" y="140" width="150" height="120" rx="14" fill="#334155" stroke="#94a3b8" strokeWidth="3" />
           <text x="815" y="185" fill="#ffffff" fontSize="14" fontWeight="bold" textAnchor="middle">空调末端 (AHU/FCU)</text>
           <text x="815" y="210" fill="#cbd5e1" fontSize="11" textAnchor="middle">室内维持 {isCooling ? '26℃ 供冷' : '20℃ 供热'}</text>
-          {/* 接管位置标记点 */}
           <circle cx="840" cy="260" r="4" fill="#ef4444" />
           <circle cx="780" cy="260" r="4" fill="#60a5fa" />
         </g>
@@ -276,7 +275,51 @@ function renderSystemSVG(
     );
   }
 
-  // 2. 风冷热泵系统 (水泵直接在水管线上)
+  // 2. 多联机 VRF 系统 (一根主管分多歧管连接多台室内机)
+  if (systemType === 'vrf') {
+    return (
+      <svg viewBox="0 0 960 400" className="w-full h-auto">
+        {/* VRF 室外主机 */}
+        <rect x="140" y="130" width="170" height="140" rx="16" fill="#7c3aed" stroke="#a78bfa" strokeWidth="3" />
+        <text x="225" y="180" fill="#ffffff" fontSize="15" fontWeight="bold" textAnchor="middle">VRF 多联机室外主机</text>
+        <text x="225" y="205" fill="#ddd6fe" fontSize="12" textAnchor="middle">变频气液双管 (DX系统)</text>
+
+        {/* 主冷媒气/液管 (一根主管从主机 x=310 出发延伸至歧管分配点 x=540) */}
+        <path d="M 310 170 L 540 170" fill="none" stroke="#a78bfa" strokeWidth="5" />
+        <path d="M 310 210 L 540 210" fill="none" stroke="#c084fc" strokeWidth="3" strokeDasharray="6 4" />
+        <text x="420" y="160" fill="#c084fc" fontSize="12" fontWeight="bold">冷媒气主管 (Main Gas Line)</text>
+        <text x="420" y="230" fill="#ddd6fe" fontSize="11">冷媒液主管 (Main Liquid Line)</text>
+
+        {/* 分支歧管 / 分流器节点 (Disconnector / Y-Joint) */}
+        <circle cx="540" cy="170" r="8" fill="#7c3aed" stroke="#ffffff" strokeWidth="2" />
+        <circle cx="540" cy="210" r="6" fill="#a78bfa" stroke="#ffffff" strokeWidth="2" />
+        <text x="540" y="145" fill="#a78bfa" fontSize="10" fontWeight="bold" textAnchor="middle">分流歧管器</text>
+
+        {/* 从主管分支引出 3 根支管分别接入 3 台室内机 */}
+        <path d="M 540 170 L 580 170 L 580 80 L 740 80" fill="none" stroke="#a78bfa" strokeWidth="3" />
+        <path d="M 540 170 L 740 170" fill="none" stroke="#a78bfa" strokeWidth="3" />
+        <path d="M 540 170 L 580 170 L 580 260 L 740 260" fill="none" stroke="#a78bfa" strokeWidth="3" />
+
+        {/* 3 台多联机室内机 */}
+        <g onClick={() => setSelectedNode('terminal')}>
+          <rect x="740" y="50" width="160" height="60" rx="10" fill="#334155" stroke="#a78bfa" strokeWidth="2" />
+          <text x="820" y="85" fill="#ffffff" fontSize="12" fontWeight="bold" textAnchor="middle">VRF 室内机 A (高档客房)</text>
+        </g>
+
+        <g onClick={() => setSelectedNode('terminal')}>
+          <rect x="740" y="140" width="160" height="60" rx="10" fill="#334155" stroke="#a78bfa" strokeWidth="2" />
+          <text x="820" y="175" fill="#ffffff" fontSize="12" fontWeight="bold" textAnchor="middle">VRF 室内机 B (行政办公区)</text>
+        </g>
+
+        <g onClick={() => setSelectedNode('terminal')}>
+          <rect x="740" y="230" width="160" height="60" rx="10" fill="#334155" stroke="#a78bfa" strokeWidth="2" />
+          <text x="820" y="265" fill="#ffffff" fontSize="12" fontWeight="bold" textAnchor="middle">VRF 室内机 C (公共大堂区)</text>
+        </g>
+      </svg>
+    );
+  }
+
+  // 3. 风冷热泵系统
   if (systemType === 'air_heat_pump') {
     return (
       <svg viewBox="0 0 960 400" className="w-full h-auto">
@@ -289,47 +332,38 @@ function renderSystemSVG(
           </marker>
         </defs>
 
-        {/* 风冷热泵主机 */}
         <rect x="180" y="120" width="180" height="140" rx="16" fill="#0284c7" stroke="#38bdf8" strokeWidth="3" />
         <text x="270" y="170" fill="#ffffff" fontSize="15" fontWeight="bold" textAnchor="middle">风冷热泵室外主机</text>
         <text x="270" y="195" fill="#bae6fd" fontSize="12" textAnchor="middle">夏供冷 / 冬供热 (无冷却塔)</text>
 
-        {/* 夏季工况: 供水管实线, 回水管虚线 */}
         {isCooling ? (
           <g>
-            {/* 夏季冷水供水管 (Solid, 直达末端下部右侧 x=840, y=250) */}
             <path d="M 360 160 L 840 160 L 840 250" fill="none" stroke="#38bdf8" strokeWidth="4" markerEnd="url(#arrowBlue2)" />
             <text x="600" y="152" fill="#38bdf8" fontSize="12" fontWeight="bold">7℃ 夏季冷冻水供水 (Solid)</text>
 
-            {/* 夏季冷水水泵直接绘制在供水管线 x=520, y=160 上 */}
             <g onClick={() => setSelectedNode('chwPump')} className="cursor-pointer">
               <circle cx="520" cy="160" r="22" fill="#1e293b" stroke="#38bdf8" strokeWidth="3" />
               <text x="520" y="164" fill="#38bdf8" fontSize="10" fontWeight="bold" textAnchor="middle">夏季冷水泵</text>
             </g>
 
-            {/* 夏季冷水回水管 (Dashed 8 4, 从末端下部左侧 x=780, y=250 出发 -> 90° 转角) */}
             <path d="M 780 250 L 780 290 L 270 290 L 270 260" fill="none" stroke="#0284c7" strokeWidth="3" strokeDasharray="8 4" markerEnd="url(#arrowBlue2)" />
             <text x="600" y="282" fill="#bae6fd" fontSize="12" fontWeight="bold">12℃ 夏季冷水回水 (Dashed 90°转角)</text>
           </g>
         ) : (
           <g>
-            {/* 冬季热水供水管 (Solid, 直达末端下部右侧 x=840, y=250) */}
             <path d="M 360 210 L 840 210 L 840 250" fill="none" stroke="#f43f5e" strokeWidth="4" markerEnd="url(#arrowRose2)" />
             <text x="600" y="202" fill="#f43f5e" fontSize="12" fontWeight="bold">45℃ 冬季热水供水 (Solid)</text>
 
-            {/* 冬季热水水泵直接绘制在供水管线 x=520, y=210 上 */}
             <g onClick={() => setSelectedNode('hwPump')} className="cursor-pointer">
               <circle cx="520" cy="210" r="22" fill="#1e293b" stroke="#f43f5e" strokeWidth="3" />
               <text x="520" y="214" fill="#f43f5e" fontSize="10" fontWeight="bold" textAnchor="middle">冬季热水泵</text>
             </g>
 
-            {/* 冬季热水回水管 (Dashed 8 4, 从末端下部左侧 x=780, y=250 出发 -> 90° 转角) */}
             <path d="M 780 250 L 780 320 L 270 320 L 270 260" fill="none" stroke="#e11d48" strokeWidth="3" strokeDasharray="8 4" markerEnd="url(#arrowRose2)" />
             <text x="600" y="312" fill="#fca5a5" fontSize="12" fontWeight="bold">40℃ 冬季热水回水 (Dashed 90°转角)</text>
           </g>
         )}
 
-        {/* 末端 FCU */}
         <g onClick={() => setSelectedNode('terminal')} className="cursor-pointer">
           <rect x="740" y="130" width="150" height="120" rx="14" fill="#334155" stroke="#94a3b8" strokeWidth="3" />
           <text x="815" y="175" fill="#ffffff" fontSize="14" fontWeight="bold" textAnchor="middle">末端风机盘管 (FCU)</text>
@@ -337,26 +371,6 @@ function renderSystemSVG(
           <circle cx="840" cy="250" r="4" fill="#ef4444" />
           <circle cx="780" cy="250" r="4" fill="#60a5fa" />
         </g>
-      </svg>
-    );
-  }
-
-  // 3. VRF 系统
-  if (systemType === 'vrf') {
-    return (
-      <svg viewBox="0 0 960 360" className="w-full h-auto">
-        <rect x="180" y="110" width="180" height="130" rx="16" fill="#7c3aed" stroke="#a78bfa" strokeWidth="3" />
-        <text x="270" y="160" fill="#ffffff" fontSize="15" fontWeight="bold" textAnchor="middle">VRF 多联机室外机</text>
-        <text x="270" y="185" fill="#ddd6fe" fontSize="12" textAnchor="middle">变频制冷剂 (DX系统, 无水泵)</text>
-
-        <path d="M 360 140 L 540 140 L 540 80 L 740 80" fill="none" stroke="#c084fc" strokeWidth="3" />
-        <path d="M 360 190 L 540 190 L 540 240 L 740 240" fill="none" stroke="#c084fc" strokeWidth="3" strokeDasharray="6 4" />
-
-        <rect x="740" y="50" width="150" height="70" rx="10" fill="#334155" stroke="#a78bfa" strokeWidth="2" />
-        <text x="815" y="90" fill="#ffffff" fontSize="12" fontWeight="bold" textAnchor="middle">VRF 室内机 A (客房/办公室)</text>
-
-        <rect x="740" y="210" width="150" height="70" rx="10" fill="#334155" stroke="#a78bfa" strokeWidth="2" />
-        <text x="815" y="250" fill="#ffffff" fontSize="12" fontWeight="bold" textAnchor="middle">VRF 室内机 B (公共区域)</text>
       </svg>
     );
   }

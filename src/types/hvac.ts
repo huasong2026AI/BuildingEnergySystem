@@ -22,7 +22,8 @@ export type SystemType =
   | 'vrf'                 // 3. 多联机系统 (VRF/VRV)
   | 'district_energy'    // 4. 区域能源站系统
   | 'split_ac'           // 5. 分体空调系统
-  | 'ground_heat_pump';  // 6. 地源热泵系统
+  | 'ground_heat_pump'   // 6. 地源热泵系统
+  | 'hybrid';            // 7. 复合空调系统 (由上述2种或以上系统组合)
 
 export interface SystemTypeMeta {
   id: SystemType;
@@ -33,6 +34,14 @@ export interface SystemTypeMeta {
   hasChilledWaterPump: boolean;
   hasHotWaterPump: boolean;
   hasCoolingWaterPump: boolean;
+}
+
+// 复合系统的子系统分配配置
+export interface HybridSubSystemConfig {
+  systemType: SystemType;
+  ratioPercent: number; // 承担负荷比例 % (例如 40%)
+  allocatedCoolingkW?: number; // 分配的具体冷量 kW
+  allocatedHeatingkW?: number; // 分配的具体热量 kW
 }
 
 // 共享集中冷热源机房配置
@@ -53,6 +62,9 @@ export interface BuildingSubItem {
   operatingHours: number; // h/year
   systemType: SystemType;
   
+  // 复合空调系统子系统配置（仅在 systemType === 'hybrid' 时生效）
+  hybridSubSystems?: HybridSubSystemConfig[];
+
   // 共享冷热源关联
   useSharedPlant?: boolean;
   sharedPlantId?: string;
@@ -184,7 +196,7 @@ export interface EquipmentDiscrepancy {
   unit: string;
   diffPercent: number;
   isWarning: boolean;
-  warningLevel: 'oversized' | 'undersized' | 'normal';
+  warningLevel: 'oversized' | 'undersized' | 'optimal';
   extraPowerkW: number;
   extraAnnualCost: number;
   message: string;
@@ -220,4 +232,47 @@ export interface ProjectEnergySummary {
   
   monthlyData: MonthlyEnergyRecord[];
   discrepancies: EquipmentDiscrepancy[];
+}
+
+// ----------------------------------------------------
+// 既有建筑系统明细设备数据类型（改造模块专属）
+// ----------------------------------------------------
+export interface ExistingChillerDetail {
+  id: string;
+  modelName: string;
+  capacitykW: number;
+  powerkW: number;
+  cop: number;
+  count: number;
+}
+
+export interface ExistingBoilerDetail {
+  id: string;
+  modelName: string;
+  capacitykW: number;
+  powerkW: number;
+  gasFlowm3h: number;
+  efficiencyPercent: number;
+  count: number;
+}
+
+export interface ExistingPumpDetail {
+  id: string;
+  modelName: string;
+  type: 'chw' | 'cw' | 'hw';
+  flowm3h: number;
+  headm: number;
+  powerkW: number;
+  efficiencyPercent: number;
+  count: number;
+}
+
+export interface ExistingAchpDetail {
+  id: string;
+  modelName: string;
+  coolingkW: number;
+  heatingkW: number;
+  powerkW: number;
+  cop: number;
+  count: number;
 }

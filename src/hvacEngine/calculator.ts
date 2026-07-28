@@ -2,7 +2,7 @@ import type { BuildingSubItem, EquipmentCalcResult, EquipmentDiscrepancy, Monthl
 import { ENERGY_FACTORS, SYSTEM_TYPES_META } from './constants';
 
 /**
- * 计算单个建筑子项（考虑共用集中冷热源负荷合并）的标准 HVAC 设备配置容量与参数
+ * 计算单个建筑子项（考虑共用集中冷热源负荷合并及复合系统分拆）的标准 HVAC 设备配置容量与参数
  */
 export function calculateEquipmentForSubItem(
   item: BuildingSubItem,
@@ -17,7 +17,6 @@ export function calculateEquipmentForSubItem(
     const sharedGroup = allSubItems.filter(s => s.useSharedPlant && s.systemType === item.systemType);
     if (sharedGroup.length > 0) {
       effectiveArea = sharedGroup.reduce((sum, s) => sum + s.area, 0);
-      // 计算加权平均冷热负荷指标
       const totalCoolkW = sharedGroup.reduce((sum, s) => sum + (s.area * s.coolingIndex) / 1000, 0);
       const totalHeatkW = sharedGroup.reduce((sum, s) => sum + (s.area * s.heatingIndex) / 1000, 0);
       effectiveCoolingIndex = (totalCoolkW * 1000) / effectiveArea;
@@ -25,24 +24,26 @@ export function calculateEquipmentForSubItem(
     }
   }
 
-  // 水温工况与温差
+  // 水温工况与温差 (风冷热泵缺省值：冷水 7/12°C, 热水 45/40°C；锅炉热水 60/50°C)
+  const isAchp = item.systemType === 'air_heat_pump';
+
   const chwSupply = item.chwSupplyTemp ?? 7;
   const chwReturn = item.chwReturnTemp ?? 12;
   const deltaTchw = Math.max(1, chwReturn - chwSupply);
 
-  const hwSupply = item.hwSupplyTemp ?? 60;
-  const hwReturn = item.hwReturnTemp ?? 50;
-  const deltaThw = Math.max(1, hwSupply - hwReturn);
+  const hwSupply = item.hwSupplyTemp ?? (isAchp ? 45 : 60);
+  const hwReturn = item.hwReturnTemp ?? (isAchp ? 40 : 50);
+  const deltaThw = Math.max(1, Math.abs(hwSupply - hwReturn));
 
   const cwSupply = item.cwSupplyTemp ?? 32;
   const cwReturn = item.cwReturnTemp ?? 37;
   const deltaTcw = Math.max(1, cwReturn - cwSupply);
   
-  // 1. 冷负荷与热负荷 (kW)
+  // 1. 冷负荷与热负荷 (kW)，同时使用系数 K_sim = 1.0
   const coolingLoadkW = (effectiveArea * effectiveCoolingIndex) / 1000;
   const heatingLoadkW = (effectiveArea * effectiveHeatingIndex) / 1000;
 
-  const simFactor = 0.88;
+  const simFactor = 1.0;
 
   let chillerCapacitykW = 0;
   let chillerPowerkW = 0;
@@ -95,113 +96,182 @@ export function calculateEquipmentForSubItem(
   let splitTotalCapacitykW = 0;
   let splitPowerkW = 0;
 
-  switch (item.systemType) {
-    case 'chiller_boiler': {
-      chillerCapacitykW = coolingLoadkW * simFactor;
-      chillerCount = chillerCapacitykW > 600 ? 2 : 1;
-      chillerPowerkW = chillerCapacitykW / chillerCOP;
+  if (item.systemType === 'hybrid') {
+    const subSystems = item.hybridSubSystems && item.hybridSubSystems.length > 0 
+      ? item.hybridSubSystems 
+      : [
+          { systemType: 'chiller_boiler' as const, ratioPercent: 60 },
+          { systemType: 'vrf' as const, ratioPercent: 40 }
+        ];
 
-      boilerCapacitykW = heatingLoadkW * 1.1;
-      boilerCount = boilerCapacitykW > 500 ? 2 : 1;
-      boilerGasFlow = (boilerCapacitykW / (9.967 * boilerEfficiency)); 
+    subSystems.forEach(sub => {
+      const subRatio = (sub.ratioPercent || 50) / 100;
+      const subCoolLoad = coolingLoadkW * subRatio * simFactor;
+      const subHeatLoad = heatingLoadkW * subRatio * simFactor;
 
-      chwPumpFlow = (chillerCapacitykW * 3.6) / (4.186 * deltaTchw);
-      chwPumpHead = 28;
-      chwPumpPowerkW = (chwPumpFlow * chwPumpHead) / 247.7;
-      chwPumpCount = chillerCount + 1;
+      if (sub.systemType === 'chiller_boiler') {
+        chillerCapacitykW += subCoolLoad;
+        chillerCount += subCoolLoad > 600 ? 2 : 1;
+        chillerPowerkW += subCoolLoad / chillerCOP;
 
-      const qCond = chillerCapacitykW * (1 + 1 / chillerCOP);
-      cwPumpFlow = (qCond * 3.6) / (4.186 * deltaTcw);
-      cwPumpHead = 24;
-      cwPumpPowerkW = (cwPumpFlow * cwPumpHead) / 247.7;
-      cwPumpCount = chillerCount + 1;
+        boilerCapacitykW += subHeatLoad * 1.1;
+        boilerCount += (subHeatLoad * 1.1) > 500 ? 2 : 1;
+        boilerGasFlow += ((subHeatLoad * 1.1) / (9.967 * boilerEfficiency));
 
-      coolingTowerFlow = cwPumpFlow * 1.15;
-      coolingTowerFanPowerkW = coolingTowerFlow * 0.18;
-      coolingTowerCount = chillerCount;
+        const subChwFlow = (subCoolLoad * 3.6) / (4.186 * deltaTchw);
+        chwPumpFlow += subChwFlow;
+        chwPumpHead = 28;
+        chwPumpPowerkW += (subChwFlow * 28) / 247.7;
+        chwPumpCount += 2;
 
-      hwPumpFlow = (boilerCapacitykW * 3.6) / (4.186 * deltaThw);
-      hwPumpHead = 22;
-      hwPumpPowerkW = (hwPumpFlow * hwPumpHead) / 247.7;
-      hwPumpCount = boilerCount + 1;
-      break;
-    }
+        const qCond = subCoolLoad * (1 + 1 / chillerCOP);
+        const subCwFlow = (qCond * 3.6) / (4.186 * deltaTcw);
+        cwPumpFlow += subCwFlow;
+        cwPumpHead = 24;
+        cwPumpPowerkW += (subCwFlow * 24) / 247.7;
+        cwPumpCount += 2;
 
-    case 'air_heat_pump': {
-      // 风冷热泵：以总负荷选型主机与水泵
-      achpCoolingkW = coolingLoadkW * simFactor;
-      achpHeatingkW = heatingLoadkW * simFactor;
-      achpCount = Math.ceil(achpCoolingkW / 250);
-      const copCool = 3.2;
-      achpPowerkW = achpCoolingkW / copCool;
+        coolingTowerFlow += subCwFlow * 1.15;
+        coolingTowerFanPowerkW += subCwFlow * 1.15 * 0.18;
+        coolingTowerCount += 1;
 
-      // 夏季冷水水泵
-      chwPumpFlow = (achpCoolingkW * 3.6) / (4.186 * deltaTchw);
-      chwPumpHead = 25;
-      chwPumpPowerkW = (chwPumpFlow * chwPumpHead) / 247.7;
-      chwPumpCount = achpCount > 2 ? 3 : 2;
-      achpSummerPumpPowerkW = chwPumpPowerkW;
+        const subHwFlow = (subHeatLoad * 1.1 * 3.6) / (4.186 * deltaThw);
+        hwPumpFlow += subHwFlow;
+        hwPumpHead = 22;
+        hwPumpPowerkW += (subHwFlow * 22) / 247.7;
+        hwPumpCount += 2;
+      } else if (sub.systemType === 'vrf') {
+        vrfCoolingkW += subCoolLoad;
+        const vrfEER = 3.85;
+        vrfPowerkW += subCoolLoad / vrfEER;
+        vrfCount += Math.ceil(subCoolLoad / 60);
+      } else if (sub.systemType === 'air_heat_pump') {
+        achpCoolingkW += subCoolLoad;
+        achpHeatingkW += subHeatLoad;
+        achpCount += Math.ceil(subCoolLoad / 250);
+        achpPowerkW += subCoolLoad / 3.2;
 
-      // 冬季热水水泵
-      hwPumpFlow = (achpHeatingkW * 3.6) / (4.186 * 5);
-      hwPumpHead = 22;
-      hwPumpPowerkW = (hwPumpFlow * hwPumpHead) / 247.7;
-      hwPumpCount = achpCount > 2 ? 3 : 2;
-      achpWinterPumpPowerkW = hwPumpPowerkW;
-      break;
-    }
+        const subChwFlow = (subCoolLoad * 3.6) / (4.186 * deltaTchw);
+        chwPumpFlow += subChwFlow;
+        chwPumpPowerkW += (subChwFlow * 25) / 247.7;
+        achpSummerPumpPowerkW += (subChwFlow * 25) / 247.7;
 
-    case 'vrf': {
-      vrfCoolingkW = coolingLoadkW * simFactor;
-      const vrfEER = 3.85;
-      vrfPowerkW = vrfCoolingkW / vrfEER;
-      vrfCount = Math.ceil(vrfCoolingkW / 60);
-      break;
-    }
+        const subHwFlow = (subHeatLoad * 3.6) / (4.186 * deltaThw);
+        hwPumpFlow += subHwFlow;
+        hwPumpPowerkW += (subHwFlow * 22) / 247.7;
+        achpWinterPumpPowerkW += (subHwFlow * 22) / 247.7;
+      }
+    });
 
-    case 'district_energy': {
-      districtHexCapacitykW = coolingLoadkW;
-      chwPumpFlow = (coolingLoadkW * 3.6) / (4.186 * deltaTchw);
-      chwPumpHead = 26;
-      chwPumpPowerkW = (chwPumpFlow * chwPumpHead) / 247.7;
-      chwPumpCount = 3;
+  } else {
 
-      hwPumpFlow = (heatingLoadkW * 3.6) / (4.186 * deltaThw);
-      hwPumpHead = 22;
-      hwPumpPowerkW = (hwPumpFlow * hwPumpHead) / 247.7;
-      hwPumpCount = 3;
+    switch (item.systemType) {
+      case 'chiller_boiler': {
+        chillerCapacitykW = coolingLoadkW * simFactor;
+        chillerCount = chillerCapacitykW > 600 ? 2 : 1;
+        chillerPowerkW = chillerCapacitykW / chillerCOP;
 
-      districtPumpPowerkW = chwPumpPowerkW;
-      break;
-    }
+        boilerCapacitykW = heatingLoadkW * 1.1;
+        boilerCount = boilerCapacitykW > 500 ? 2 : 1;
+        boilerGasFlow = (boilerCapacitykW / (9.967 * boilerEfficiency)); 
 
-    case 'split_ac': {
-      splitTotalCapacitykW = coolingLoadkW;
-      const splitAPF = 4.2;
-      splitPowerkW = splitTotalCapacitykW / splitAPF;
-      break;
-    }
+        chwPumpFlow = (chillerCapacitykW * 3.6) / (4.186 * deltaTchw);
+        chwPumpHead = 28;
+        chwPumpPowerkW = (chwPumpFlow * chwPumpHead) / 247.7;
+        chwPumpCount = chillerCount + 1;
 
-    case 'ground_heat_pump': {
-      gshpCoolingkW = coolingLoadkW * simFactor;
-      const gshpCOP = 5.6;
-      const gshpElectrickW = gshpCoolingkW / gshpCOP;
-      gshpCount = Math.ceil(gshpCoolingkW / 400);
+        const qCond = chillerCapacitykW * (1 + 1 / chillerCOP);
+        cwPumpFlow = (qCond * 3.6) / (4.186 * deltaTcw);
+        cwPumpHead = 24;
+        cwPumpPowerkW = (cwPumpFlow * cwPumpHead) / 247.7;
+        cwPumpCount = chillerCount + 1;
 
-      const groundHeatRejection = gshpCoolingkW * (1 + 1 / gshpCOP);
-      const groundFlow = (groundHeatRejection * 3.6) / (4.186 * 4.5);
-      gshpGroundPumpPowerkW = (groundFlow * 32) / 247.7;
+        coolingTowerFlow = cwPumpFlow * 1.15;
+        coolingTowerFanPowerkW = coolingTowerFlow * 0.18;
+        coolingTowerCount = chillerCount;
 
-      const loadFlow = (gshpCoolingkW * 3.6) / (4.186 * deltaTchw);
-      gshpLoadPumpPowerkW = (loadFlow * 26) / 247.7;
+        hwPumpFlow = (boilerCapacitykW * 3.6) / (4.186 * deltaThw);
+        hwPumpHead = 22;
+        hwPumpPowerkW = (hwPumpFlow * hwPumpHead) / 247.7;
+        hwPumpCount = boilerCount + 1;
+        break;
+      }
 
-      chwPumpFlow = loadFlow;
-      chwPumpPowerkW = gshpLoadPumpPowerkW;
-      chwPumpHead = 26;
+      case 'air_heat_pump': {
+        achpCoolingkW = coolingLoadkW * simFactor;
+        achpHeatingkW = heatingLoadkW * simFactor;
+        achpCount = Math.ceil(achpCoolingkW / 250);
+        const copCool = 3.2;
+        achpPowerkW = achpCoolingkW / copCool;
 
-      chillerCapacitykW = gshpCoolingkW;
-      chillerPowerkW = gshpElectrickW;
-      break;
+        // 夏季冷水水泵流量 (使用用户填写的冷水供回水温差 deltaTchw，缺省 7/12°C)
+        chwPumpFlow = (achpCoolingkW * 3.6) / (4.186 * deltaTchw);
+        chwPumpHead = 25;
+        chwPumpPowerkW = (chwPumpFlow * chwPumpHead) / 247.7;
+        chwPumpCount = achpCount > 2 ? 3 : 2;
+        achpSummerPumpPowerkW = chwPumpPowerkW;
+
+        // 冬季热水水泵流量 (使用用户填写的热水供回水温差 deltaThw，缺省 45/40°C)
+        hwPumpFlow = (achpHeatingkW * 3.6) / (4.186 * deltaThw);
+        hwPumpHead = 22;
+        hwPumpPowerkW = (hwPumpFlow * hwPumpHead) / 247.7;
+        hwPumpCount = achpCount > 2 ? 3 : 2;
+        achpWinterPumpPowerkW = hwPumpPowerkW;
+        break;
+      }
+
+      case 'vrf': {
+        vrfCoolingkW = coolingLoadkW * simFactor;
+        const vrfEER = 3.85;
+        vrfPowerkW = vrfCoolingkW / vrfEER;
+        vrfCount = Math.ceil(vrfCoolingkW / 60);
+        break;
+      }
+
+      case 'district_energy': {
+        districtHexCapacitykW = coolingLoadkW;
+        chwPumpFlow = (coolingLoadkW * 3.6) / (4.186 * deltaTchw);
+        chwPumpHead = 26;
+        chwPumpPowerkW = (chwPumpFlow * chwPumpHead) / 247.7;
+        chwPumpCount = 3;
+
+        hwPumpFlow = (heatingLoadkW * 3.6) / (4.186 * deltaThw);
+        hwPumpHead = 22;
+        hwPumpPowerkW = (hwPumpFlow * hwPumpHead) / 247.7;
+        hwPumpCount = 3;
+
+        districtPumpPowerkW = chwPumpPowerkW;
+        break;
+      }
+
+      case 'split_ac': {
+        splitTotalCapacitykW = coolingLoadkW;
+        const splitAPF = 4.2;
+        splitPowerkW = splitTotalCapacitykW / splitAPF;
+        break;
+      }
+
+      case 'ground_heat_pump': {
+        gshpCoolingkW = coolingLoadkW * simFactor;
+        const gshpCOP = 5.6;
+        const gshpElectrickW = gshpCoolingkW / gshpCOP;
+        gshpCount = Math.ceil(gshpCoolingkW / 400);
+
+        const groundHeatRejection = gshpCoolingkW * (1 + 1 / gshpCOP);
+        const groundFlow = (groundHeatRejection * 3.6) / (4.186 * 4.5);
+        gshpGroundPumpPowerkW = (groundFlow * 32) / 247.7;
+
+        const loadFlow = (gshpCoolingkW * 3.6) / (4.186 * deltaTchw);
+        gshpLoadPumpPowerkW = (loadFlow * 26) / 247.7;
+
+        chwPumpFlow = loadFlow;
+        chwPumpPowerkW = gshpLoadPumpPowerkW;
+        chwPumpHead = 26;
+
+        chillerCapacitykW = gshpCoolingkW;
+        chillerPowerkW = gshpElectrickW;
+        break;
+      }
     }
   }
 
@@ -271,7 +341,7 @@ export function calculateEquipmentForSubItem(
 }
 
 /**
- * 校验用户手动配置 vs 程序推荐计算配置，生成红字提醒与能耗费用偏差
+ * 校验用户手动配置 vs 程序推荐计算配置
  */
 export function checkDiscrepancies(
   item: BuildingSubItem, 
@@ -294,15 +364,17 @@ export function checkDiscrepancies(
   ) => {
     if (userVal === undefined || userVal === 0 || calcVal === 0) return;
 
+    const ratio = userVal / calcVal;
     const diffPercent = ((userVal - calcVal) / calcVal) * 100;
-    if (Math.abs(diffPercent) >= 8) {
-      const isOversized = diffPercent > 0;
+
+    if (ratio < 0.95 || ratio > 1.10) {
+      const isOversized = ratio > 1.10;
       const warningLevel = isOversized ? 'oversized' : 'undersized';
 
       let extraPower = 0;
       if (powerMultiplier > 0) {
         extraPower = (userVal - calcVal) * powerMultiplier;
-      } else if (paramName.includes('功率') || paramName.includes('容量')) {
+      } else if (paramName.includes('功率') || paramName.includes('容量') || paramName.includes('制冷量')) {
         extraPower = (userVal - calcVal) * 0.2;
       }
 
@@ -310,14 +382,14 @@ export function checkDiscrepancies(
 
       let message = '';
       if (isOversized) {
-        message = `⚠️ 【红字预警】用户配置的${equipmentName}${paramName} (${userVal.toFixed(1)}${unit}) 相比标准推荐计算值 (${calcVal.toFixed(1)}${unit}) 偏大 +${diffPercent.toFixed(1)}%！`;
+        message = `⚠️ 【红字预警】用户配置的${equipmentName}${paramName} (${userVal.toFixed(1)}${unit}) 超出标准推荐计算值 (${calcVal.toFixed(1)}${unit}) 的 110% 范围 (超出 +${diffPercent.toFixed(1)}%)！`;
         if (extraPower > 0) {
           message += ` 会导致设备在低负荷低效率区运行，功率增加约 ${extraPower.toFixed(1)} kW，预计每年多消耗电费约 ¥${(extraAnnualCost / 10000).toFixed(2)} 万元！`;
         } else {
           message += ` 将导致初投资偏高且大马拉小车。`;
         }
       } else {
-        message = `⚠️ 【红字预警】用户配置的${equipmentName}${paramName} (${userVal.toFixed(1)}${unit}) 相比标准推荐计算值 (${calcVal.toFixed(1)}${unit}) 偏小 ${diffPercent.toFixed(1)}%！极端天气可能无法满足室内冷/热负荷要求！`;
+        message = `⚠️ 【红字预警】用户配置的${equipmentName}${paramName} (${userVal.toFixed(1)}${unit}) 低于标准推荐计算值 (${calcVal.toFixed(1)}${unit}) 的 95% 下限 (偏小 ${diffPercent.toFixed(1)}%)！极端天气可能无法满足室内高峰冷/热负荷要求！`;
       }
 
       list.push({
@@ -336,7 +408,7 @@ export function checkDiscrepancies(
     }
   };
 
-  if (item.systemType === 'chiller_boiler') {
+  if (item.systemType === 'chiller_boiler' || item.systemType === 'hybrid') {
     evaluateField('冷水机组', '容量', calc.chillerCapacitykW, custom.chillerCapacitykW, 'kW');
     evaluateField('燃气锅炉', '容量', calc.boilerCapacitykW, custom.boilerCapacitykW, 'kW');
   }
@@ -353,7 +425,7 @@ export function checkDiscrepancies(
     evaluateField('冷却水水泵', '流量', calc.cwPumpFlow, custom.cwPumpFlow, 'm³/h', powerPerFlow);
   }
 
-  if (sysMeta.hasCoolingTower) {
+  if (sysMeta.hasCoolingTower && custom.coolingTowerFlow && calc.coolingTowerFlow > 0) {
     evaluateField('冷却塔', '处理流量', calc.coolingTowerFlow, custom.coolingTowerFlow, 'm³/h', 0.18);
   }
 
@@ -453,7 +525,7 @@ export function calculateProjectSummary(items: BuildingSubItem[]): ProjectEnergy
   });
 
   const coolingMonthCoeffs = [0, 0, 0.1, 0.35, 0.65, 0.90, 1.00, 0.95, 0.70, 0.30, 0.05, 0];
-  const heatingMonthCoeffs = [1.00, 0.85, 0.40, 0.05, 0, 0, 0, 0, 0, 0.10, 0.50, 0.90];
+  const heatingMonthCoeffs = [1.00, 0.85, 0.40, 0.05, 0, 0, 0, 0, 0.10, 0.50, 0.90];
 
   const monthNames = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
   const monthlyData: MonthlyEnergyRecord[] = [];

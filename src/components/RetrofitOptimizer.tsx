@@ -1,223 +1,209 @@
 import React, { useState, useMemo } from 'react';
 import ReactECharts from 'echarts-for-react';
 import { 
-  Sparkles, Wrench, ArrowRight, CheckCircle2, TrendingDown, DollarSign, 
-  Zap, Flame, Leaf, Building, Maximize2, ShieldAlert, RotateCcw 
+  Sparkles, Wrench, TrendingDown, Building, ShieldAlert, Cpu, Plus, Trash2 
 } from 'lucide-react';
 import { SYSTEM_TYPES_META } from '../hvacEngine/constants';
-import type { SystemType } from '../types/hvac';
-
-interface ExistingBuildingInputs {
-  name: string;
-  area: number; // m²
-  systemType: SystemType;
-  existingChillerCOP: number; // 老旧主机COP, e.g. 3.8
-  existingBoilerEfficiency: number; // 老旧锅炉效率 %, e.g. 82%
-  existingPumpHead: number; // 老旧水泵扬程 m, e.g. 35m
-  existingPumpEfficiency: number; // 老旧水泵效率 %, e.g. 58%
-  existingRoomSpace: number; // 既有机房面积 m²
-  operatingHours: number; // 年运行小时数 h
-  electricityRate: number; // 电价元/kWh
-  gasRate: number; // 气价元/m³
-}
-
-const DEFAULT_EXISTING: ExistingBuildingInputs = {
-  name: '某既有星级酒店与办公综合体',
-  area: 55000,
-  systemType: 'chiller_boiler',
-  existingChillerCOP: 3.9,
-  existingBoilerEfficiency: 82,
-  existingPumpHead: 36,
-  existingPumpEfficiency: 58,
-  existingRoomSpace: 320,
-  operatingHours: 3200,
-  electricityRate: 0.85,
-  gasRate: 3.5
-};
+import type { SystemType, ExistingChillerDetail, ExistingBoilerDetail, ExistingPumpDetail } from '../types/hvac';
 
 export const RetrofitOptimizer: React.FC = () => {
-  const [inputs, setInputs] = useState<ExistingBuildingInputs>(DEFAULT_EXISTING);
-  const [selectedSolutionId, setSelectedSolutionId] = useState<string>('maglev');
-  const [isAiSimulating, setIsAiSimulating] = useState<boolean>(false);
+  // 1. 既有系统基本信息
+  const [existingSystemType, setExistingSystemType] = useState<SystemType>('chiller_boiler');
+  const [buildingName, setBuildingName] = useState<string>('某既有商业综合体及酒店');
+  const [buildingArea, setBuildingArea] = useState<number>(55000);
+  const [operatingHours, setOperatingHours] = useState<number>(3200);
+  const [electricityRate, setElectricityRate] = useState<number>(0.85);
+  const [gasRate] = useState<number>(3.5);
 
-  // 1. 既有系统能耗与费用基准计算
+  // 2. 详细既有设备列表录入（根据系统类型可自定义添加多台/多组型号）
+  const [chillers, setChillers] = useState<ExistingChillerDetail[]>([
+    { id: 'c1', modelName: '老旧螺杆式冷水机组 A组', capacitykW: 3000, powerkW: 769, cop: 3.9, count: 2 }
+  ]);
+
+  const [boilers, setBoilers] = useState<ExistingBoilerDetail[]>([
+    { id: 'b1', modelName: '老旧大气式燃气锅炉', capacitykW: 2400, powerkW: 18, gasFlowm3h: 293, efficiencyPercent: 82, count: 2 }
+  ]);
+
+  const [pumps, setPumps] = useState<ExistingPumpDetail[]>([
+    { id: 'p1', modelName: '工频冷水水泵', type: 'chw', flowm3h: 516, headm: 35, powerkW: 73, efficiencyPercent: 58, count: 3 },
+    { id: 'p2', modelName: '工频冷却水水泵', type: 'cw', flowm3h: 620, headm: 28, powerkW: 74, efficiencyPercent: 58, count: 3 },
+    { id: 'p3', modelName: '工频热水水泵', type: 'hw', flowm3h: 206, headm: 25, powerkW: 24, efficiencyPercent: 58, count: 2 }
+  ]);
+
+  // 3. 当前选中的改造步骤模式 (Step 1: 维持原系统更换老设备; Step 2: 更换系统形式; Step 3: AI智能群控)
+  const [activeStep, setActiveStep] = useState<1 | 2 | 3>(1);
+
+  // 步骤2: 更换系统形式 - 目标新系统与设备参数（允许用户全手动修改）
+  const [targetSystemType, setTargetSystemType] = useState<SystemType>('vrf');
+  const [targetCapEx, setTargetCapEx] = useState<number>(320); // 初投资万元
+  const [targetChillerCOP, setTargetChillerCOP] = useState<number>(6.8); // 新主机COP
+  const [targetVRFEER, setTargetVRFEER] = useState<number>(4.2); // VRF EER
+
+  // 计算既有系统总装机功率与年能耗基准
   const baseline = useMemo(() => {
-    const coolIndex = 110; // W/m²
-    const heatIndex = 70;  // W/m²
+    // 既有冷水机组电功率与容量
+    const totalChillerCapkW = chillers.reduce((a, b) => a + b.capacitykW * b.count, 0);
+    const totalChillerPowerkW = chillers.reduce((a, b) => a + b.powerkW * b.count, 0);
 
-    const coolingLoadkW = (inputs.area * coolIndex) / 1000;
-    const heatingLoadkW = (inputs.area * heatIndex) / 1000;
+    // 既有锅炉热容量与耗气量
+    const totalBoilerCapkW = boilers.reduce((a, b) => a + b.capacitykW * b.count, 0);
+    const totalBoilerGasFlow = boilers.reduce((a, b) => a + b.gasFlowm3h * b.count, 0);
 
-    // 既有主机电功率
-    const chillerPowerkW = coolingLoadkW / inputs.existingChillerCOP;
-    // 既有锅炉耗气量 (m³/h)
-    const boilerGasm3h = heatingLoadkW / (9.967 * (inputs.existingBoilerEfficiency / 100));
+    // 既有水泵总功率
+    const totalPumpPowerkW = pumps.reduce((a, b) => a + b.powerkW * b.count, 0);
 
-    // 既有冷水泵 + 冷却泵 + 热水泵流量与电功率
-    const chwFlow = (coolingLoadkW * 3.6) / (4.186 * 5);
-    const cwFlow = chwFlow * 1.2;
-    const hwFlow = (heatingLoadkW * 3.6) / (4.186 * 10);
-
-    const pumpEff = inputs.existingPumpEfficiency / 100;
-    const chwPowerkW = (chwFlow * inputs.existingPumpHead * 9.81 * 1000) / (3600 * 1000 * pumpEff);
-    const cwPowerkW = (cwFlow * 28 * 9.81 * 1000) / (3600 * 1000 * pumpEff);
-    const hwPowerkW = (hwFlow * 25 * 9.81 * 1000) / (3600 * 1000 * pumpEff);
-
-    const totalPumpPowerkW = chwPowerkW + cwPowerkW + hwPowerkW;
-    const towerPowerkW = cwFlow * 0.22;
-
-    // 全年耗电量 (kWh) & 耗气量 (m³)
-    const annualCoolingkWh = chillerPowerkW * inputs.operatingHours * 0.65;
-    const annualPumpskWh = totalPumpPowerkW * inputs.operatingHours * 0.7;
-    const annualTowerskWh = towerPowerkW * inputs.operatingHours * 0.65;
+    // 年运行能耗计算
+    const annualCoolingkWh = totalChillerPowerkW * operatingHours * 0.65;
+    const annualPumpskWh = totalPumpPowerkW * operatingHours * 0.7;
+    const annualTowerskWh = (totalChillerCapkW > 0 ? totalChillerCapkW * 0.05 : 0) * operatingHours * 0.65;
+    
     const totalElectricitykWh = annualCoolingkWh + annualPumpskWh + annualTowerskWh;
+    const totalGasm3 = totalBoilerGasFlow * operatingHours * 0.55;
 
-    const totalGasm3 = boilerGasm3h * inputs.operatingHours * 0.55;
-
-    // 年费用 (RMB)
-    const electricityCost = totalElectricitykWh * inputs.electricityRate;
-    const gasCost = totalGasm3 * inputs.gasRate;
+    const electricityCost = totalElectricitykWh * electricityRate;
+    const gasCost = totalGasm3 * gasRate;
     const totalCost = electricityCost + gasCost;
-
-    // 碳排放 (tCO₂)
     const carbonTons = (totalElectricitykWh * 0.581 + totalGasm3 * 2.162) / 1000;
 
     return {
-      coolingLoadkW,
-      heatingLoadkW,
-      chillerPowerkW,
+      totalChillerCapkW,
+      totalChillerPowerkW,
+      totalBoilerCapkW,
+      totalBoilerGasFlow,
       totalPumpPowerkW,
       totalElectricitykWh,
       totalGasm3,
       electricityCost,
       gasCost,
       totalCost,
-      carbonTons,
-      roomSpace: inputs.existingRoomSpace
+      carbonTons
     };
-  }, [inputs]);
+  }, [chillers, boilers, pumps, operatingHours, electricityRate, gasRate]);
 
-  // 2. 三大系统改造方案对比计算
-  const solutions = useMemo(() => {
-    // 方案 1: 磁悬浮变频冷水机组 + 极高效率水泵 (Maglev)
-    const sol1ElecKwh = baseline.totalElectricitykWh * 0.58; // 省电 42%
-    const sol1Gasm3 = baseline.totalGasm3 * 0.88; // 锅炉低氮改造省气 12%
-    const sol1ElecCost = sol1ElecKwh * inputs.electricityRate;
-    const sol1GasCost = sol1Gasm3 * inputs.gasRate;
-    const sol1TotalCost = sol1ElecCost + sol1GasCost;
-    const sol1Carbon = (sol1ElecKwh * 0.581 + sol1Gasm3 * 2.162) / 1000;
-    const sol1CapEx = 280; // 改造初投资 280 万元
-    const sol1SpaceSaved = 45; // 释放机房空间 45 m²
+  // ----------------------------------------------------
+  // 步骤 1：维持原系统，仅更换老旧高效设备方案
+  // ----------------------------------------------------
+  const step1Result = useMemo(() => {
+    // 将老旧机组更换为超高效磁悬浮离心机组 (COP 6.8)，水泵更换为变频高效泵 (效率82%)，锅炉更换为冷凝低氮锅炉 (效率95%)
+    const newChillerPowerkW = baseline.totalChillerCapkW / 6.8;
+    const newPumpPowerkW = baseline.totalPumpPowerkW * (0.58 / 0.82) * 0.8; // 变频+高效泵省电约35%
+    const newBoilerGasFlow = baseline.totalBoilerGasFlow * (0.82 / 0.95); // 效率提升省气 13.7%
 
-    // 方案 2: 高效空气源/水地源热泵 + 拆除燃气锅炉 (Thermal Heat Pump - Zero Gas)
-    const sol2ElecKwh = baseline.totalElectricitykWh * 0.72; // 热泵供热增加部分用电，但整体COP高
-    const sol2ElecCost = sol2ElecKwh * inputs.electricityRate;
-    const sol2GasCost = 0;
-    const sol2TotalCost = sol2ElecCost + sol2GasCost;
-    const sol2Carbon = (sol2ElecKwh * 0.581) / 1000;
-    const sol2CapEx = 350; // 改造初投资 350 万元
-    const sol2SpaceSaved = 110; // 拆除锅炉房与气瓶间，释放 110 m² 商业/停车空间
+    const newEleckWh = (newChillerPowerkW * 0.65 + newPumpPowerkW * 0.7) * operatingHours;
+    const newGasm3 = newBoilerGasFlow * operatingHours * 0.55;
 
-    // 方案 3: AI 智能零碳机房寻优控制系统 (AI Smart Control Only)
-    const sol3ElecKwh = baseline.totalElectricitykWh * 0.81; // 仅依靠 AI 寻优控制节电 19%
-    const sol3Gasm3 = baseline.totalGasm3 * 0.92; // 节气 8%
-    const sol3ElecCost = sol3ElecKwh * inputs.electricityRate;
-    const sol3GasCost = sol3Gasm3 * inputs.gasRate;
-    const sol3TotalCost = sol3ElecCost + sol3GasCost;
-    const sol3Carbon = (sol3ElecKwh * 0.581 + sol3Gasm3 * 2.162) / 1000;
-    const sol3CapEx = 45; // 纯控制改造初投资仅 45 万元
-    const sol3SpaceSaved = 0; // 无空间释放
+    const newElecCost = newEleckWh * electricityRate;
+    const newGasCost = newGasm3 * gasRate;
+    const newTotalCost = newElecCost + newGasCost;
+    const costSaved = baseline.totalCost - newTotalCost;
+    const carbonTons = (newEleckWh * 0.581 + newGasm3 * 2.162) / 1000;
+    const capEx = 220; // 估算初投资 220 万元
 
-    return [
-      {
-        id: 'maglev',
-        title: '方案一：磁悬浮变频冷水机组 + 高效水泵全面重构',
-        tag: '高效能强力改造 (推荐)',
-        color: 'blue',
-        description: '替换老旧主机为无油磁悬浮变频离心机组 (COP 7.0+)，水泵全变频+高效水力平衡，燃气锅炉做低氮及余热回收改造。',
-        capExRmbTenThousand: sol1CapEx,
-        elecCost: sol1ElecCost,
-        gasCost: sol1GasCost,
-        totalCost: sol1TotalCost,
-        costSavedRmb: baseline.totalCost - sol1TotalCost,
-        elecSavedPercent: ((baseline.totalElectricitykWh - sol1ElecKwh) / baseline.totalElectricitykWh) * 100,
-        gasSavedPercent: ((baseline.totalGasm3 - sol1Gasm3) / baseline.totalGasm3) * 100,
-        carbonTons: sol1Carbon,
-        carbonSavedTons: baseline.carbonTons - sol1Carbon,
-        spaceSavedM2: sol1SpaceSaved,
-        paybackYears: sol1CapEx / ((baseline.totalCost - sol1TotalCost) / 10000)
-      },
-      {
-        id: 'heatpump',
-        title: '方案二：热泵替代锅炉 + 蓄能电气化改造 (零天然气)',
-        tag: '零碳电气化 / 释放巨大空间',
-        color: 'emerald',
-        description: '彻底拆除老旧燃气锅炉，替换为超低温风冷/水源热泵加水蓄冷蓄热系统，彻底消除天然气安全隐患并释放高价值机房空间。',
-        capExRmbTenThousand: sol2CapEx,
-        elecCost: sol2ElecCost,
-        gasCost: sol2GasCost,
-        totalCost: sol2TotalCost,
-        costSavedRmb: baseline.totalCost - sol2TotalCost,
-        elecSavedPercent: ((baseline.totalElectricitykWh - sol2ElecKwh) / baseline.totalElectricitykWh) * 100,
-        gasSavedPercent: 100, // 100% 消除燃气
-        carbonTons: sol2Carbon,
-        carbonSavedTons: baseline.carbonTons - sol2Carbon,
-        spaceSavedM2: sol2SpaceSaved,
-        paybackYears: sol2CapEx / ((baseline.totalCost - sol2TotalCost) / 10000)
-      },
-      {
-        id: 'ai_control',
-        title: '方案三：AI 边缘计算智能群控与零碳数字寻优',
-        tag: '极低初投资 / 极速回收',
-        color: 'purple',
-        description: '无需更换大型主机与管线，仅部署 AI 边缘计算网关、高精度传感器与全局能效算法，通过负荷预测与动态水温寻优实现即刻节电。',
-        capExRmbTenThousand: sol3CapEx,
-        elecCost: sol3ElecCost,
-        gasCost: sol3GasCost,
-        totalCost: sol3TotalCost,
-        costSavedRmb: baseline.totalCost - sol3TotalCost,
-        elecSavedPercent: ((baseline.totalElectricitykWh - sol3ElecKwh) / baseline.totalElectricitykWh) * 100,
-        gasSavedPercent: ((baseline.totalGasm3 - sol3Gasm3) / baseline.totalGasm3) * 100,
-        carbonTons: sol3Carbon,
-        carbonSavedTons: baseline.carbonTons - sol3Carbon,
-        spaceSavedM2: sol3SpaceSaved,
-        paybackYears: sol3CapEx / ((baseline.totalCost - sol3TotalCost) / 10000)
-      }
-    ];
-  }, [baseline, inputs]);
+    return {
+      title: '步骤一：维持原系统架构，仅更换老旧高效设备',
+      newChillerCOP: 6.8,
+      newPumpEff: 82,
+      newBoilerEff: 95,
+      elecCost: newElecCost,
+      gasCost: newGasCost,
+      totalCost: newTotalCost,
+      costSavedRmb: costSaved,
+      elecSavedPercent: ((baseline.totalElectricitykWh - newEleckWh) / baseline.totalElectricitykWh) * 100,
+      gasSavedPercent: ((baseline.totalGasm3 - newGasm3) / baseline.totalGasm3) * 100,
+      carbonTons,
+      carbonSavedTons: baseline.carbonTons - carbonTons,
+      capExRmbTenThousand: capEx,
+      paybackYears: capEx / (costSaved / 10000)
+    };
+  }, [baseline, operatingHours, electricityRate, gasRate]);
 
-  const activeSolution = solutions.find(s => s.id === selectedSolutionId) || solutions[0];
+  // ----------------------------------------------------
+  // 步骤 2：更换系统形式 (AI生成 + 全手动自建设备参数)
+  // ----------------------------------------------------
+  const step2Result = useMemo(() => {
+    let newEleckWh = 0;
+    let newGasm3 = 0;
+    let spaceSavedM2 = 0;
 
-  const handleSimulateAi = () => {
-    setIsAiSimulating(true);
-    setTimeout(() => {
-      setIsAiSimulating(false);
-    }, 800);
-  };
+    if (targetSystemType === 'vrf') {
+      const vrfPowerkW = baseline.totalChillerCapkW / targetVRFEER;
+      newEleckWh = vrfPowerkW * operatingHours * 0.6;
+      newGasm3 = 0; // 100% 消除燃气
+      spaceSavedM2 = 120; // 拆除锅炉房与冷却水系统，释放 120 m²
+    } else if (targetSystemType === 'air_heat_pump') {
+      const achpPowerkW = baseline.totalChillerCapkW / 3.4;
+      newEleckWh = achpPowerkW * operatingHours * 0.65;
+      newGasm3 = 0;
+      spaceSavedM2 = 90;
+    } else {
+      const gshpPowerkW = baseline.totalChillerCapkW / targetChillerCOP;
+      newEleckWh = gshpPowerkW * operatingHours * 0.55;
+      newGasm3 = 0;
+      spaceSavedM2 = 60;
+    }
 
-  // ECharts 对比柱状图配置
+    const newElecCost = newEleckWh * electricityRate;
+    const newGasCost = newGasm3 * gasRate;
+    const newTotalCost = newElecCost + newGasCost;
+    const costSaved = baseline.totalCost - newTotalCost;
+    const carbonTons = (newEleckWh * 0.581 + newGasm3 * 2.162) / 1000;
+
+    return {
+      title: `步骤二：更换系统形式为【${SYSTEM_TYPES_META[targetSystemType].name}】`,
+      elecCost: newElecCost,
+      gasCost: newGasCost,
+      totalCost: newTotalCost,
+      costSavedRmb: costSaved,
+      elecSavedPercent: ((baseline.totalElectricitykWh - newEleckWh) / baseline.totalElectricitykWh) * 100,
+      gasSavedPercent: baseline.totalGasm3 > 0 ? ((baseline.totalGasm3 - newGasm3) / baseline.totalGasm3) * 100 : 0,
+      carbonTons,
+      carbonSavedTons: baseline.carbonTons - carbonTons,
+      spaceSavedM2,
+      capExRmbTenThousand: targetCapEx,
+      paybackYears: targetCapEx / (costSaved / 10000)
+    };
+  }, [baseline, targetSystemType, targetVRFEER, targetChillerCOP, targetCapEx, operatingHours, electricityRate, gasRate]);
+
+  // ----------------------------------------------------
+  // 步骤 3：AI 边缘计算智能群控与寻优
+  // ----------------------------------------------------
+  const step3Result = useMemo(() => {
+    const newEleckWh = baseline.totalElectricitykWh * 0.81;
+    const newGasm3 = baseline.totalGasm3 * 0.92;
+    const newElecCost = newEleckWh * electricityRate;
+    const newGasCost = newGasm3 * gasRate;
+    const newTotalCost = newElecCost + newGasCost;
+    const costSaved = baseline.totalCost - newTotalCost;
+    const carbonTons = (newEleckWh * 0.581 + newGasm3 * 2.162) / 1000;
+    const capEx = 35; // 控制系统初投资 35 万元
+
+    return {
+      title: '步骤三：AI 边缘计算智能群控与零碳数字寻优',
+      elecCost: newElecCost,
+      gasCost: newGasCost,
+      totalCost: newTotalCost,
+      costSavedRmb: costSaved,
+      elecSavedPercent: 19.0,
+      gasSavedPercent: 8.0,
+      carbonTons,
+      carbonSavedTons: baseline.carbonTons - carbonTons,
+      capExRmbTenThousand: capEx,
+      paybackYears: capEx / (costSaved / 10000)
+    };
+  }, [baseline, electricityRate, gasRate]);
+
+  const currentResult = activeStep === 1 ? step1Result : (activeStep === 2 ? step2Result : step3Result);
+
+  // ECharts 对比图配置
   const getChartOption = () => {
     return {
       backgroundColor: 'transparent',
-      tooltip: {
-        trigger: 'axis',
-        axisPointer: { type: 'shadow' }
-      },
-      legend: {
-        data: ['既有现状 (Baseline)', '改造优化后 (Retrofitted)'],
-        textStyle: { color: '#94a3b8', fontSize: 11 },
-        top: 0
-      },
-      grid: {
-        top: '15%',
-        left: '3%',
-        right: '4%',
-        bottom: '8%',
-        containLabel: true
-      },
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+      legend: { data: ['改造前既有现状', '改造优化后'], textStyle: { color: '#cbd5e1', fontSize: 11 }, top: 0 },
+      grid: { top: '15%', left: '3%', right: '4%', bottom: '8%', containLabel: true },
       xAxis: {
         type: 'category',
-        data: ['年运行电费 (万元)', '年天然气费 (万元)', '年总能耗费用 (万元)', '年二氧化碳排放 (吨)'],
+        data: ['年运行电费 (万元)', '年天然气费 (万元)', '年总能耗费用 (万元)', '年碳排放 (吨)'],
         axisLine: { lineStyle: { color: '#334155' } },
         axisLabel: { color: '#cbd5e1', fontSize: 11 }
       },
@@ -229,7 +215,7 @@ export const RetrofitOptimizer: React.FC = () => {
       },
       series: [
         {
-          name: '既有现状 (Baseline)',
+          name: '改造前既有现状',
           type: 'bar',
           data: [
             (baseline.electricityCost / 10000).toFixed(1),
@@ -240,13 +226,13 @@ export const RetrofitOptimizer: React.FC = () => {
           itemStyle: { color: '#ef4444', borderRadius: [4, 4, 0, 0] }
         },
         {
-          name: '改造优化后 (Retrofitted)',
+          name: '改造优化后',
           type: 'bar',
           data: [
-            (activeSolution.elecCost / 10000).toFixed(1),
-            (activeSolution.gasCost / 10000).toFixed(1),
-            (activeSolution.totalCost / 10000).toFixed(1),
-            activeSolution.carbonTons.toFixed(0)
+            (currentResult.elecCost / 10000).toFixed(1),
+            (currentResult.gasCost / 10000).toFixed(1),
+            (currentResult.totalCost / 10000).toFixed(1),
+            currentResult.carbonTons.toFixed(0)
           ],
           itemStyle: { color: '#10b981', borderRadius: [4, 4, 0, 0] }
         }
@@ -259,198 +245,354 @@ export const RetrofitOptimizer: React.FC = () => {
       
       {/* 1. Header Banner */}
       <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 border border-blue-500/30 rounded-2xl p-6 shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
-          <Sparkles className="w-64 h-64 text-blue-400" />
-        </div>
-
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center space-x-3">
-              <div className="p-2.5 bg-blue-500/20 rounded-xl border border-blue-400/40 text-blue-400">
-                <Wrench className="w-6 h-6" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-white flex items-center space-x-2">
-                  <span>既有建筑空调冷热源系统改造与 AI 方案优化</span>
-                  <span className="px-2.5 py-0.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold text-[10px] rounded-full shadow">
-                    AI 智能寻优引擎
-                  </span>
-                </h2>
-                <p className="text-xs text-slate-300 mt-1">
-                  输入既有已建建筑的老旧主机、水泵及能耗参数，算法与 AI 将自动生成 3 套节能改造方案，直观对比电费、天然气费、碳排放及机房释放空间！
-                </p>
-              </div>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center space-x-3">
+            <div className="p-3 bg-blue-500/20 rounded-xl border border-blue-400/40 text-blue-400">
+              <Wrench className="w-7 h-7" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-white flex items-center space-x-2">
+                <span>既有建筑空调冷热源系统改造与 AI 智能寻优</span>
+                <span className="px-2.5 py-0.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold text-[10px] rounded-full shadow">
+                  专业三步改造分析引擎
+                </span>
+              </h2>
+              <p className="text-xs text-slate-300 mt-1">
+                详细录入既有冷水机组、水泵、锅炉型号与参数，程序将提供【步骤1:维持原系统换高效设备】、【步骤2:更换系统形式(自建全调)】及【步骤3:AI智能群控】三大深度方案对比！
+              </p>
             </div>
           </div>
-
-          <button
-            onClick={handleSimulateAi}
-            disabled={isAiSimulating}
-            className="flex items-center space-x-2 px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 border border-blue-400/30 transition-all self-start md:self-auto"
-          >
-            <Sparkles className={`w-4 h-4 text-amber-300 ${isAiSimulating ? 'animate-spin' : ''}`} />
-            <span>{isAiSimulating ? 'AI 诊断计算中...' : '重新运行 AI 改造算力诊断'}</span>
-          </button>
         </div>
       </div>
 
-      {/* 2. Grid Layout: Left Input Drawer + Right Solutions & Dashboard */}
+      {/* 2. Main Grid: Left Detailed Equipment Input + Right 3-Step Retrofit Engine */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        {/* Left 4 Cols: Existing Building Input Parameters */}
-        <div className="lg:col-span-4 bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl">
+        {/* Left 5 Cols: Detailed Existing Equipment Input Form */}
+        <div className="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-5 shadow-xl">
+          
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
             <h3 className="text-sm font-bold text-white flex items-center space-x-2">
               <Building className="w-4 h-4 text-blue-400" />
-              <span>已建建筑现状参数录入</span>
+              <span>既有建筑与老旧设备明细录入</span>
             </h3>
-            <button
-              onClick={() => setInputs(DEFAULT_EXISTING)}
-              className="text-[11px] text-slate-400 hover:text-blue-400 flex items-center space-x-1"
-            >
-              <RotateCcw className="w-3 h-3" />
-              <span>重置默认样本</span>
-            </button>
+            <span className="text-[11px] text-blue-400 font-semibold">先选系统再加设备</span>
           </div>
 
-          <div className="space-y-3 text-xs">
+          <div className="space-y-4 text-xs">
+            
+            {/* 1. 先选择既有系统类型 */}
             <div>
-              <label className="block text-slate-300 font-medium mb-1">既有建筑名称</label>
-              <input
-                type="text"
-                value={inputs.name}
-                onChange={(e) => setInputs({ ...inputs, name: e.target.value })}
-                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              />
+              <label className="block text-slate-300 font-semibold mb-1">1. 既有冷热源系统形式</label>
+              <select
+                value={existingSystemType}
+                onChange={(e) => setExistingSystemType(e.target.value as SystemType)}
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-blue-300 font-bold focus:ring-2 focus:ring-blue-500"
+              >
+                {Object.values(SYSTEM_TYPES_META).map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
             </div>
 
+            {/* 2. 基础建筑参数 */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-slate-300 font-medium mb-1">建筑面积 (m²)</label>
+                <label className="block text-slate-400 mb-1">建筑名称</label>
                 <input
-                  type="number"
-                  value={inputs.area}
-                  onChange={(e) => setInputs({ ...inputs, area: Number(e.target.value) })}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white font-bold focus:ring-2 focus:ring-blue-500"
+                  type="text"
+                  value={buildingName}
+                  onChange={(e) => setBuildingName(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-white"
                 />
               </div>
-
               <div>
-                <label className="block text-slate-300 font-medium mb-1">既有系统类型</label>
-                <select
-                  value={inputs.systemType}
-                  onChange={(e) => setInputs({ ...inputs, systemType: e.target.value as SystemType })}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-blue-300 font-bold focus:ring-2 focus:ring-blue-500"
-                >
-                  {Object.values(SYSTEM_TYPES_META).map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
+                <label className="block text-slate-400 mb-1">建筑面积 (m²)</label>
+                <input
+                  type="number"
+                  value={buildingArea}
+                  onChange={(e) => setBuildingArea(Number(e.target.value))}
+                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-white font-bold"
+                />
               </div>
             </div>
 
-            <div className="bg-slate-850 p-3 rounded-xl border border-slate-800 space-y-3">
-              <span className="text-[11px] font-bold text-slate-300 block border-b border-slate-750 pb-1">
-                老旧冷热源主机与水泵性能指标
+            {/* 3. 详细既有设备参数录入表 (冷水机组明细) */}
+            {(existingSystemType === 'chiller_boiler' || existingSystemType === 'hybrid') && (
+              <div className="bg-slate-850 p-3.5 rounded-xl border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-750 pb-2">
+                  <span className="font-bold text-blue-300 flex items-center space-x-1">
+                    <Cpu className="w-3.5 h-3.5 text-blue-400" />
+                    <span>冷水机组详细型号与参数 ({chillers.length} 组)</span>
+                  </span>
+                  <button
+                    onClick={() => setChillers([...chillers, {
+                      id: `c-${Date.now()}`,
+                      modelName: `老旧机组 ${chillers.length + 1}`,
+                      capacitykW: 1500,
+                      powerkW: 384,
+                      cop: 3.9,
+                      count: 1
+                    }])}
+                    className="text-[10px] bg-blue-600 hover:bg-blue-500 text-white px-2 py-0.5 rounded flex items-center space-x-1"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>添加主机</span>
+                  </button>
+                </div>
+
+                {chillers.map((c, idx) => (
+                  <div key={c.id} className="bg-slate-900 p-2.5 rounded-lg border border-slate-800 space-y-2">
+                    <div className="flex justify-between items-center text-[11px]">
+                      <input
+                        type="text"
+                        value={c.modelName}
+                        onChange={(e) => {
+                          const updated = [...chillers];
+                          updated[idx].modelName = e.target.value;
+                          setChillers(updated);
+                        }}
+                        className="bg-slate-950 border border-slate-700 rounded px-2 py-0.5 text-white font-bold"
+                      />
+                      <button
+                        onClick={() => {
+                          if (chillers.length > 1) setChillers(chillers.filter(item => item.id !== c.id));
+                        }}
+                        className="text-slate-500 hover:text-red-400"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-4 gap-2 text-[10px]">
+                      <div>
+                        <span className="text-slate-400 block">制冷量(kW)</span>
+                        <input
+                          type="number"
+                          value={c.capacitykW}
+                          onChange={(e) => {
+                            const updated = [...chillers];
+                            const cap = Number(e.target.value);
+                            updated[idx].capacitykW = cap;
+                            updated[idx].powerkW = Number((cap / c.cop).toFixed(1));
+                            setChillers(updated);
+                          }}
+                          className="w-full bg-slate-950 border border-slate-700 rounded px-1.5 py-1 text-white font-bold"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block">电功率(kW)</span>
+                        <input
+                          type="number"
+                          value={c.powerkW}
+                          onChange={(e) => {
+                            const updated = [...chillers];
+                            updated[idx].powerkW = Number(e.target.value);
+                            setChillers(updated);
+                          }}
+                          className="w-full bg-slate-950 border border-slate-700 rounded px-1.5 py-1 text-amber-400 font-bold"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block">COP值</span>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={c.cop}
+                          onChange={(e) => {
+                            const updated = [...chillers];
+                            const cop = Number(e.target.value);
+                            updated[idx].cop = cop;
+                            updated[idx].powerkW = Number((c.capacitykW / Math.max(1, cop)).toFixed(1));
+                            setChillers(updated);
+                          }}
+                          className="w-full bg-slate-950 border border-slate-700 rounded px-1.5 py-1 text-blue-300 font-bold"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block">台数</span>
+                        <input
+                          type="number"
+                          value={c.count}
+                          onChange={(e) => {
+                            const updated = [...chillers];
+                            updated[idx].count = Number(e.target.value);
+                            setChillers(updated);
+                          }}
+                          className="w-full bg-slate-950 border border-slate-700 rounded px-1.5 py-1 text-white font-bold"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 4. 水泵明细参数 */}
+            <div className="bg-slate-850 p-3.5 rounded-xl border border-slate-800 space-y-3">
+              <span className="font-bold text-blue-300 block border-b border-slate-750 pb-2">
+                水泵循环系统参数 ({pumps.length} 组水泵)
               </span>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-400 text-[11px] mb-1">老旧冷水主机 COP</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={inputs.existingChillerCOP}
-                    onChange={(e) => setInputs({ ...inputs, existingChillerCOP: Number(e.target.value) })}
-                    className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-amber-400 font-bold"
-                  />
-                </div>
+              {pumps.map((p, idx) => (
+                <div key={p.id} className="bg-slate-900 p-2.5 rounded-lg border border-slate-800 space-y-2">
+                  <div className="flex justify-between items-center text-[11px]">
+                    <span className="font-bold text-slate-200">{p.modelName}</span>
+                    <span className="text-[10px] text-slate-400">效率 {p.efficiencyPercent}%</span>
+                  </div>
 
-                <div>
-                  <label className="block text-slate-400 text-[11px] mb-1">老旧锅炉热效率 (%)</label>
-                  <input
-                    type="number"
-                    value={inputs.existingBoilerEfficiency}
-                    onChange={(e) => setInputs({ ...inputs, existingBoilerEfficiency: Number(e.target.value) })}
-                    className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-rose-400 font-bold"
-                  />
+                  <div className="grid grid-cols-4 gap-2 text-[10px]">
+                    <div>
+                      <span className="text-slate-400 block">流量(m³/h)</span>
+                      <input
+                        type="number"
+                        value={p.flowm3h}
+                        onChange={(e) => {
+                          const updated = [...pumps];
+                          updated[idx].flowm3h = Number(e.target.value);
+                          setPumps(updated);
+                        }}
+                        className="w-full bg-slate-950 border border-slate-700 rounded px-1.5 py-1 text-white font-bold"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">扬程(m)</span>
+                      <input
+                        type="number"
+                        value={p.headm}
+                        onChange={(e) => {
+                          const updated = [...pumps];
+                          updated[idx].headm = Number(e.target.value);
+                          setPumps(updated);
+                        }}
+                        className="w-full bg-slate-950 border border-slate-700 rounded px-1.5 py-1 text-white font-bold"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">功率(kW)</span>
+                      <input
+                        type="number"
+                        value={p.powerkW}
+                        onChange={(e) => {
+                          const updated = [...pumps];
+                          updated[idx].powerkW = Number(e.target.value);
+                          setPumps(updated);
+                        }}
+                        className="w-full bg-slate-950 border border-slate-700 rounded px-1.5 py-1 text-amber-300 font-bold"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">台数</span>
+                      <input
+                        type="number"
+                        value={p.count}
+                        onChange={(e) => {
+                          const updated = [...pumps];
+                          updated[idx].count = Number(e.target.value);
+                          setPumps(updated);
+                        }}
+                        className="w-full bg-slate-950 border border-slate-700 rounded px-1.5 py-1 text-white font-bold"
+                      />
+                    </div>
+                  </div>
                 </div>
-
-                <div>
-                  <label className="block text-slate-400 text-[11px] mb-1">老旧水泵扬程 (m)</label>
-                  <input
-                    type="number"
-                    value={inputs.existingPumpHead}
-                    onChange={(e) => setInputs({ ...inputs, existingPumpHead: Number(e.target.value) })}
-                    className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-blue-400 font-bold"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-400 text-[11px] mb-1">水泵综合效率 (%)</label>
-                  <input
-                    type="number"
-                    value={inputs.existingPumpEfficiency}
-                    onChange={(e) => setInputs({ ...inputs, existingPumpEfficiency: Number(e.target.value) })}
-                    className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-blue-400 font-bold"
-                  />
-                </div>
-              </div>
+              ))}
             </div>
+
+            {/* 5. 燃气锅炉明细 */}
+            {(existingSystemType === 'chiller_boiler' || existingSystemType === 'hybrid') && (
+              <div className="bg-slate-850 p-3.5 rounded-xl border border-slate-800 space-y-2">
+                <span className="font-bold text-rose-400 block border-b border-slate-750 pb-2">
+                  燃气锅炉参数明细
+                </span>
+                {boilers.map((b, idx) => (
+                  <div key={b.id} className="grid grid-cols-4 gap-2 text-[10px]">
+                    <div>
+                      <span className="text-slate-400 block">供热量(kW)</span>
+                      <input
+                        type="number"
+                        value={b.capacitykW}
+                        onChange={(e) => {
+                          const updated = [...boilers];
+                          updated[idx].capacitykW = Number(e.target.value);
+                          setBoilers(updated);
+                        }}
+                        className="w-full bg-slate-950 border border-slate-700 rounded px-1.5 py-1 text-white font-bold"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">耗气量(m³/h)</span>
+                      <input
+                        type="number"
+                        value={b.gasFlowm3h}
+                        onChange={(e) => {
+                          const updated = [...boilers];
+                          updated[idx].gasFlowm3h = Number(e.target.value);
+                          setBoilers(updated);
+                        }}
+                        className="w-full bg-slate-950 border border-slate-700 rounded px-1.5 py-1 text-rose-400 font-bold"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">效率(%)</span>
+                      <input
+                        type="number"
+                        value={b.efficiencyPercent}
+                        onChange={(e) => {
+                          const updated = [...boilers];
+                          updated[idx].efficiencyPercent = Number(e.target.value);
+                          setBoilers(updated);
+                        }}
+                        className="w-full bg-slate-950 border border-slate-700 rounded px-1.5 py-1 text-white font-bold"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">台数</span>
+                      <input
+                        type="number"
+                        value={b.count}
+                        onChange={(e) => {
+                          const updated = [...boilers];
+                          updated[idx].count = Number(e.target.value);
+                          setBoilers(updated);
+                        }}
+                        className="w-full bg-slate-950 border border-slate-700 rounded px-1.5 py-1 text-white font-bold"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-slate-300 font-medium mb-1">既有机房占地 (m²)</label>
+                <label className="block text-slate-400 mb-1">年运行小时 (h)</label>
                 <input
                   type="number"
-                  value={inputs.existingRoomSpace}
-                  onChange={(e) => setInputs({ ...inputs, existingRoomSpace: Number(e.target.value) })}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white font-bold"
+                  value={operatingHours}
+                  onChange={(e) => setOperatingHours(Number(e.target.value))}
+                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-white font-bold"
                 />
               </div>
-
               <div>
-                <label className="block text-slate-300 font-medium mb-1">年运行小时数 (h)</label>
-                <input
-                  type="number"
-                  value={inputs.operatingHours}
-                  onChange={(e) => setInputs({ ...inputs, operatingHours: Number(e.target.value) })}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white font-bold"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 pt-1">
-              <div>
-                <label className="block text-slate-400 text-[11px] mb-1">电价 (元/kWh)</label>
+                <label className="block text-slate-400 mb-1">电价 (元/kWh)</label>
                 <input
                   type="number"
                   step="0.05"
-                  value={inputs.electricityRate}
-                  onChange={(e) => setInputs({ ...inputs, electricityRate: Number(e.target.value) })}
-                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-400 text-[11px] mb-1">天然气价 (元/m³)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  value={inputs.gasRate}
-                  onChange={(e) => setInputs({ ...inputs, gasRate: Number(e.target.value) })}
-                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200"
+                  value={electricityRate}
+                  onChange={(e) => setElectricityRate(Number(e.target.value))}
+                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-white"
                 />
               </div>
             </div>
 
           </div>
 
-          {/* Baseline Calculations Summary Box */}
-          <div className="bg-red-950/40 border border-red-500/30 rounded-xl p-4 space-y-2 text-xs mt-4">
+          {/* 既有基准计算统计卡片 */}
+          <div className="bg-red-950/40 border border-red-500/30 rounded-xl p-4 space-y-2 text-xs">
             <span className="font-bold text-red-300 flex items-center space-x-1.5">
               <ShieldAlert className="w-4 h-4 text-red-400" />
-              <span>改造前既有能耗基准计算结果</span>
+              <span>改造前老旧系统能耗基准计算结果</span>
             </span>
             <div className="grid grid-cols-2 gap-2 text-slate-300 pt-1">
               <div>既有年耗电量：<span className="font-bold text-white">{(baseline.totalElectricitykWh / 10000).toFixed(1)} 万 kWh</span></div>
@@ -463,214 +605,243 @@ export const RetrofitOptimizer: React.FC = () => {
               </div>
             </div>
           </div>
+
         </div>
 
-        {/* Right 8 Cols: 3 Retrofit Solutions + Intuitive Comparison Dashboard */}
-        <div className="lg:col-span-8 space-y-6">
+        {/* Right 7 Cols: 3-Step Retrofit Engine + Interactive Comparisons */}
+        <div className="lg:col-span-7 space-y-6">
           
-          {/* Solution Selector Cards (3 方案卡片) */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {solutions.map((sol) => {
-              const isSelected = sol.id === selectedSolutionId;
+          {/* 3 Step Tabs Navigation Header */}
+          <div className="bg-slate-900 border border-slate-800 p-2 rounded-2xl flex flex-wrap gap-2 shadow-lg">
+            <button
+              onClick={() => setActiveStep(1)}
+              className={`flex-1 flex items-center justify-center space-x-2 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+                activeStep === 1
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20 ring-1 ring-blue-400/40'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850'
+              }`}
+            >
+              <span className="w-5 h-5 rounded-full bg-slate-950/60 text-blue-300 text-[10px] flex items-center justify-center font-black">1</span>
+              <span>维持原系统，仅换高效设备 (首推)</span>
+            </button>
 
-              return (
-                <div
-                  key={sol.id}
-                  onClick={() => setSelectedSolutionId(sol.id)}
-                  className={`cursor-pointer rounded-2xl p-5 border transition-all duration-200 relative flex flex-col justify-between ${
-                    isSelected
-                      ? 'bg-slate-800/90 border-blue-500 ring-2 ring-blue-500/40 shadow-xl shadow-blue-500/10'
-                      : 'bg-slate-900 hover:bg-slate-850 border-slate-800 hover:border-slate-700'
-                  }`}
-                >
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                        sol.color === 'blue' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' :
-                        sol.color === 'emerald' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
-                        'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                      }`}>
-                        {sol.tag}
-                      </span>
-                      {isSelected && <CheckCircle2 className="w-5 h-5 text-blue-400" />}
-                    </div>
+            <button
+              onClick={() => setActiveStep(2)}
+              className={`flex-1 flex items-center justify-center space-x-2 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+                activeStep === 2
+                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/20 ring-1 ring-emerald-400/40'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850'
+              }`}
+            >
+              <span className="w-5 h-5 rounded-full bg-slate-950/60 text-emerald-300 text-[10px] flex items-center justify-center font-black">2</span>
+              <span>更换系统形式 (自建可调)</span>
+            </button>
 
-                    <h4 className="text-sm font-bold text-white line-clamp-2 mt-1">{sol.title}</h4>
-                    <p className="text-[11px] text-slate-400 mt-2 line-clamp-3 leading-relaxed">{sol.description}</p>
-                  </div>
-
-                  <div className="mt-4 pt-3 border-t border-slate-800/80 space-y-1.5">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-slate-400">年节省能耗费用：</span>
-                      <span className="font-bold text-emerald-400">¥{(sol.costSavedRmb / 10000).toFixed(1)} 万元/年</span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-slate-400">静态投资回收期：</span>
-                      <span className="font-bold text-amber-300">{sol.paybackYears.toFixed(1)} 年</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            <button
+              onClick={() => setActiveStep(3)}
+              className={`flex-1 flex items-center justify-center space-x-2 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+                activeStep === 3
+                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/20 ring-1 ring-purple-400/40'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850'
+              }`}
+            >
+              <span className="w-5 h-5 rounded-full bg-slate-950/60 text-purple-300 text-[10px] flex items-center justify-center font-black">3</span>
+              <span>AI 边缘计算智能群控</span>
+            </button>
           </div>
 
-          {/* Direct Metric Comparison Cards (改造前后四大核心指标直观对比卡片) */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-4">
-              <div>
-                <h3 className="text-base font-bold text-white flex items-center space-x-2">
-                  <TrendingDown className="w-5 h-5 text-emerald-400" />
-                  <span>改造前后核心指标直观对比 (Before vs After Comparison)</span>
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  已选择：<span className="text-blue-300 font-bold">{activeSolution.title}</span>
-                </p>
-              </div>
-
-              <span className="px-3 py-1 bg-emerald-500/10 text-emerald-300 font-bold text-xs rounded-lg border border-emerald-500/30">
-                综合能效提升 +{activeSolution.elecSavedPercent.toFixed(1)}%
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              
-              {/* 1. 年运行电费对比 */}
-              <div className="bg-slate-850/80 border border-slate-750 rounded-xl p-4 space-y-2">
-                <div className="flex items-center justify-between text-slate-400 text-xs">
-                  <span className="flex items-center space-x-1.5">
-                    <Zap className="w-4 h-4 text-amber-400" />
-                    <span>年运行电费</span>
-                  </span>
-                  <span className="text-emerald-400 font-bold text-[11px] bg-emerald-500/10 px-1.5 py-0.5 rounded">
-                    节电 {activeSolution.elecSavedPercent.toFixed(1)}%
-                  </span>
+          {/* Detailed Content Panel for Active Step */}
+          {activeStep === 1 && (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl text-xs">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="flex items-center space-x-2">
+                  <span className="px-2.5 py-0.5 bg-blue-500/20 text-blue-300 rounded font-bold">首推方案</span>
+                  <h4 className="text-sm font-bold text-white">维持原空调系统形式，仅更换老旧高效设备</h4>
                 </div>
-                <div className="flex items-baseline space-x-2">
-                  <span className="text-slate-400 line-through text-xs">¥{(baseline.electricityCost / 10000).toFixed(1)}万</span>
-                  <ArrowRight className="w-3.5 h-3.5 text-slate-500" />
-                  <span className="text-lg font-bold text-amber-300">¥{(activeSolution.elecCost / 10000).toFixed(1)}万</span>
-                </div>
-                <div className="text-[11px] text-emerald-400 font-semibold pt-1 border-t border-slate-750">
-                  每年省电费 ¥{((baseline.electricityCost - activeSolution.elecCost) / 10000).toFixed(2)} 万元
-                </div>
-              </div>
-
-              {/* 2. 年天然气费对比 */}
-              <div className="bg-slate-850/80 border border-slate-750 rounded-xl p-4 space-y-2">
-                <div className="flex items-center justify-between text-slate-400 text-xs">
-                  <span className="flex items-center space-x-1.5">
-                    <Flame className="w-4 h-4 text-rose-500" />
-                    <span>年天然气费用</span>
-                  </span>
-                  <span className="text-rose-400 font-bold text-[11px] bg-rose-500/10 px-1.5 py-0.5 rounded">
-                    {activeSolution.gasSavedPercent >= 99 ? '零燃气 100%' : `降气 ${activeSolution.gasSavedPercent.toFixed(1)}%`}
-                  </span>
-                </div>
-                <div className="flex items-baseline space-x-2">
-                  <span className="text-slate-400 line-through text-xs">¥{(baseline.gasCost / 10000).toFixed(1)}万</span>
-                  <ArrowRight className="w-3.5 h-3.5 text-slate-500" />
-                  <span className="text-lg font-bold text-rose-300">¥{(activeSolution.gasCost / 10000).toFixed(1)}万</span>
-                </div>
-                <div className="text-[11px] text-emerald-400 font-semibold pt-1 border-t border-slate-750">
-                  每年省气费 ¥{((baseline.gasCost - activeSolution.gasCost) / 10000).toFixed(2)} 万元
-                </div>
-              </div>
-
-              {/* 3. 年二氧化碳碳排放量对比 */}
-              <div className="bg-slate-850/80 border border-slate-750 rounded-xl p-4 space-y-2">
-                <div className="flex items-center justify-between text-slate-400 text-xs">
-                  <span className="flex items-center space-x-1.5">
-                    <Leaf className="w-4 h-4 text-teal-400" />
-                    <span>年碳排放量</span>
-                  </span>
-                  <span className="text-teal-300 font-bold text-[11px] bg-teal-500/10 px-1.5 py-0.5 rounded">
-                    减碳 {((activeSolution.carbonSavedTons / baseline.carbonTons) * 100).toFixed(1)}%
-                  </span>
-                </div>
-                <div className="flex items-baseline space-x-2">
-                  <span className="text-slate-400 line-through text-xs">{baseline.carbonTons.toFixed(0)} 吨</span>
-                  <ArrowRight className="w-3.5 h-3.5 text-slate-500" />
-                  <span className="text-lg font-bold text-teal-300">{activeSolution.carbonTons.toFixed(0)} 吨</span>
-                </div>
-                <div className="text-[11px] text-teal-400 font-semibold pt-1 border-t border-slate-750">
-                  年减排 CO₂ {activeSolution.carbonSavedTons.toFixed(1)} 吨
-                </div>
-              </div>
-
-              {/* 4. 机房释放建筑空间对比 */}
-              <div className="bg-slate-850/80 border border-slate-750 rounded-xl p-4 space-y-2">
-                <div className="flex items-center justify-between text-slate-400 text-xs">
-                  <span className="flex items-center space-x-1.5">
-                    <Maximize2 className="w-4 h-4 text-purple-400" />
-                    <span>机房建筑空间优化</span>
-                  </span>
-                  <span className="text-purple-300 font-bold text-[11px] bg-purple-500/10 px-1.5 py-0.5 rounded">
-                    {activeSolution.spaceSavedM2 > 0 ? `释放 ${activeSolution.spaceSavedM2} m²` : '维持原面积'}
-                  </span>
-                </div>
-                <div className="flex items-baseline space-x-2">
-                  <span className="text-slate-400 text-xs">{baseline.roomSpace} m²</span>
-                  <ArrowRight className="w-3.5 h-3.5 text-slate-500" />
-                  <span className="text-lg font-bold text-purple-300">
-                    {baseline.roomSpace - activeSolution.spaceSavedM2} m²
-                  </span>
-                </div>
-                <div className="text-[11px] text-purple-300 font-semibold pt-1 border-t border-slate-750">
-                  {activeSolution.spaceSavedM2 > 0 ? `额外释放 ${activeSolution.spaceSavedM2} m² 停车/储藏空间` : '无需额外机房占地'}
-                </div>
-              </div>
-
-            </div>
-
-            {/* Intuitive ECharts Bar Chart Comparison */}
-            <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold text-slate-200">费用与碳排放柱状直观对比</h4>
-                <span className="text-[10px] text-slate-400">红柱为改造前现状，绿柱为选定改造方案</span>
-              </div>
-              <div className="h-64 w-full">
-                <ReactECharts option={getChartOption()} style={{ height: '100%', width: '100%' }} />
-              </div>
-            </div>
-
-            {/* Financial ROI Table & Proposal Detail Summary */}
-            <div className="bg-slate-850 border border-slate-750 rounded-xl p-4 space-y-3 text-xs">
-              <div className="flex items-center justify-between font-bold text-white text-sm border-b border-slate-750 pb-2">
-                <span className="flex items-center space-x-2">
-                  <DollarSign className="w-4 h-4 text-emerald-400" />
-                  <span>改造方案投资可行性与回收期财务分析表</span>
-                </span>
-                <span className="text-emerald-400 font-bold">
-                  静态投资回收期：{activeSolution.paybackYears.toFixed(1)} 年
+                <span className="text-emerald-400 font-bold text-sm">
+                  每年节省 ¥{(step1Result.costSavedRmb / 10000).toFixed(2)} 万元
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-slate-300">
-                <div className="bg-slate-900 p-3 rounded-lg border border-slate-800">
-                  <span className="text-[10px] text-slate-400 block">改造估算初投资 (CapEx)</span>
-                  <span className="font-bold text-white text-sm">¥{activeSolution.capExRmbTenThousand} 万元</span>
-                </div>
+              <p className="text-slate-300 leading-relaxed">
+                无需变动已有管路架构与机房布局。将老旧螺杆/离心主机替换为**超高效磁悬浮离心机组 (COP 6.8)**，水泵更换为**高效率变频水泵 (82%)**，锅炉更换为**低氮冷凝热水锅炉 (效率95%)**。
+              </p>
 
-                <div className="bg-slate-900 p-3 rounded-lg border border-slate-800">
-                  <span className="text-[10px] text-slate-400 block">年综合节省总开支</span>
-                  <span className="font-bold text-emerald-400 text-sm">¥{(activeSolution.costSavedRmb / 10000).toFixed(2)} 万元/年</span>
+              <div className="grid grid-cols-3 gap-3 pt-1">
+                <div className="bg-slate-850 p-3 rounded-xl border border-slate-750">
+                  <span className="text-slate-400 text-[10px] block">冷水主机 COP 提升</span>
+                  <span className="text-blue-300 font-bold text-sm">3.9 &rarr; 6.8 (+74%)</span>
                 </div>
-
-                <div className="bg-slate-900 p-3 rounded-lg border border-slate-800">
-                  <span className="text-[10px] text-slate-400 block">10 年生命周期净收益</span>
-                  <span className="font-bold text-blue-300 text-sm">
-                    ¥{(((activeSolution.costSavedRmb / 10000) * 10) - activeSolution.capExRmbTenThousand).toFixed(1)} 万元
-                  </span>
+                <div className="bg-slate-850 p-3 rounded-xl border border-slate-750">
+                  <span className="text-slate-400 text-[10px] block">水泵综合效率提升</span>
+                  <span className="text-emerald-300 font-bold text-sm">58% &rarr; 82% (+41%)</span>
                 </div>
-
-                <div className="bg-slate-900 p-3 rounded-lg border border-slate-800">
-                  <span className="text-[10px] text-slate-400 block">AI 方案推荐度评级</span>
-                  <span className="font-bold text-amber-300 text-sm flex items-center space-x-1">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                    <span>AAAAA 级推荐</span>
-                  </span>
+                <div className="bg-slate-850 p-3 rounded-xl border border-slate-750">
+                  <span className="text-slate-400 text-[10px] block">估算回收期</span>
+                  <span className="text-amber-300 font-bold text-sm">{step1Result.paybackYears.toFixed(1)} 年</span>
                 </div>
               </div>
+            </div>
+          )}
+
+          {activeStep === 2 && (
+            <div className="bg-slate-900 border border-emerald-500/40 rounded-2xl p-6 space-y-4 shadow-xl text-xs">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="flex items-center space-x-2">
+                  <span className="px-2.5 py-0.5 bg-emerald-500/20 text-emerald-300 rounded font-bold">第二步</span>
+                  <h4 className="text-sm font-bold text-white">更换系统形式 (AI 推荐生成 + 全手动自建设备参数)</h4>
+                </div>
+                <span className="text-emerald-400 font-bold text-sm">
+                  每年节省 ¥{(step2Result.costSavedRmb / 10000).toFixed(2)} 万元
+                </span>
+              </div>
+
+              <div className="bg-slate-850 p-4 rounded-xl border border-slate-750 space-y-3">
+                <span className="font-bold text-emerald-300 block">
+                  目标新系统搭建与参数全手动调整：
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-400 mb-1">目标新系统形式</label>
+                    <select
+                      value={targetSystemType}
+                      onChange={(e) => setTargetSystemType(e.target.value as SystemType)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-emerald-300 font-bold"
+                    >
+                      {Object.values(SYSTEM_TYPES_META).map(s => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 mb-1">工程初投资 (CapEx 万元)</label>
+                    <input
+                      type="number"
+                      value={targetCapEx}
+                      onChange={(e) => setTargetCapEx(Number(e.target.value))}
+                      className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-white font-bold"
+                    />
+                  </div>
+
+                  {targetSystemType === 'vrf' && (
+                    <div>
+                      <label className="block text-slate-400 mb-1">VRF 室外机 EER (W/W)</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={targetVRFEER}
+                        onChange={(e) => setTargetVRFEER(Number(e.target.value))}
+                        className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-purple-300 font-bold"
+                      />
+                    </div>
+                  )}
+
+                  {targetSystemType !== 'vrf' && (
+                    <div>
+                      <label className="block text-slate-400 mb-1">新主机 COP (W/W)</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={targetChillerCOP}
+                        onChange={(e) => setTargetChillerCOP(Number(e.target.value))}
+                        className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-blue-300 font-bold"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeStep === 3 && (
+            <div className="bg-slate-900 border border-purple-500/40 rounded-2xl p-6 space-y-4 shadow-xl text-xs">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="flex items-center space-x-2">
+                  <Sparkles className="w-5 h-5 text-amber-300" />
+                  <h4 className="text-sm font-bold text-white">第三步：AI 边缘计算智能群控与寻优技术详解</h4>
+                </div>
+                <span className="text-purple-300 font-bold text-xs bg-purple-500/20 px-2.5 py-1 rounded">
+                  免换主机 / 回收期 0.9年
+                </span>
+              </div>
+
+              <div className="space-y-3 text-slate-300 leading-relaxed">
+                <div className="bg-slate-850 p-3 rounded-xl border border-slate-750 space-y-1">
+                  <span className="font-bold text-purple-300 block">① AI 边缘计算关重节点部署</span>
+                  <p className="text-[11px] text-slate-400">
+                    在机房部署高规格 AI 边缘网关 (AI Edge Gateway)，通过 RS485/BACnet 实时采集冷水机组、水泵、锅炉及冷却塔的 100+ 维运行参数。
+                  </p>
+                </div>
+
+                <div className="bg-slate-850 p-3 rounded-xl border border-slate-750 space-y-1">
+                  <span className="font-bold text-purple-300 block">② 动态冷冻水供水温度自适应寻优 (Chw Temp Optimization)</span>
+                  <p className="text-[11px] text-slate-400">
+                    AI 算法结合气象预报与建筑负荷预测模型，在低负荷时段将冷冻水供水温度从 $7^\circ C$ 提升至 $9\sim 10.5^\circ C$，冷水机组 COP 自动提升 6%~12%！
+                  </p>
+                </div>
+
+                <div className="bg-slate-850 p-3 rounded-xl border border-slate-750 space-y-1">
+                  <span className="font-bold text-purple-300 block">③ 冷却塔逼近度与风机水泵最佳能效配比算法</span>
+                  <p className="text-[11px] text-slate-400">
+                    AI 实时寻优冷却水流量与冷却塔风机转速的边际功率平衡点，确保机组冷凝温度始终处于低能耗区间。
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 直观对比展示面板 (ECharts + 改造前后 4 大卡片) */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h4 className="text-sm font-bold text-white flex items-center space-x-2">
+                <TrendingDown className="w-4 h-4 text-emerald-400" />
+                <span>【{currentResult.title}】改造前后直观数据对比</span>
+              </h4>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div className="bg-slate-850 p-3 rounded-xl border border-slate-750 space-y-1">
+                <span className="text-slate-400 text-[10px] block">年运行电费</span>
+                <span className="text-amber-300 font-bold text-sm">
+                  ¥{(currentResult.elecCost / 10000).toFixed(1)}万
+                </span>
+                <span className="text-[10px] text-emerald-400 block font-semibold">
+                  节电 {currentResult.elecSavedPercent.toFixed(1)}%
+                </span>
+              </div>
+
+              <div className="bg-slate-850 p-3 rounded-xl border border-slate-750 space-y-1">
+                <span className="text-slate-400 text-[10px] block">年天然气费</span>
+                <span className="text-rose-300 font-bold text-sm">
+                  ¥{(currentResult.gasCost / 10000).toFixed(1)}万
+                </span>
+                <span className="text-[10px] text-rose-400 block font-semibold">
+                  降气 {currentResult.gasSavedPercent.toFixed(1)}%
+                </span>
+              </div>
+
+              <div className="bg-slate-850 p-3 rounded-xl border border-slate-750 space-y-1">
+                <span className="text-slate-400 text-[10px] block">年减排 CO₂</span>
+                <span className="text-teal-300 font-bold text-sm">
+                  {currentResult.carbonSavedTons.toFixed(1)} 吨
+                </span>
+                <span className="text-[10px] text-teal-400 block font-semibold">环保减碳</span>
+              </div>
+
+              <div className="bg-slate-850 p-3 rounded-xl border border-slate-750 space-y-1">
+                <span className="text-slate-400 text-[10px] block">回收期 (CapEx)</span>
+                <span className="text-white font-bold text-sm">
+                  {currentResult.paybackYears.toFixed(1)} 年
+                </span>
+                <span className="text-[10px] text-slate-400 block">初投资 ¥{currentResult.capExRmbTenThousand}万</span>
+              </div>
+            </div>
+
+            {/* ECharts 柱状图 */}
+            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 h-64">
+              <ReactECharts option={getChartOption()} style={{ height: '100%', width: '100%' }} />
             </div>
 
           </div>

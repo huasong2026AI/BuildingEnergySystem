@@ -1,20 +1,20 @@
-import type { BuildingTypeMeta, SystemTypeMeta, BuildingType, SystemType } from '../types/hvac';
+import type { BuildingType, BuildingTypeMeta, SystemType, SystemTypeMeta } from '../types/hvac';
 
 export const BUILDING_TYPES_META: Record<BuildingType, BuildingTypeMeta> = {
   hotel: {
     id: 'hotel',
-    name: '星级酒店',
-    defaultCoolingIndex: 130, // W/m²
-    defaultHeatingIndex: 80,  // W/m²
-    defaultOperatingHours: 365 * 18,
+    name: '星级酒店 (Hotel)',
+    defaultCoolingIndex: 110, // W/m²
+    defaultHeatingIndex: 70,  // W/m²
+    defaultOperatingHours: 3500, // h/year
     icon: 'Hotel'
   },
   office: {
     id: 'office',
-    name: '甲级办公楼',
+    name: '甲级办公楼 (Office)',
     defaultCoolingIndex: 110, // W/m²
     defaultHeatingIndex: 70,  // W/m²
-    defaultOperatingHours: 260 * 10,
+    defaultOperatingHours: 2800, // h/year
     icon: 'Building2'
   },
   mall: {
@@ -22,39 +22,39 @@ export const BUILDING_TYPES_META: Record<BuildingType, BuildingTypeMeta> = {
     name: '商业综合体/Mall',
     defaultCoolingIndex: 145, // W/m²
     defaultHeatingIndex: 90,  // W/m²
-    defaultOperatingHours: 365 * 13,
+    defaultOperatingHours: 3600, // h/year
     icon: 'ShoppingBag'
   },
   supermarket: {
     id: 'supermarket',
-    name: '大型超市',
-    defaultCoolingIndex: 155, // W/m²
+    name: '大型卖场/超市',
+    defaultCoolingIndex: 130, // W/m²
     defaultHeatingIndex: 85,  // W/m²
-    defaultOperatingHours: 365 * 14,
+    defaultOperatingHours: 3400, // h/year
     icon: 'ShoppingCart'
   },
   restaurant: {
     id: 'restaurant',
     name: '餐饮酒楼',
     defaultCoolingIndex: 180, // W/m²
-    defaultHeatingIndex: 100, // W/m²
-    defaultOperatingHours: 365 * 12,
+    defaultHeatingIndex: 110, // W/m²
+    defaultOperatingHours: 3000, // h/year
     icon: 'Utensils'
   },
   hospital: {
     id: 'hospital',
-    name: '医院建筑',
+    name: '综合医院',
     defaultCoolingIndex: 125, // W/m²
-    defaultHeatingIndex: 80,  // W/m²
-    defaultOperatingHours: 365 * 24,
+    defaultHeatingIndex: 95,  // W/m²
+    defaultOperatingHours: 4200, // h/year
     icon: 'Cross'
   },
   other: {
     id: 'other',
-    name: '通用公共建筑',
+    name: '其他公共建筑',
     defaultCoolingIndex: 100, // W/m²
     defaultHeatingIndex: 65,  // W/m²
-    defaultOperatingHours: 2500,
+    defaultOperatingHours: 2500, // h/year
     icon: 'Building'
   }
 };
@@ -62,9 +62,9 @@ export const BUILDING_TYPES_META: Record<BuildingType, BuildingTypeMeta> = {
 export const SYSTEM_TYPES_META: Record<SystemType, SystemTypeMeta> = {
   chiller_boiler: {
     id: 'chiller_boiler',
-    name: '1. 冷水机组 + 锅炉系统',
-    description: '经典的冷热源分设系统。冷水机组配冷水泵及冷却塔冷却水回路；燃气锅炉配独立热水泵循环，直接连接空调末端供热。',
-    primaryEquipment: ['冷水机组', '燃气锅炉', '冷水水泵', '独立热水水泵', '冷却水水泵', '冷却塔', '末端AHU/FCU'],
+    name: '1. 冷水机组 + 燃气锅炉系统',
+    description: '标准中央空调冷热源，螺杆/离心机组提供夏季冷水，燃气锅炉配独立热水泵提供冬季热水，适用于大中型商业建筑。',
+    primaryEquipment: ['螺杆/离心冷水机组', '燃气热水锅炉', '冷水水泵', '独立热水水泵', '冷却水水泵', '冷却塔'],
     hasCoolingTower: true,
     hasChilledWaterPump: true,
     hasHotWaterPump: true,
@@ -72,9 +72,9 @@ export const SYSTEM_TYPES_META: Record<SystemType, SystemTypeMeta> = {
   },
   air_heat_pump: {
     id: 'air_heat_pump',
-    name: '2. 风冷热泵系统',
-    description: '风冷式冷热源机组，无需冷却塔。机组配备夏季冷水循环泵和冬季热水循环泵两套独立水泵，分别在夏/冬两季与末端连接。',
-    primaryEquipment: ['风冷热泵机组', '夏季冷水循环泵', '冬季热水循环泵', '末端风机盘管(FCU)'],
+    name: '2. 风冷热泵系统 (Air Cooled Heat Pump)',
+    description: '夏供冷/冬供热一体化室外机组，无冷却塔与冷却水系统。配备夏季冷水泵与冬季热水泵两套独立循环水泵。',
+    primaryEquipment: ['风冷热泵模块机组', '夏季冷水泵', '冬季热水泵'],
     hasCoolingTower: false,
     hasChilledWaterPump: true,
     hasHotWaterPump: true,
@@ -82,9 +82,9 @@ export const SYSTEM_TYPES_META: Record<SystemType, SystemTypeMeta> = {
   },
   vrf: {
     id: 'vrf',
-    name: '3. 多联机系统 (VRF/VRV)',
-    description: '直接蒸发式变频制冷剂系统 (DX系统)，无冷/热水泵，无冷却塔及水管路系统，通过氟利昂铜管连接室外机与室内机。',
-    primaryEquipment: ['VRF室外机组', 'VRF室内机', '制冷剂管网', '新风换气机'],
+    name: '3. 多联机系统 (VRF / VRV)',
+    description: '变频氟利昂直接蒸发式系统 (DX系统)，无水泵与水管路，室外主机通过主管与分流歧管连接多台室内机。',
+    primaryEquipment: ['VRF变频多联室外机', '分支管分流器', '风机盘管/天井室内机'],
     hasCoolingTower: false,
     hasChilledWaterPump: false,
     hasHotWaterPump: false,
@@ -93,8 +93,8 @@ export const SYSTEM_TYPES_META: Record<SystemType, SystemTypeMeta> = {
   district_energy: {
     id: 'district_energy',
     name: '4. 区域能源站系统',
-    description: '由园区/城市集中能源站输送一级冷/热源，建筑内设板式换热器及二次冷/热水循环泵。',
-    primaryEquipment: ['板式换热器', '二次冷水循环泵', '二次热水循环泵', '能量计量表', '末端系统'],
+    description: '利用市政或园区集中冷热源，建筑内部设置板式换热器 (HEX) 及二次水泵进行换热与供冷/供热。',
+    primaryEquipment: ['板式换热器 (HEX)', '二次冷/热水循环泵'],
     hasCoolingTower: false,
     hasChilledWaterPump: true,
     hasHotWaterPump: true,
@@ -103,8 +103,8 @@ export const SYSTEM_TYPES_META: Record<SystemType, SystemTypeMeta> = {
   split_ac: {
     id: 'split_ac',
     name: '5. 分体空调系统',
-    description: '直接蒸发分体式空调，独立控制，无水循环泵与冷却塔。',
-    primaryEquipment: ['分体空调室内外机', '机械排风机'],
+    description: '小型分体式房间空调器，投资低、独立控制，适用于小面积或特殊功能房间。',
+    primaryEquipment: ['分体挂机/柜机'],
     hasCoolingTower: false,
     hasChilledWaterPump: false,
     hasHotWaterPump: false,
@@ -113,18 +113,28 @@ export const SYSTEM_TYPES_META: Record<SystemType, SystemTypeMeta> = {
   ground_heat_pump: {
     id: 'ground_heat_pump',
     name: '6. 地源热泵系统',
-    description: '利用土壤常温换热，配地埋管侧循环泵与负荷侧水泵，高效绿色。',
-    primaryEquipment: ['地源热泵主机', '地埋管侧循环泵', '负荷侧冷/热水泵', '地埋管换热器', '末端AHU'],
+    description: '利用土壤浅层地热能换热，能效比 (COP) 极高，配备地埋管地源水泵与负荷侧水泵。',
+    primaryEquipment: ['地源热泵主机', '地埋管循环水泵', '负荷侧水泵'],
     hasCoolingTower: false,
     hasChilledWaterPump: true,
     hasHotWaterPump: true,
     hasCoolingWaterPump: false
+  },
+  hybrid: {
+    id: 'hybrid',
+    name: '7. 复合空调系统',
+    description: '结合2种或以上系统形式（如冷水机组承担基底冷负荷，多联机承担峰值冷负荷与冬季采暖等）的复合冷热源系统。',
+    primaryEquipment: ['冷水机组/多联机/热泵组合', '循环水泵/直蒸系统组合'],
+    hasCoolingTower: true,
+    hasChilledWaterPump: true,
+    hasHotWaterPump: true,
+    hasCoolingWaterPump: true
   }
 };
 
 export const ENERGY_FACTORS = {
-  electricityPrice: 0.92, // 元/kWh
-  gasPrice: 3.50,         // 元/m³
-  electricityCarbon: 0.5703, // kgCO₂/kWh
-  gasCarbon: 2.162,         // kgCO₂/m³
+  electricityPrice: 0.85, // 元/kWh
+  gasPrice: 3.5,          // 元/m³
+  electricityCarbon: 0.581, // kg CO2 / kWh
+  gasCarbon: 2.162        // kg CO2 / m³
 };
