@@ -157,32 +157,51 @@ export interface EquipmentCalcResult {
   totalInstalledElectricPowerkW: number;
 }
 
+export interface SelectedBrandProduct {
+  catalogId: string;
+  brand: string;
+  model: string;
+  name: string;
+  ratedCapacitykW: number;
+  actualPowerkW: number; // 实际选型电量参数 (非计算公式算得)
+  gasFlowm3h?: number;
+}
+
 export interface UserEquipmentOverrides {
   chillerCapacitykW?: number;
   chillerCount?: number;
+  selectedChillerProduct?: SelectedBrandProduct;
+
   boilerCapacitykW?: number;
   boilerCount?: number;
+  selectedBoilerProduct?: SelectedBrandProduct;
   
   chwPumpFlow?: number;
   chwPumpHead?: number;
   chwPumpCount?: number;
+  selectedChwPumpProduct?: SelectedBrandProduct;
   
   cwPumpFlow?: number;
   cwPumpHead?: number;
   cwPumpCount?: number;
+  selectedCwPumpProduct?: SelectedBrandProduct;
 
   coolingTowerFlow?: number;
   coolingTowerCount?: number;
+  selectedTowerProduct?: SelectedBrandProduct;
 
   hwPumpFlow?: number;
   hwPumpHead?: number;
   hwPumpCount?: number;
+  selectedHwPumpProduct?: SelectedBrandProduct;
 
   achpCoolingkW?: number;
   achpCount?: number;
+  selectedAchpProduct?: SelectedBrandProduct;
 
   vrfCoolingkW?: number;
   vrfCount?: number;
+  selectedVrfProduct?: SelectedBrandProduct;
   
   gshpCoolingkW?: number;
   gshpCount?: number;
@@ -274,5 +293,45 @@ export interface ExistingAchpDetail {
   heatingkW: number;
   powerkW: number;
   cop: number;
+  count: number;
+}
+
+export interface ExistingVrfDetail {
+  id: string;
+  modelName: string;
+  coolingkW: number;
+  powerkW: number;
+  eer: number;
+  count: number;
+}
+
+export interface ExistingDistrictDetail {
+  id: string;
+  modelName: string;
+  capacitykW: number;
+  pumpFlowm3h: number;
+  pumpPowerkW: number;
+  count: number;
+}
+
+export interface ExistingGshpDetail {
+  id: string;
+  modelName: string;
+  coolingkW: number;
+  powerkW: number;
+  cop: number;
+  groundFlowm3h: number;
+  groundPumpPowerkW: number;
+  loadFlowm3h: number;
+  loadPumpPowerkW: number;
+  count: number;
+}
+
+export interface ExistingSplitDetail {
+  id: string;
+  modelName: string;
+  capacitykW: number;
+  powerkW: number;
+  apf: number;
   count: number;
 }

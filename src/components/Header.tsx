@@ -43,7 +43,7 @@ export const Header: React.FC<HeaderProps> = ({ summary, activeTab, onSelectTab,
           <div>
             <div className="flex items-center space-x-2">
               <h1 className="text-xl font-bold bg-gradient-to-r from-white via-slate-100 to-blue-200 bg-clip-text text-transparent">
-                建筑能耗分析与空调选型系统
+                建筑能耗分析与既有系统改造
               </h1>
               <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
                 桌面宽屏专业版 v4.0

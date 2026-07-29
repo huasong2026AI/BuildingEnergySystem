@@ -40,13 +40,13 @@ export const BuildingSubItemsManager: React.FC<Props> = ({
 
   const getIcon = (type: BuildingType) => {
     switch (type) {
-      case 'hotel': return <Hotel className="w-5 h-5 text-indigo-400" />;
-      case 'office': return <Building2 className="w-5 h-5 text-blue-400" />;
-      case 'mall': return <ShoppingBag className="w-5 h-5 text-purple-400" />;
-      case 'supermarket': return <ShoppingCart className="w-5 h-5 text-emerald-400" />;
-      case 'restaurant': return <Utensils className="w-5 h-5 text-amber-400" />;
-      case 'hospital': return <Cross className="w-5 h-5 text-rose-400" />;
-      default: return <Building className="w-5 h-5 text-slate-400" />;
+      case 'hotel': return <Hotel className="w-6 h-6 text-indigo-400" />;
+      case 'office': return <Building2 className="w-6 h-6 text-blue-400" />;
+      case 'mall': return <ShoppingBag className="w-6 h-6 text-purple-400" />;
+      case 'supermarket': return <ShoppingCart className="w-6 h-6 text-emerald-400" />;
+      case 'restaurant': return <Utensils className="w-6 h-6 text-amber-400" />;
+      case 'hospital': return <Cross className="w-6 h-6 text-rose-400" />;
+      default: return <Building className="w-6 h-6 text-slate-400" />;
     }
   };
 
@@ -93,13 +93,12 @@ export const BuildingSubItemsManager: React.FC<Props> = ({
     const exists = existing.some(s => s.systemType === subSysType);
     let updated: HybridSubSystemConfig[] = [];
     if (exists) {
-      if (existing.length <= 1) return; // 至少保留1个子系统
+      if (existing.length <= 1) return;
       updated = existing.filter(s => s.systemType !== subSysType);
     } else {
       updated = [...existing, { systemType: subSysType, ratioPercent: 30 }];
     }
 
-    // 重新归一化分配比例
     const totalRatio = updated.reduce((acc, curr) => acc + curr.ratioPercent, 0);
     updated = updated.map(s => ({
       ...s,
@@ -134,38 +133,38 @@ export const BuildingSubItemsManager: React.FC<Props> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
         <div>
           <div className="flex items-center space-x-2">
-            <Layers className="w-5 h-5 text-blue-400" />
-            <h2 className="text-lg font-bold text-white">建筑分类与功能子项 (Building Sub-items)</h2>
+            <Layers className="w-6 h-6 text-blue-400" />
+            <h2 className="text-xl font-bold text-white">建筑分类与功能子项 (Building Sub-items)</h2>
           </div>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-sm text-slate-300 mt-1">
             按商业综合体/园区划分酒店、办公、Mall、大型超市等子项。支持**复合空调系统**（组合多种基础冷热源系统并自定义负荷占比）！
           </p>
         </div>
 
         <button
           onClick={() => setIsAdding(true)}
-          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-blue-500/20 transition-all self-start sm:self-auto"
+          className="flex items-center space-x-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold shadow-lg shadow-blue-500/20 transition-all self-start sm:self-auto"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-5 h-5" />
           <span>添加建筑子项</span>
         </button>
       </div>
 
       {/* Shared Plant Summary Banner */}
       {sharedItems.length > 0 && (
-        <div className="bg-blue-950/50 border border-blue-500/40 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        <div className="bg-blue-950/50 border border-blue-500/40 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm">
           <div className="flex items-center space-x-3">
-            <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400 border border-blue-500/30">
-              <Share2 className="w-5 h-5" />
+            <div className="p-2.5 bg-blue-500/20 rounded-lg text-blue-400 border border-blue-500/30">
+              <Share2 className="w-6 h-6" />
             </div>
             <div>
-              <div className="font-bold text-white text-sm flex items-center space-x-2">
+              <div className="font-bold text-white text-base flex items-center space-x-2">
                 <span>集中共用冷热源机房已启用</span>
-                <span className="px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded text-[10px]">
+                <span className="px-2.5 py-0.5 bg-blue-500/20 text-blue-300 rounded text-xs">
                   共 {sharedItems.length} 个建筑共享
                 </span>
               </div>
-              <p className="text-slate-300 text-[11px] mt-0.5">
+              <p className="text-slate-300 text-xs mt-0.5">
                 包含建筑：{sharedItems.map(i => i.name).join(' + ')}（共用集中冷热源面积共计 <span className="font-bold text-blue-300">{totalSharedArea.toLocaleString()} m²</span>）
               </p>
             </div>
@@ -177,8 +176,8 @@ export const BuildingSubItemsManager: React.FC<Props> = ({
       {isAdding && (
         <form onSubmit={handleCreateSubmit} className="bg-slate-800/90 border border-blue-500/40 rounded-xl p-5 space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-blue-300 flex items-center space-x-2">
-              <Plus className="w-4 h-4 text-blue-400" />
+            <h3 className="text-base font-bold text-blue-300 flex items-center space-x-2">
+              <Plus className="w-5 h-5 text-blue-400" />
               <span>新增建筑功能子项</span>
             </h3>
             <button 
@@ -197,7 +196,7 @@ export const BuildingSubItemsManager: React.FC<Props> = ({
                 type="text"
                 value={newSubItem.name}
                 onChange={e => setNewSubItem({ ...newSubItem, name: e.target.value })}
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 required
               />
             </div>
@@ -207,7 +206,7 @@ export const BuildingSubItemsManager: React.FC<Props> = ({
               <select
                 value={newSubItem.type}
                 onChange={e => setNewSubItem({ ...newSubItem, type: e.target.value as BuildingType })}
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
               >
                 {Object.values(BUILDING_TYPES_META).map(meta => (
                   <option key={meta.id} value={meta.id}>{meta.name}</option>
@@ -223,7 +222,7 @@ export const BuildingSubItemsManager: React.FC<Props> = ({
                 max={500000}
                 value={newSubItem.area}
                 onChange={e => setNewSubItem({ ...newSubItem, area: Number(e.target.value) })}
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 required
               />
             </div>
@@ -233,7 +232,7 @@ export const BuildingSubItemsManager: React.FC<Props> = ({
               <select
                 value={newSubItem.systemType}
                 onChange={e => setNewSubItem({ ...newSubItem, systemType: e.target.value as SystemType })}
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
               >
                 {Object.values(SYSTEM_TYPES_META).map(sys => (
                   <option key={sys.id} value={sys.id}>{sys.name}</option>
@@ -242,7 +241,7 @@ export const BuildingSubItemsManager: React.FC<Props> = ({
             </div>
           </div>
 
-          <div className="flex items-center space-x-2 pt-1 text-xs">
+          <div className="flex items-center space-x-2 pt-1 text-sm">
             <input
               type="checkbox"
               id="sharedCheck"
@@ -290,8 +289,8 @@ export const BuildingSubItemsManager: React.FC<Props> = ({
                     {getIcon(item.type)}
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-white line-clamp-1">{item.name}</h3>
-                    <span className="text-[11px] text-slate-400 font-medium">{meta.name}</span>
+                    <h3 className="text-base font-bold text-white line-clamp-1">{item.name}</h3>
+                    <span className="text-xs text-slate-300 font-medium">{meta.name}</span>
                   </div>
                 </div>
 
@@ -300,37 +299,37 @@ export const BuildingSubItemsManager: React.FC<Props> = ({
                     e.stopPropagation();
                     if (subItems.length > 1) onDeleteSubItem(item.id);
                   }}
-                  className="text-slate-500 hover:text-red-400 p-1 rounded-lg hover:bg-slate-800 transition-colors"
+                  className="text-slate-400 hover:text-red-400 p-1 rounded-lg hover:bg-slate-800 transition-colors"
                   title="删除该子项"
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
+                  <Trash2 className="w-4 h-4" />
                 </button>
               </div>
 
               <div className="mt-4 pt-3 border-t border-slate-800/80 space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400">建筑面积：</span>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-300">建筑面积：</span>
                   <div className="flex items-center space-x-1" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="number"
                       value={item.area}
                       onChange={(e) => onUpdateSubItem({ ...item, area: Math.max(1, Number(e.target.value)) })}
-                      className="w-24 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-right text-xs font-bold text-white focus:ring-1 focus:ring-blue-500"
+                      className="w-24 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-right text-sm font-bold text-white focus:ring-1 focus:ring-blue-500"
                     />
-                    <span className="text-slate-400">m²</span>
+                    <span className="text-slate-300">m²</span>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400">冷/热负荷：</span>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-300">冷/热负荷：</span>
                   <span className="text-blue-400 font-bold">{coolkW.toFixed(0)} kW / <span className="text-rose-400">{heatkW.toFixed(0)} kW</span></span>
                 </div>
               </div>
 
               {/* Shared Plant checkbox on card */}
-              <div className="mt-3 flex items-center justify-between text-xs bg-slate-900/80 p-2 rounded-lg border border-slate-800" onClick={(e) => e.stopPropagation()}>
-                <span className="text-[11px] text-slate-400 flex items-center space-x-1">
-                  <Link2 className="w-3 h-3 text-blue-400" />
+              <div className="mt-3 flex items-center justify-between text-xs bg-slate-900/80 p-2.5 rounded-lg border border-slate-800" onClick={(e) => e.stopPropagation()}>
+                <span className="text-xs text-slate-300 flex items-center space-x-1">
+                  <Link2 className="w-4 h-4 text-blue-400" />
                   <span>共用集中冷热源机房</span>
                 </span>
                 <input
@@ -342,8 +341,8 @@ export const BuildingSubItemsManager: React.FC<Props> = ({
               </div>
 
               <div className="mt-3 pt-3 border-t border-slate-800/80">
-                <label className="block text-[11px] font-semibold text-slate-400 mb-1.5 flex items-center space-x-1">
-                  <Settings2 className="w-3 h-3 text-blue-400" />
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center space-x-1">
+                  <Settings2 className="w-4 h-4 text-blue-400" />
                   <span>空调系统形式：</span>
                 </label>
                 <select
@@ -360,7 +359,7 @@ export const BuildingSubItemsManager: React.FC<Props> = ({
                     });
                   }}
                   onClick={(e) => e.stopPropagation()}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-blue-300 font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-blue-300 font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 >
                   {Object.values(SYSTEM_TYPES_META).map((sys) => (
                     <option key={sys.id} value={sys.id}>{sys.name}</option>
@@ -369,7 +368,7 @@ export const BuildingSubItemsManager: React.FC<Props> = ({
               </div>
 
               {isActive && (
-                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-[10px] font-bold px-3 py-0.5 rounded-full shadow-md">
+                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-xs font-bold px-3 py-0.5 rounded-full shadow-md">
                   当前选中编辑
                 </div>
               )}
@@ -378,26 +377,26 @@ export const BuildingSubItemsManager: React.FC<Props> = ({
         })}
       </div>
 
-      {/* 复合空调系统配置拓展面板 (仅在选中项为 hybrid 时显示) */}
+      {/* 复合空调系统配置拓展面板 */}
       {activeItem && activeItem.systemType === 'hybrid' && (
         <div className="bg-gradient-to-r from-purple-950/60 via-slate-900 to-indigo-950/60 border border-purple-500/40 rounded-2xl p-5 space-y-4 shadow-xl">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-purple-500/30 pb-3">
             <div className="flex items-center space-x-2 text-white">
-              <Layers2 className="w-5 h-5 text-purple-400" />
-              <h3 className="text-sm font-bold text-purple-200">
+              <Layers2 className="w-6 h-6 text-purple-400" />
+              <h3 className="text-base font-bold text-purple-200">
                 【{activeItem.name}】复合空调系统多源组合配置面板
               </h3>
             </div>
-            <span className="text-xs text-purple-300 font-semibold bg-purple-500/20 px-3 py-1 rounded-full border border-purple-500/30">
+            <span className="text-sm text-purple-300 font-semibold bg-purple-500/20 px-3 py-1 rounded-full border border-purple-500/30">
               单体总冷负荷: {((activeItem.area * activeItem.coolingIndex) / 1000).toFixed(0)} kW
             </span>
           </div>
 
-          <p className="text-xs text-slate-300">
+          <p className="text-sm text-slate-300">
             选择参与复合的基础系统类型，并自定义各个子系统承担的冷/热负荷比例 (%)：
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
             {['chiller_boiler', 'air_heat_pump', 'vrf', 'district_energy', 'ground_heat_pump'].map((sysKey) => {
               const sysMeta = SYSTEM_TYPES_META[sysKey as SystemType];
               const subConfigs = activeItem.hybridSubSystems || [
@@ -412,7 +411,7 @@ export const BuildingSubItemsManager: React.FC<Props> = ({
               return (
                 <div 
                   key={sysKey}
-                  className={`p-3.5 rounded-xl border transition-all space-y-2 ${
+                  className={`p-4 rounded-xl border transition-all space-y-2 ${
                     isChecked
                       ? 'bg-slate-800/90 border-purple-500/60 ring-1 ring-purple-500/30'
                       : 'bg-slate-900/60 border-slate-800 opacity-60'
@@ -430,7 +429,7 @@ export const BuildingSubItemsManager: React.FC<Props> = ({
                     </label>
 
                     {isChecked && (
-                      <span className="text-[10px] font-bold text-purple-300 bg-purple-500/20 px-2 py-0.5 rounded">
+                      <span className="text-xs font-bold text-purple-300 bg-purple-500/20 px-2 py-0.5 rounded">
                         {subCoolingkW.toFixed(0)} kW
                       </span>
                     )}
@@ -438,7 +437,7 @@ export const BuildingSubItemsManager: React.FC<Props> = ({
 
                   {isChecked && (
                     <div className="flex items-center justify-between pt-1 border-t border-slate-750/80">
-                      <span className="text-slate-400 text-[11px]">承担负荷占比:</span>
+                      <span className="text-slate-300 text-xs">承担负荷占比:</span>
                       <div className="flex items-center space-x-1">
                         <input
                           type="number"
@@ -446,7 +445,7 @@ export const BuildingSubItemsManager: React.FC<Props> = ({
                           max={95}
                           value={curConfig?.ratioPercent || 50}
                           onChange={(e) => handleRatioChange(activeItem, sysKey as SystemType, Number(e.target.value))}
-                          className="w-16 bg-slate-950 border border-slate-700 rounded px-2 py-0.5 text-right font-bold text-purple-300 text-xs"
+                          className="w-16 bg-slate-950 border border-slate-700 rounded px-2 py-0.5 text-right font-bold text-purple-300 text-sm"
                         />
                         <span className="text-slate-300 font-bold">%</span>
                       </div>

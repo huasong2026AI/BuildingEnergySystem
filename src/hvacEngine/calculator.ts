@@ -275,6 +275,82 @@ export function calculateEquipmentForSubItem(
     }
   }
 
+  // 覆盖自定义与真实选型品牌设备物理铭牌电量及气耗
+  const custom = item.customEquipment || {};
+
+  if (custom.selectedChillerProduct) {
+    chillerPowerkW = custom.selectedChillerProduct.actualPowerkW * (custom.chillerCount || chillerCount);
+    chillerCapacitykW = custom.selectedChillerProduct.ratedCapacitykW * (custom.chillerCount || chillerCount);
+  } else if (custom.chillerCapacitykW) {
+    chillerCapacitykW = custom.chillerCapacitykW;
+    chillerPowerkW = custom.chillerCapacitykW / chillerCOP;
+  }
+
+  if (custom.selectedBoilerProduct) {
+    boilerCapacitykW = custom.selectedBoilerProduct.ratedCapacitykW * (custom.boilerCount || boilerCount);
+    boilerGasFlow = (custom.selectedBoilerProduct.gasFlowm3h || (custom.selectedBoilerProduct.ratedCapacitykW / (9.967 * 0.95))) * (custom.boilerCount || boilerCount);
+  } else if (custom.boilerCapacitykW) {
+    boilerCapacitykW = custom.boilerCapacitykW;
+    boilerGasFlow = custom.boilerCapacitykW / (9.967 * boilerEfficiency);
+  }
+
+  if (custom.selectedChwPumpProduct) {
+    chwPumpPowerkW = custom.selectedChwPumpProduct.actualPowerkW * (custom.chwPumpCount || chwPumpCount);
+    chwPumpFlow = custom.selectedChwPumpProduct.ratedCapacitykW * (custom.chwPumpCount || chwPumpCount);
+  } else if (custom.chwPumpFlow) {
+    chwPumpFlow = custom.chwPumpFlow;
+    chwPumpPowerkW = (custom.chwPumpFlow * chwPumpHead) / 247.7;
+  }
+
+  if (custom.selectedCwPumpProduct) {
+    cwPumpPowerkW = custom.selectedCwPumpProduct.actualPowerkW * (custom.cwPumpCount || cwPumpCount);
+    cwPumpFlow = custom.selectedCwPumpProduct.ratedCapacitykW * (custom.cwPumpCount || cwPumpCount);
+  } else if (custom.cwPumpFlow) {
+    cwPumpFlow = custom.cwPumpFlow;
+    cwPumpPowerkW = (custom.cwPumpFlow * cwPumpHead) / 247.7;
+  }
+
+  if (custom.selectedTowerProduct) {
+    coolingTowerFanPowerkW = custom.selectedTowerProduct.actualPowerkW * (custom.coolingTowerCount || coolingTowerCount);
+    coolingTowerFlow = custom.selectedTowerProduct.ratedCapacitykW * (custom.coolingTowerCount || coolingTowerCount);
+  } else if (custom.coolingTowerFlow) {
+    coolingTowerFlow = custom.coolingTowerFlow;
+    coolingTowerFanPowerkW = custom.coolingTowerFlow * 0.18;
+  }
+
+  if (custom.selectedHwPumpProduct) {
+    hwPumpPowerkW = custom.selectedHwPumpProduct.actualPowerkW * (custom.hwPumpCount || hwPumpCount);
+    hwPumpFlow = custom.selectedHwPumpProduct.ratedCapacitykW * (custom.hwPumpCount || hwPumpCount);
+  } else if (custom.hwPumpFlow) {
+    hwPumpFlow = custom.hwPumpFlow;
+    hwPumpPowerkW = (custom.hwPumpFlow * hwPumpHead) / 247.7;
+  }
+
+  if (custom.selectedAchpProduct) {
+    achpPowerkW = custom.selectedAchpProduct.actualPowerkW * (custom.achpCount || achpCount);
+    achpCoolingkW = custom.selectedAchpProduct.ratedCapacitykW * (custom.achpCount || achpCount);
+  } else if (custom.achpCoolingkW) {
+    achpCoolingkW = custom.achpCoolingkW;
+    achpPowerkW = custom.achpCoolingkW / 3.2;
+  }
+
+  if (custom.selectedVrfProduct) {
+    vrfPowerkW = custom.selectedVrfProduct.actualPowerkW * (custom.vrfCount || vrfCount);
+    vrfCoolingkW = custom.selectedVrfProduct.ratedCapacitykW * (custom.vrfCount || vrfCount);
+  } else if (custom.vrfCoolingkW) {
+    vrfCoolingkW = custom.vrfCoolingkW;
+    vrfPowerkW = custom.vrfCoolingkW / 3.85;
+  }
+
+  if (custom.chillerCount) chillerCount = custom.chillerCount;
+  if (custom.boilerCount) boilerCount = custom.boilerCount;
+  if (custom.chwPumpCount) chwPumpCount = custom.chwPumpCount;
+  if (custom.cwPumpCount) cwPumpCount = custom.cwPumpCount;
+  if (custom.coolingTowerCount) coolingTowerCount = custom.coolingTowerCount;
+  if (custom.hwPumpCount) hwPumpCount = custom.hwPumpCount;
+  if (custom.achpCount) achpCount = custom.achpCount;
+  if (custom.vrfCount) vrfCount = custom.vrfCount;
+
   const sysMeta = SYSTEM_TYPES_META[item.systemType];
 
   const totalInstalledElectricPowerkW = 
