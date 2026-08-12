@@ -1,5 +1,192 @@
 import type { BuildingSubItem, EquipmentCalcResult, EquipmentDiscrepancy, MonthlyEnergyRecord, ProjectEnergySummary } from '../types/hvac';
 import { ENERGY_FACTORS, SYSTEM_TYPES_META } from './constants';
+import { generateHourlyWeather, type CityName } from './hourlyEngine/weatherGenerator';
+import { simulateHourlyLoad } from './hourlyEngine/loadSimulator';
+import { getRecommendedChillers } from './hourlyEngine/sizingEngine';
+import { optimizeChillerPlant } from './hourlyEngine/systemOptimizer';
+import { evaluateLcca, calculateHourlyElectricityPrice } from './hourlyEngine/lccaModel';
+
+/**
+ * 汇总整个项目的全年能耗、月度分布、碳排放与费用（集成 8760h 全年逐时气象、负荷与冷站全局寻优算法）
+ */
+export function calculateProjectSummary(items: BuildingSubItem[]): ProjectEnergySummary {
+  let totalArea = 0;
+  let totalCoolingLoadkW = 0;
+  let totalHeatingLoadkW = 0;
+  let totalInstalledPowerkW = 0;
+
+  const allDiscrepancies: EquipmentDiscrepancy[] = [];
+
+  items.forEach(item => {
+    totalArea += item.area;
+    const calc = calculateEquipmentForSubItem(item, items);
+    totalCoolingLoadkW += calc.coolingLoadkW;
+    totalHeatingLoadkW += calc.heatingLoadkW;
+    totalInstalledPowerkW += calc.totalInstalledElectricPowerkW;
+
+    const itemDiscrepancies = checkDiscrepancies(item, calc);
+    allDiscrepancies.push(...itemDiscrepancies);
+  });
+
+  if (items.length === 0 || totalArea === 0) {
+    return {
+      totalArea: 0,
+      totalCoolingLoadkW: 0,
+      totalHeatingLoadkW: 0,
+      totalInstalledPowerkW: 0,
+      annualElectricitykWh: 0,
+      annualGasm3: 0,
+      annualCostRmb: 0,
+      annualCarbonTons: 0,
+      energyIntensitykWhPerM2: 0,
+      costPerM2: 0,
+      monthlyData: [],
+      discrepancies: []
+    };
+  }
+
+  // 1. 获取代表城市（优先取第一个子项填写的 city，缺省为 上海）
+  const primaryCity: CityName = items[0]?.city || '上海';
+  const primaryType = items[0]?.type || 'office';
+
+  // 2. 生成 8,760 小时天气与负荷
+  const weatherRecords = generateHourlyWeather(primaryCity);
+  const hourlyLoadRecords = simulateHourlyLoad(totalArea, primaryType, weatherRecords);
+
+  // 3. 冷站选型推荐与能效全局寻优 (Optimize Chiller Plant)
+  const Q_peak_cool = hourlyLoadRecords[0]?.Q_peak_cool || totalCoolingLoadkW;
+  const plantConfig = getRecommendedChillers(Q_peak_cool);
+  const optRecords = optimizeChillerPlant(hourlyLoadRecords, plantConfig, 30.0, 4.0);
+
+  // 4. LCCA 全生命周期三类改造方案比选
+  const lccaResults = evaluateLcca(
+    optRecords, totalArea,
+    ENERGY_FACTORS.peakElectricityPrice,
+    ENERGY_FACTORS.flatElectricityPrice,
+    ENERGY_FACTORS.valleyElectricityPrice,
+    ENERGY_FACTORS.gasPrice
+  );
+
+  // 5. 8760h 分时电价数组
+  const hoursOfDay = optRecords.map(r => r.hourOfDay);
+  const elecPrices = calculateHourlyElectricityPrice(
+    hoursOfDay,
+    ENERGY_FACTORS.peakElectricityPrice,
+    ENERGY_FACTORS.flatElectricityPrice,
+    ENERGY_FACTORS.valleyElectricityPrice
+  );
+
+  // 6. 聚合月度数据与全年总量
+  const monthNames = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+  const monthlyData: MonthlyEnergyRecord[] = [];
+
+  // 7. 按天数累加至月
+  const daysInMonths = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  let hourPointer = 0;
+
+  let annualElectricitykWh = 0;
+  let annualGasm3 = 0;
+  let annualCostRmb = 0;
+  let totBaseEleckWh = 0;
+  let totOptEleckWh = 0;
+
+  for (let m = 0; m < 12; m++) {
+    const hoursInThisMonth = daysInMonths[m] * 24;
+
+    let mCoolingkWh = 0;
+    let mPumpskWh = 0;
+    let mTowerskWh = 0;
+    let mTerminalskWh = 0;
+    let mGasm3 = 0;
+    let mCostRmb = 0;
+
+    for (let h = 0; h < hoursInThisMonth; h++) {
+      const idx = hourPointer + h;
+      if (idx >= optRecords.length) break;
+
+      const rec = optRecords[idx];
+      const price = elecPrices[idx];
+
+      const pChiller = rec.opt_P_Chiller;
+      const pPumps = rec.opt_P_CHWP + rec.opt_P_CWP;
+      const pTowers = rec.opt_P_Tower;
+      const pTerminals = totalArea * 0.008 * (rec.Q_cool > 0 || rec.Q_heat > 0 ? 1 : 0.1);
+
+      mCoolingkWh += pChiller;
+      mPumpskWh += pPumps;
+      mTowerskWh += pTowers;
+      mTerminalskWh += pTerminals;
+
+      totBaseEleckWh += rec.base_P_Total;
+      totOptEleckWh += rec.opt_P_Total;
+
+      let gas = 0;
+      if (rec.Q_heat > 0) {
+        gas = rec.Q_heat / (0.90 * 9.87);
+        mGasm3 += gas;
+      }
+
+      const hourElec = pChiller + pPumps + pTowers + pTerminals;
+      const hourCost = (hourElec * price) + (gas * ENERGY_FACTORS.gasPrice);
+      mCostRmb += hourCost;
+    }
+
+    hourPointer += hoursInThisMonth;
+
+    const totalElec = mCoolingkWh + mPumpskWh + mTowerskWh + mTerminalskWh;
+    const avgCOP = mCoolingkWh > 0 ? (totalCoolingLoadkW / Math.max(1, mCoolingkWh / (hoursInThisMonth * 0.4))) : 4.0;
+
+    monthlyData.push({
+      month: m + 1,
+      monthName: monthNames[m],
+      coolingkWh: mCoolingkWh,
+      heatingkWh: 0,
+      pumpskWh: mPumpskWh,
+      towerskWh: mTowerskWh,
+      terminalsAndOtherkWh: mTerminalskWh,
+      gasm3: mGasm3,
+      totalElectricitkykWh: totalElec,
+      totalCostRmb: mCostRmb,
+      avgCOP: Math.min(6.5, Math.max(3.0, avgCOP))
+    });
+
+    annualElectricitykWh += totalElec;
+    annualGasm3 += mGasm3;
+    annualCostRmb += mCostRmb;
+  }
+
+  const annualCarbonTons = ((annualElectricitykWh * ENERGY_FACTORS.electricityCarbon) + (annualGasm3 * ENERGY_FACTORS.gasCarbon)) / 1000;
+  const energyIntensitykWhPerM2 = totalArea > 0 ? annualElectricitykWh / totalArea : 0;
+  const costPerM2 = totalArea > 0 ? annualCostRmb / totalArea : 0;
+
+  const savingsElectricitykWh = totBaseEleckWh - totOptEleckWh;
+  const savingsRatePercent = totBaseEleckWh > 0 ? (savingsElectricitykWh / totBaseEleckWh) * 100.0 : 0.0;
+
+  return {
+    totalArea,
+    totalCoolingLoadkW,
+    totalHeatingLoadkW,
+    totalInstalledPowerkW,
+    annualElectricitykWh,
+    annualGasm3,
+    annualCostRmb,
+    annualCarbonTons,
+    energyIntensitykWhPerM2,
+    costPerM2,
+    monthlyData,
+    discrepancies: allDiscrepancies,
+
+    baselineElectricitykWh: totBaseEleckWh,
+    optimizedElectricitykWh: totOptEleckWh,
+    savingsElectricitykWh,
+    savingsRatePercent,
+
+    lccaResults,
+    chillerPlantConfigName: plantConfig.config_name,
+    chillerPlantJustification: plantConfig.justification
+  };
+}
+
 
 /**
  * 计算单个建筑子项（考虑共用集中冷热源负荷合并及复合系统分拆）的标准 HVAC 设备配置容量与参数
@@ -111,35 +298,37 @@ export function calculateEquipmentForSubItem(
 
       if (sub.systemType === 'chiller_boiler') {
         chillerCapacitykW += subCoolLoad;
-        chillerCount += subCoolLoad > 600 ? 2 : 1;
+        const subChillerCount = subCoolLoad <= 2500 ? 2 : subCoolLoad <= 5500 ? 3 : 4;
+        chillerCount += subChillerCount;
         chillerPowerkW += subCoolLoad / chillerCOP;
 
         boilerCapacitykW += subHeatLoad * 1.1;
-        boilerCount += (subHeatLoad * 1.1) > 500 ? 2 : 1;
+        const subBoilerCount = (subHeatLoad * 1.1) <= 1500 ? 2 : 3;
+        boilerCount += subBoilerCount;
         boilerGasFlow += ((subHeatLoad * 1.1) / (9.967 * boilerEfficiency));
 
         const subChwFlow = (subCoolLoad * 3.6) / (4.186 * deltaTchw);
         chwPumpFlow += subChwFlow;
         chwPumpHead = 28;
         chwPumpPowerkW += (subChwFlow * 28) / 247.7;
-        chwPumpCount += 2;
+        chwPumpCount += subChillerCount; // 冷水泵一机对一泵
 
         const qCond = subCoolLoad * (1 + 1 / chillerCOP);
         const subCwFlow = (qCond * 3.6) / (4.186 * deltaTcw);
         cwPumpFlow += subCwFlow;
         cwPumpHead = 24;
         cwPumpPowerkW += (subCwFlow * 24) / 247.7;
-        cwPumpCount += 2;
+        cwPumpCount += subChillerCount; // 冷却泵一机对一泵
 
         coolingTowerFlow += subCwFlow * 1.15;
         coolingTowerFanPowerkW += subCwFlow * 1.15 * 0.18;
-        coolingTowerCount += 1;
+        coolingTowerCount += subChillerCount; // 冷却塔一泵对一塔
 
         const subHwFlow = (subHeatLoad * 1.1 * 3.6) / (4.186 * deltaThw);
         hwPumpFlow += subHwFlow;
         hwPumpHead = 22;
         hwPumpPowerkW += (subHwFlow * 22) / 247.7;
-        hwPumpCount += 2;
+        hwPumpCount += subBoilerCount; // 热水泵一锅炉对一泵
       } else if (sub.systemType === 'vrf') {
         vrfCoolingkW += subCoolLoad;
         const vrfEER = 3.85;
@@ -168,32 +357,32 @@ export function calculateEquipmentForSubItem(
     switch (item.systemType) {
       case 'chiller_boiler': {
         chillerCapacitykW = coolingLoadkW * simFactor;
-        chillerCount = chillerCapacitykW > 600 ? 2 : 1;
+        chillerCount = chillerCapacitykW <= 2500 ? 2 : chillerCapacitykW <= 5500 ? 3 : 4;
         chillerPowerkW = chillerCapacitykW / chillerCOP;
 
         boilerCapacitykW = heatingLoadkW * 1.1;
-        boilerCount = boilerCapacitykW > 500 ? 2 : 1;
+        boilerCount = boilerCapacitykW <= 1500 ? 2 : 3;
         boilerGasFlow = (boilerCapacitykW / (9.967 * boilerEfficiency)); 
 
         chwPumpFlow = (chillerCapacitykW * 3.6) / (4.186 * deltaTchw);
         chwPumpHead = 28;
         chwPumpPowerkW = (chwPumpFlow * chwPumpHead) / 247.7;
-        chwPumpCount = chillerCount + 1;
+        chwPumpCount = chillerCount; // 一机对一泵
 
         const qCond = chillerCapacitykW * (1 + 1 / chillerCOP);
         cwPumpFlow = (qCond * 3.6) / (4.186 * deltaTcw);
         cwPumpHead = 24;
         cwPumpPowerkW = (cwPumpFlow * cwPumpHead) / 247.7;
-        cwPumpCount = chillerCount + 1;
+        cwPumpCount = chillerCount; // 一机对一泵
 
         coolingTowerFlow = cwPumpFlow * 1.15;
         coolingTowerFanPowerkW = coolingTowerFlow * 0.18;
-        coolingTowerCount = chillerCount;
+        coolingTowerCount = chillerCount; // 一泵对一塔
 
         hwPumpFlow = (boilerCapacitykW * 3.6) / (4.186 * deltaThw);
         hwPumpHead = 22;
         hwPumpPowerkW = (hwPumpFlow * hwPumpHead) / 247.7;
-        hwPumpCount = boilerCount + 1;
+        hwPumpCount = boilerCount; // 一锅炉对一热水泵
         break;
       }
 
@@ -339,7 +528,7 @@ export function calculateEquipmentForSubItem(
     vrfCoolingkW = custom.selectedVrfProduct.ratedCapacitykW * (custom.vrfCount || vrfCount);
   } else if (custom.vrfCoolingkW) {
     vrfCoolingkW = custom.vrfCoolingkW;
-    vrfPowerkW = custom.vrfCoolingkW / 3.85;
+        vrfPowerkW = custom.vrfCoolingkW / 3.85;
   }
 
   if (custom.chillerCount) chillerCount = custom.chillerCount;
@@ -350,6 +539,11 @@ export function calculateEquipmentForSubItem(
   if (custom.hwPumpCount) hwPumpCount = custom.hwPumpCount;
   if (custom.achpCount) achpCount = custom.achpCount;
   if (custom.vrfCount) vrfCount = custom.vrfCount;
+
+  const achpChwPumpFlow = achpCoolingkW > 0 ? (achpCoolingkW * 3.6) / (4.186 * deltaTchw) : 0;
+  const achpHwPumpFlow = achpHeatingkW > 0 ? (achpHeatingkW * 3.6) / (4.186 * deltaThw) : 0;
+  const achpChwPumpCount = achpCount > 0 ? achpCount : 0;
+  const achpHwPumpCount = achpCount > 0 ? achpCount : 0;
 
   const sysMeta = SYSTEM_TYPES_META[item.systemType];
 
@@ -399,6 +593,10 @@ export function calculateEquipmentForSubItem(
     achpHeatingkW,
     achpPowerkW,
     achpCount,
+    achpChwPumpFlow,
+    achpHwPumpFlow,
+    achpChwPumpCount,
+    achpHwPumpCount,
     achpSummerPumpPowerkW,
     achpWinterPumpPowerkW,
     vrfCoolingkW,
@@ -516,152 +714,3 @@ export function checkDiscrepancies(
   return list;
 }
 
-/**
- * 汇总整个项目的全年能耗、月度分布、碳排放与费用
- */
-export function calculateProjectSummary(items: BuildingSubItem[]): ProjectEnergySummary {
-  let totalArea = 0;
-  let totalCoolingLoadkW = 0;
-  let totalHeatingLoadkW = 0;
-  let totalInstalledPowerkW = 0;
-
-  const allDiscrepancies: EquipmentDiscrepancy[] = [];
-
-  let sumChillerPower = 0;
-  let sumBoilerGasFlow = 0;
-  let sumPumpsPower = 0;
-  let sumTowersPower = 0;
-  let sumTerminalsPower = 0;
-
-  items.forEach(item => {
-    totalArea += item.area;
-    const calc = calculateEquipmentForSubItem(item, items);
-    totalCoolingLoadkW += calc.coolingLoadkW;
-    totalHeatingLoadkW += calc.heatingLoadkW;
-
-    const itemDiscrepancies = checkDiscrepancies(item, calc);
-    allDiscrepancies.push(...itemDiscrepancies);
-
-    const custom = item.customEquipment;
-    const sysMeta = SYSTEM_TYPES_META[item.systemType];
-    
-    let effectiveChillerPower = calc.chillerPowerkW;
-    if (custom?.chillerCapacitykW && calc.chillerCapacitykW > 0) {
-      effectiveChillerPower = custom.chillerCapacitykW / calc.chillerCOP;
-    }
-
-    let effectiveBoilerGasFlow = calc.boilerGasFlow;
-    if (custom?.boilerCapacitykW && calc.boilerCapacitykW > 0) {
-      effectiveBoilerGasFlow = custom.boilerCapacitykW / (9.967 * calc.boilerEfficiency);
-    }
-
-    let effectiveChwPumpPower = sysMeta.hasChilledWaterPump ? calc.chwPumpPowerkW : 0;
-    if (sysMeta.hasChilledWaterPump && custom?.chwPumpFlow) {
-      const h = custom.chwPumpHead || calc.chwPumpHead;
-      effectiveChwPumpPower = (custom.chwPumpFlow * h) / 247.7;
-    }
-
-    let effectiveCwPumpPower = sysMeta.hasCoolingWaterPump ? calc.cwPumpPowerkW : 0;
-    if (sysMeta.hasCoolingWaterPump && custom?.cwPumpFlow) {
-      const h = custom.cwPumpHead || calc.cwPumpHead;
-      effectiveCwPumpPower = (custom.cwPumpFlow * h) / 247.7;
-    }
-
-    let effectiveTowerPower = sysMeta.hasCoolingTower ? calc.coolingTowerFanPowerkW : 0;
-    if (sysMeta.hasCoolingTower && custom?.coolingTowerFlow) {
-      effectiveTowerPower = custom.coolingTowerFlow * 0.18;
-    }
-
-    let effectiveHwPumpPower = sysMeta.hasHotWaterPump ? calc.hwPumpPowerkW : 0;
-    if (sysMeta.hasHotWaterPump && custom?.hwPumpFlow) {
-      const h = custom.hwPumpHead || calc.hwPumpHead;
-      effectiveHwPumpPower = (custom.hwPumpFlow * h) / 247.7;
-    }
-
-    const itemTotalElectricPower = 
-      effectiveChillerPower + 
-      effectiveChwPumpPower + 
-      effectiveCwPumpPower + 
-      effectiveTowerPower + 
-      effectiveHwPumpPower + 
-      calc.achpPowerkW + 
-      calc.vrfPowerkW + 
-      calc.gshpGroundPumpPowerkW + 
-      calc.gshpLoadPumpPowerkW + 
-      calc.districtPumpPowerkW + 
-      calc.splitPowerkW;
-
-    totalInstalledPowerkW += itemTotalElectricPower;
-
-    sumChillerPower += effectiveChillerPower + calc.achpPowerkW + calc.vrfPowerkW;
-    sumBoilerGasFlow += effectiveBoilerGasFlow;
-    sumPumpsPower += effectiveChwPumpPower + effectiveCwPumpPower + effectiveHwPumpPower + calc.gshpGroundPumpPowerkW + calc.gshpLoadPumpPowerkW + calc.districtPumpPowerkW;
-    sumTowersPower += effectiveTowerPower;
-    sumTerminalsPower += item.area * 0.008;
-  });
-
-  const coolingMonthCoeffs = [0, 0, 0.1, 0.35, 0.65, 0.90, 1.00, 0.95, 0.70, 0.30, 0.05, 0];
-  const heatingMonthCoeffs = [1.00, 0.85, 0.40, 0.05, 0, 0, 0, 0, 0.10, 0.50, 0.90];
-
-  const monthNames = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
-  const monthlyData: MonthlyEnergyRecord[] = [];
-
-  let annualElectricitykWh = 0;
-  let annualGasm3 = 0;
-
-  for (let m = 0; m < 12; m++) {
-    const cCoeff = coolingMonthCoeffs[m];
-    const hCoeff = heatingMonthCoeffs[m];
-
-    const hoursInMonth = 30 * 10;
-
-    const coolingkWh = sumChillerPower * cCoeff * hoursInMonth;
-    const pumpskWh = sumPumpsPower * Math.max(cCoeff, hCoeff) * hoursInMonth;
-    const towerskWh = sumTowersPower * cCoeff * hoursInMonth;
-    const terminalskWh = sumTerminalsPower * Math.max(cCoeff, hCoeff) * hoursInMonth;
-
-    const gasm3 = sumBoilerGasFlow * hCoeff * hoursInMonth;
-    const totalElec = coolingkWh + pumpskWh + towerskWh + terminalskWh;
-
-    const totalCost = (totalElec * ENERGY_FACTORS.electricityPrice) + (gasm3 * ENERGY_FACTORS.gasPrice);
-    const avgCOP = cCoeff > 0 ? (4.2 + cCoeff * 0.8) : (hCoeff > 0 ? 3.2 : 4.0);
-
-    monthlyData.push({
-      month: m + 1,
-      monthName: monthNames[m],
-      coolingkWh,
-      heatingkWh: 0,
-      pumpskWh,
-      towerskWh,
-      terminalsAndOtherkWh: terminalskWh,
-      gasm3,
-      totalElectricitkykWh: totalElec,
-      totalCostRmb: totalCost,
-      avgCOP
-    });
-
-    annualElectricitykWh += totalElec;
-    annualGasm3 += gasm3;
-  }
-
-  const annualCostRmb = (annualElectricitykWh * ENERGY_FACTORS.electricityPrice) + (annualGasm3 * ENERGY_FACTORS.gasPrice);
-  const annualCarbonTons = ((annualElectricitykWh * ENERGY_FACTORS.electricityCarbon) + (annualGasm3 * ENERGY_FACTORS.gasCarbon)) / 1000;
-
-  const energyIntensitykWhPerM2 = totalArea > 0 ? annualElectricitykWh / totalArea : 0;
-  const costPerM2 = totalArea > 0 ? annualCostRmb / totalArea : 0;
-
-  return {
-    totalArea,
-    totalCoolingLoadkW,
-    totalHeatingLoadkW,
-    totalInstalledPowerkW,
-    annualElectricitykWh,
-    annualGasm3,
-    annualCostRmb,
-    annualCarbonTons,
-    energyIntensitykWhPerM2,
-    costPerM2,
-    monthlyData,
-    discrepancies: allDiscrepancies
-  };
-}

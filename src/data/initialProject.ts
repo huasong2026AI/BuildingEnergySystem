@@ -16,11 +16,8 @@ export const INITIAL_SUB_ITEMS: BuildingSubItem[] = [
     hwReturnTemp: 50,
     cwSupplyTemp: 32,
     cwReturnTemp: 37,
-    customEquipment: {
-      chwPumpFlow: 650,
-      chwPumpHead: 32,
-      cwPumpFlow: 750,
-    }
+    city: '上海',
+    customEquipment: {}
   },
   {
     id: 'sub-2',
@@ -37,6 +34,7 @@ export const INITIAL_SUB_ITEMS: BuildingSubItem[] = [
     hwReturnTemp: 50,
     cwSupplyTemp: 32,
     cwReturnTemp: 37,
+    city: '北京',
     customEquipment: {}
   },
   {
@@ -54,25 +52,7 @@ export const INITIAL_SUB_ITEMS: BuildingSubItem[] = [
     hwReturnTemp: 50,
     cwSupplyTemp: 32,
     cwReturnTemp: 37,
-    customEquipment: {
-      chillerCapacitykW: 6000
-    }
-  },
-  {
-    id: 'sub-4',
-    name: '地下精品大型超市',
-    type: 'supermarket',
-    area: 12000,
-    coolingIndex: 155,
-    heatingIndex: 85,
-    operatingHours: 5100,
-    systemType: 'vrf',
-    chwSupplyTemp: 7,
-    chwReturnTemp: 12,
-    hwSupplyTemp: 60,
-    hwReturnTemp: 50,
-    cwSupplyTemp: 32,
-    cwReturnTemp: 37,
+    city: '广州',
     customEquipment: {}
   }
 ];

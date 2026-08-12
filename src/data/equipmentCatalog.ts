@@ -9,7 +9,7 @@ export type EquipmentCategory =
 export interface CatalogEquipmentItem {
   id: string;
   category: EquipmentCategory;
-  brand: string;            // 品牌 (约克, 开利, 特灵, 麦克维尔, 格力, 美的, 海尔, 威乐, 凯泉, 方快, 双良, 金日, 大金, 日立)
+  brand: string;            // 行业单品类专属顶级品牌
   model: string;            // 型号
   name: string;             // 产品中文全称
   ratedCapacitykW: number;  // 额定制冷/制热容量 kW (水泵/冷却塔则表示额定流量 m³/h)
@@ -21,182 +21,191 @@ export interface CatalogEquipmentItem {
   description?: string;     // 产品特色说明
 }
 
+export const CATEGORY_BRANDS: Record<EquipmentCategory, string> = {
+  chiller: '约克 (York)',
+  boiler: '方快 (Fangkuai)',
+  achp: '麦克维尔 (McQuay)',
+  vrf: '大金 (Daikin)',
+  pump: '威乐 (Wilo)',
+  cooling_tower: '金日 (King Sun)'
+};
+
 export const EQUIPMENT_CATALOG: CatalogEquipmentItem[] = [
   // ----------------------------------------------------
-  // 1. 冷水机组 (Chillers)
+  // 1. 冷水机组 (Chillers) - 品牌：约克 (York) [规格覆盖 150 kW ~ 3200 kW]
   // ----------------------------------------------------
   {
-    id: 'chiller-york-yk800',
+    id: 'chiller-york-150',
+    category: 'chiller',
+    brand: '约克 (York)',
+    model: 'YVAA-0150-Screw',
+    name: '约克 YVAA 变频螺杆式冷水机组 150kW',
+    ratedCapacitykW: 150,
+    ratedPowerkW: 25.8,
+    copOrEff: 5.8,
+    ratedFlowm3h: 25.8,
+    priceRmbTenThousand: 15,
+    description: '小型变频螺杆，双回路降膜式蒸发器，满载 COP 5.8'
+  },
+  {
+    id: 'chiller-york-300',
+    category: 'chiller',
+    brand: '约克 (York)',
+    model: 'YVAA-0300-Screw',
+    name: '约克 YVAA 变频螺杆式冷水机组 300kW',
+    ratedCapacitykW: 300,
+    ratedPowerkW: 51.7,
+    copOrEff: 5.8,
+    ratedFlowm3h: 51.6,
+    priceRmbTenThousand: 26,
+    description: '无级变频调节，低负荷能效优秀，防降速喘振'
+  },
+  {
+    id: 'chiller-york-500',
+    category: 'chiller',
+    brand: '约克 (York)',
+    model: 'YVAA-0500-Screw',
+    name: '约克 YVAA 变频螺杆式冷水机组 500kW',
+    ratedCapacitykW: 500,
+    ratedPowerkW: 86.2,
+    copOrEff: 5.8,
+    ratedFlowm3h: 86.0,
+    priceRmbTenThousand: 38,
+    description: '中小型商场/办公楼通用变频螺杆主机'
+  },
+  {
+    id: 'chiller-york-800',
     category: 'chiller',
     brand: '约克 (York)',
     model: 'YK-0800-Mag',
     name: '约克 YK 变频磁悬浮离心式冷水机组 800kW',
     ratedCapacitykW: 800,
-    ratedPowerkW: 114.2,
-    copOrEff: 7.0,
+    ratedPowerkW: 117.6,
+    copOrEff: 6.8,
     ratedFlowm3h: 137.6,
     priceRmbTenThousand: 65,
-    description: '无油磁悬浮轴承，全变频驱动，满负荷 COP 高达 7.0，IPLV 10.2'
+    description: '无油磁悬浮轴承，全变频驱动，低负荷超高 COP 6.8'
   },
   {
-    id: 'chiller-york-yk1200',
+    id: 'chiller-york-1000',
     category: 'chiller',
     brand: '约克 (York)',
-    model: 'YK-1200-Mag',
-    name: '约克 YK 变频磁悬浮离心式冷水机组 1200kW',
+    model: 'YK-1000-Mag',
+    name: '约克 YK 变频磁悬浮离心式冷水机组 1000kW',
+    ratedCapacitykW: 1000,
+    ratedPowerkW: 147.0,
+    copOrEff: 6.8,
+    ratedFlowm3h: 172.0,
+    priceRmbTenThousand: 78,
+    description: '极低负荷专用的高效磁悬浮主机，免润滑油系统维护'
+  },
+  {
+    id: 'chiller-york-1200',
+    category: 'chiller',
+    brand: '约克 (York)',
+    model: 'YK-1200-Cent',
+    name: '约克 YK 变频离心式冷水机组 1200kW',
     ratedCapacitykW: 1200,
-    ratedPowerkW: 171.4,
-    copOrEff: 7.0,
+    ratedPowerkW: 187.5,
+    copOrEff: 6.4,
     ratedFlowm3h: 206.4,
-    priceRmbTenThousand: 92,
-    description: '双压缩机独立回路，超高效磁悬浮离心，超长使用寿命'
+    priceRmbTenThousand: 88,
+    description: '经典高可靠变频离心式主机，配合 OptiSpeed 驱动器'
   },
   {
-    id: 'chiller-york-yk1600',
+    id: 'chiller-york-1600',
     category: 'chiller',
     brand: '约克 (York)',
-    model: 'YK-1600-Mag',
-    name: '约克 YK 变频磁悬浮离心式冷水机组 1600kW',
+    model: 'YK-1600-Cent',
+    name: '约克 YK 变频离心式冷水机组 1600kW',
     ratedCapacitykW: 1600,
-    ratedPowerkW: 228.5,
-    copOrEff: 7.0,
+    ratedPowerkW: 250.0,
+    copOrEff: 6.4,
     ratedFlowm3h: 275.2,
-    priceRmbTenThousand: 118,
+    priceRmbTenThousand: 110,
     description: '大型商业/写字楼首选，高低压双重保护，超低运行噪音'
   },
   {
-    id: 'chiller-york-yk2200',
+    id: 'chiller-york-2000',
     category: 'chiller',
     brand: '约克 (York)',
-    model: 'YK-2200-Mag',
-    name: '约克 YK 变频磁悬浮离心式冷水机组 2200kW',
-    ratedCapacitykW: 2200,
-    ratedPowerkW: 314.2,
-    copOrEff: 7.0,
-    ratedFlowm3h: 378.4,
-    priceRmbTenThousand: 155,
-    description: '超大制冷量机组，配合 SmartClient 智能云端监控'
+    model: 'YK-2000-Cent',
+    name: '约克 YK 变频离心式冷水机组 2000kW',
+    ratedCapacitykW: 2000,
+    ratedPowerkW: 312.5,
+    copOrEff: 6.4,
+    ratedFlowm3h: 344.0,
+    priceRmbTenThousand: 135,
+    description: '大容量变频离心机组，高压变频控制，宽稳定运行范围'
   },
   {
-    id: 'chiller-carrier-19xr1000',
+    id: 'chiller-york-2500',
     category: 'chiller',
-    brand: '开利 (Carrier)',
-    model: '19XR-1000-High',
-    name: '开利 19XR 高效双级离心式冷水机组 1000kW',
-    ratedCapacitykW: 1000,
-    ratedPowerkW: 153.8,
-    copOrEff: 6.5,
-    ratedFlowm3h: 172.0,
-    priceRmbTenThousand: 72,
-    description: '开利专利双级压缩离心技术，R134a 环保制冷剂，运行极其稳定'
+    brand: '约克 (York)',
+    model: 'YK-2500-Cent',
+    name: '约克 YK 变频离心式冷水机组 2500kW',
+    ratedCapacitykW: 2500,
+    ratedPowerkW: 390.6,
+    copOrEff: 6.4,
+    ratedFlowm3h: 430.0,
+    priceRmbTenThousand: 160,
+    description: '特大型冷站主力核心大机，高可靠性双级压缩'
   },
   {
-    id: 'chiller-carrier-19xr1500',
+    id: 'chiller-york-3200',
     category: 'chiller',
-    brand: '开利 (Carrier)',
-    model: '19XR-1500-High',
-    name: '开利 19XR 高效双级离心式冷水机组 1500kW',
-    ratedCapacitykW: 1500,
-    ratedPowerkW: 230.7,
-    copOrEff: 6.5,
-    ratedFlowm3h: 258.0,
-    priceRmbTenThousand: 105,
-    description: '高效强化换热铜管，耐高压设计，工业级高耐久度'
-  },
-  {
-    id: 'chiller-carrier-19xr2200',
-    category: 'chiller',
-    brand: '开利 (Carrier)',
-    model: '19XR-2200-High',
-    name: '开利 19XR 高效双级离心式冷水机组 2200kW',
-    ratedCapacitykW: 2200,
-    ratedPowerkW: 338.4,
-    copOrEff: 6.5,
-    ratedFlowm3h: 378.4,
-    priceRmbTenThousand: 148,
-    description: '超大型公共建筑/三甲医院首选高可靠性主机'
-  },
-  {
-    id: 'chiller-trane-cvhe1200',
-    category: 'chiller',
-    brand: '特灵 (Trane)',
-    model: 'CVHE-1200-Tri',
-    name: '特灵 CVHE 三级压缩高效离心冷水机组 1200kW',
-    ratedCapacitykW: 1200,
-    ratedPowerkW: 184.6,
-    copOrEff: 6.5,
-    ratedFlowm3h: 206.4,
-    priceRmbTenThousand: 88,
-    description: '特灵经典三级压缩，防喘振区间极宽，适应恶劣工况'
-  },
-  {
-    id: 'chiller-gree-cve1000',
-    category: 'chiller',
-    brand: '格力 (Gree)',
-    model: 'CVE-1000-Mag',
-    name: '格力 CVE 变频磁悬浮离心式冷水机组 1000kW',
-    ratedCapacitykW: 1000,
-    ratedPowerkW: 140.8,
-    copOrEff: 7.1,
-    ratedFlowm3h: 172.0,
-    priceRmbTenThousand: 68,
-    description: '国产品牌之光，自主研制磁悬浮轴承，电机能效级别 IE5'
-  },
-  {
-    id: 'chiller-gree-cve1500',
-    category: 'chiller',
-    brand: '格力 (Gree)',
-    model: 'CVE-1500-Mag',
-    name: '格力 CVE 变频磁悬浮离心式冷水机组 1500kW',
-    ratedCapacitykW: 1500,
-    ratedPowerkW: 211.2,
-    copOrEff: 7.1,
-    ratedFlowm3h: 258.0,
-    priceRmbTenThousand: 98,
-    description: '高效三维叶轮设计，零摩擦运行，维护成本降低 70%'
-  },
-  {
-    id: 'chiller-midea-ccse1200',
-    category: 'chiller',
-    brand: '美的 (Midea)',
-    model: 'CCSE-1200-Mag',
-    name: '美的 CCSE 高效变频离心式冷水机组 1200kW',
-    ratedCapacitykW: 1200,
-    ratedPowerkW: 176.4,
-    copOrEff: 6.8,
-    ratedFlowm3h: 206.4,
-    priceRmbTenThousand: 82,
-    description: '美的零碳机房核心主机，集成自研 AI 节电群控接口'
-  },
-  {
-    id: 'chiller-haier-mag1000',
-    category: 'chiller',
-    brand: '海尔 (Haier)',
-    model: 'Haier-Mag-1000',
-    name: '海尔 磁悬浮无油离心式冷水机组 1000kW',
-    ratedCapacitykW: 1000,
-    ratedPowerkW: 138.8,
-    copOrEff: 7.2,
-    ratedFlowm3h: 172.0,
-    priceRmbTenThousand: 70,
-    description: '海尔全球首创磁悬浮中央空调，连续 18 年国内市占率第一'
+    brand: '约克 (York)',
+    model: 'YK-3200-Cent',
+    name: '约克 YK 变频离心式冷水机组 3200kW',
+    ratedCapacitykW: 3200,
+    ratedPowerkW: 500.0,
+    copOrEff: 6.4,
+    ratedFlowm3h: 550.4,
+    priceRmbTenThousand: 195,
+    description: '超大制冷量机组，配合智能云端监控与自动群控'
   },
 
   // ----------------------------------------------------
-  // 2. 燃气热水锅炉 (Boilers)
+  // 2. 燃气热水锅炉 (Boilers) - 品牌：方快 (Fangkuai) [规格覆盖 200 kW ~ 3000 kW]
   // ----------------------------------------------------
+  {
+    id: 'boiler-fangkuai-200',
+    category: 'boiler',
+    brand: '方快 (Fangkuai)',
+    model: 'T6-0200-Cold',
+    name: '方快 胜雪超低氮全冷凝热水锅炉 200kW',
+    ratedCapacitykW: 200,
+    ratedPowerkW: 1.8,
+    copOrEff: 96.0,
+    gasFlowm3h: 20.8,
+    priceRmbTenThousand: 11,
+    description: 'NOx < 30mg/m³，羽翼管高效冷凝技术，热效率 96%'
+  },
+  {
+    id: 'boiler-fangkuai-500',
+    category: 'boiler',
+    brand: '方快 (Fangkuai)',
+    model: 'T6-0500-Cold',
+    name: '方快 胜雪超低氮全冷凝热水锅炉 500kW',
+    ratedCapacitykW: 500,
+    ratedPowerkW: 4.0,
+    copOrEff: 96.0,
+    gasFlowm3h: 51.8,
+    priceRmbTenThousand: 19,
+    description: '全自动变频比例燃烧，超低排烟温度'
+  },
   {
     id: 'boiler-fangkuai-700',
     category: 'boiler',
     brand: '方快 (Fangkuai)',
-    model: 'T6-700-Cold',
+    model: 'T6-0700-Cold',
     name: '方快 胜雪超低氮全冷凝热水锅炉 700kW',
     ratedCapacitykW: 700,
     ratedPowerkW: 5.5,
     copOrEff: 96.0,
     gasFlowm3h: 72.5,
-    priceRmbTenThousand: 22,
-    description: 'NOx < 30mg/m³，羽翼管高效冷凝技术，热效率高达 96%'
+    priceRmbTenThousand: 23,
+    description: 'PLC 触控控制，模块化精细化供热调节'
   },
   {
     id: 'boiler-fangkuai-1400',
@@ -208,8 +217,8 @@ export const EQUIPMENT_CATALOG: CatalogEquipmentItem[] = [
     ratedPowerkW: 11.0,
     copOrEff: 96.0,
     gasFlowm3h: 145.0,
-    priceRmbTenThousand: 38,
-    description: 'PLC 触控全自动控制，变频给风与比例燃烧'
+    priceRmbTenThousand: 39,
+    description: '大型酒店/商业供热首选，水效与气效双高'
   },
   {
     id: 'boiler-fangkuai-2100',
@@ -221,39 +230,39 @@ export const EQUIPMENT_CATALOG: CatalogEquipmentItem[] = [
     ratedPowerkW: 15.0,
     copOrEff: 96.0,
     gasFlowm3h: 217.5,
-    priceRmbTenThousand: 52,
-    description: '大型酒店/医院供热首选，出水温度精度 ±0.5°C'
+    priceRmbTenThousand: 54,
+    description: '大容量集中采暖热源，精准控温 ±0.5°C'
   },
   {
-    id: 'boiler-shuangliang-1000',
+    id: 'boiler-fangkuai-3000',
     category: 'boiler',
-    brand: '双良 (Shuangliang)',
-    model: 'SL-Vac-1000',
-    name: '双良 真空相变燃气热水锅炉 1000kW',
-    ratedCapacitykW: 1000,
-    ratedPowerkW: 7.5,
-    copOrEff: 95.0,
-    gasFlowm3h: 103.8,
-    priceRmbTenThousand: 32,
-    description: '常压真空运行，永无爆炸危险，无需年检，寿命长达 20 年'
-  },
-  {
-    id: 'boiler-shuangliang-2000',
-    category: 'boiler',
-    brand: '双良 (Shuangliang)',
-    model: 'SL-Vac-2000',
-    name: '双良 真空相变燃气热水锅炉 2000kW',
-    ratedCapacitykW: 2000,
-    ratedPowerkW: 15.0,
-    copOrEff: 95.0,
-    gasFlowm3h: 207.6,
-    priceRmbTenThousand: 58,
-    description: '内置高效率换热器，支持多回路独立供暖/卫生热水'
+    brand: '方快 (Fangkuai)',
+    model: 'T6-3000-Cold',
+    name: '方快 胜雪超低氮全冷凝热水锅炉 3000kW',
+    ratedCapacitykW: 3000,
+    ratedPowerkW: 22.0,
+    copOrEff: 96.0,
+    gasFlowm3h: 310.8,
+    priceRmbTenThousand: 72,
+    description: '特大型商业综合体热源主机，超低氮环保设计'
   },
 
   // ----------------------------------------------------
-  // 3. 风冷热泵主机模块 (Air Cooled Heat Pumps)
+  // 3. 风冷热泵主机模块 (ACHP) - 品牌：麦克维尔 (McQuay) [规格覆盖 65 kW ~ 300 kW]
   // ----------------------------------------------------
+  {
+    id: 'achp-mcquay-65',
+    category: 'achp',
+    brand: '麦克维尔 (McQuay)',
+    model: 'MAC-065-ER',
+    name: '麦克维尔 MAC 模块式风冷热泵 65kW',
+    ratedCapacitykW: 65,
+    ratedPowerkW: 19.1,
+    copOrEff: 3.4,
+    ratedFlowm3h: 11.2,
+    priceRmbTenThousand: 4.8,
+    description: 'V 型翅片换热器，独立双系统，超低温 -15°C 制热'
+  },
   {
     id: 'achp-mcquay-130',
     category: 'achp',
@@ -265,7 +274,7 @@ export const EQUIPMENT_CATALOG: CatalogEquipmentItem[] = [
     copOrEff: 3.4,
     ratedFlowm3h: 22.4,
     priceRmbTenThousand: 8.5,
-    description: 'V 型翅片换热器，独立双系统，超低温 -15°C 制热'
+    description: '经典通用模块机，多模块自由串并联组合'
   },
   {
     id: 'achp-mcquay-260',
@@ -278,38 +287,24 @@ export const EQUIPMENT_CATALOG: CatalogEquipmentItem[] = [
     copOrEff: 3.4,
     ratedFlowm3h: 44.8,
     priceRmbTenThousand: 16.0,
-    description: '多模块自由组合（最多 16 台组合），智能化轮换防结霜'
-  },
-  {
-    id: 'achp-gree-130',
-    category: 'achp',
-    brand: '格力 (Gree)',
-    model: 'LHE-130-V',
-    name: '格力 LHE 全变频风冷热泵模块机 130kW',
-    ratedCapacitykW: 130,
-    ratedPowerkW: 36.1,
-    copOrEff: 3.6,
-    ratedFlowm3h: 22.4,
-    priceRmbTenThousand: 9.0,
-    description: '全变频喷气增焓技术，超低温 -26°C 强劲供热，APF 4.8'
-  },
-  {
-    id: 'achp-midea-130',
-    category: 'achp',
-    brand: '美的 (Midea)',
-    model: 'MD-130-Flame',
-    name: '美的 烈焰高能效风冷热泵模块机 130kW',
-    ratedCapacitykW: 130,
-    ratedPowerkW: 36.6,
-    copOrEff: 3.55,
-    ratedFlowm3h: 22.4,
-    priceRmbTenThousand: 8.8,
-    description: '智能融霜算法，电子膨胀阀精细调节，节能环保'
+    description: '多模块组合（最高 16 台组合），智能化轮换防结霜'
   },
 
   // ----------------------------------------------------
-  // 4. VRF 多联机室外主机 (VRF Outdoor Units)
+  // 4. VRF 多联机室外主机 (VRF) - 品牌：大金 (Daikin) [规格覆盖 28 kW ~ 85 kW]
   // ----------------------------------------------------
+  {
+    id: 'vrf-daikin-28',
+    category: 'vrf',
+    brand: '大金 (Daikin)',
+    model: 'VRV-X7-280',
+    name: '大金 VRV X7 代变频多联机室外机 28kW (10HP)',
+    ratedCapacitykW: 28,
+    ratedPowerkW: 6.5,
+    copOrEff: 4.3,
+    priceRmbTenThousand: 2.5,
+    description: '大金自研全变频涡旋压缩机，VRT 冷媒温度自适应调节'
+  },
   {
     id: 'vrf-daikin-45',
     category: 'vrf',
@@ -320,7 +315,7 @@ export const EQUIPMENT_CATALOG: CatalogEquipmentItem[] = [
     ratedPowerkW: 10.4,
     copOrEff: 4.3,
     priceRmbTenThousand: 3.8,
-    description: '大金自研全变频涡旋压缩机，VRT 冷媒温度自适应调节'
+    description: '标准楼层多联主机单元，全隔离风道'
   },
   {
     id: 'vrf-daikin-61',
@@ -335,33 +330,34 @@ export const EQUIPMENT_CATALOG: CatalogEquipmentItem[] = [
     description: '超长管长设计，静音模式，高端办公/酒店首选'
   },
   {
-    id: 'vrf-midea-mdv8-45',
+    id: 'vrf-daikin-85',
     category: 'vrf',
-    brand: '美的 (Midea)',
-    model: 'MDV8-450-Pro',
-    name: '美的 MDV8 全直流变频多联机室外机 45kW (16HP)',
-    ratedCapacitykW: 45,
-    ratedPowerkW: 10.2,
-    copOrEff: 4.41,
-    priceRmbTenThousand: 3.2,
-    description: '全隔离风道无惧风雪，AI 能效感知，云端远程诊断'
-  },
-  {
-    id: 'vrf-gree-gmv6-45',
-    category: 'vrf',
-    brand: '格力 (Gree)',
-    model: 'GMV6-450-Ultra',
-    name: '格力 GMV6 人工智能多联机室外机 45kW (16HP)',
-    ratedCapacitykW: 45,
-    ratedPowerkW: 10.3,
-    copOrEff: 4.35,
-    priceRmbTenThousand: 3.3,
-    description: 'CAN 通信总线，G-Learn 自学习算法，待机功耗低至 1W'
+    brand: '大金 (Daikin)',
+    model: 'VRV-X7-850',
+    name: '大金 VRV X7 代变频多联机室外机 85kW (30HP)',
+    ratedCapacitykW: 85,
+    ratedPowerkW: 19.7,
+    copOrEff: 4.3,
+    priceRmbTenThousand: 7.0,
+    description: '大容量集中多联主机，支持云端智能集中控制'
   },
 
   // ----------------------------------------------------
-  // 5. 循环水泵 (Pumps)
+  // 5. 循环水泵 (Pumps) - 品牌：威乐 (Wilo) [规格覆盖 30 m³/h ~ 1200 m³/h]
   // ----------------------------------------------------
+  {
+    id: 'pump-wilo-40',
+    category: 'pump',
+    brand: '威乐 (Wilo)',
+    model: 'IL-40-200-Var',
+    name: '威乐 Wilo 高效变频立式管道水泵 40m³/h',
+    ratedCapacitykW: 40,
+    ratedPowerkW: 4.6,
+    copOrEff: 83.0,
+    ratedFlowm3h: 40,
+    priceRmbTenThousand: 1.1,
+    description: '德国威乐 IE5 永磁变频高效电机，扬程 28m'
+  },
   {
     id: 'pump-wilo-80',
     category: 'pump',
@@ -373,64 +369,90 @@ export const EQUIPMENT_CATALOG: CatalogEquipmentItem[] = [
     copOrEff: 83.0,
     ratedFlowm3h: 80,
     priceRmbTenThousand: 1.8,
-    description: '德国威乐 IE5 最高等级永磁变频电机，扬程 28m'
+    description: '支持 30Hz ~ 50Hz 无级调频，扬程 28m'
   },
   {
-    id: 'pump-wilo-180',
+    id: 'pump-wilo-150',
     category: 'pump',
     brand: '威乐 (Wilo)',
-    model: 'IL-180-250-Var',
-    name: '威乐 Wilo 高效变频立式管道水泵 180m³/h',
-    ratedCapacitykW: 180,
-    ratedPowerkW: 21.6,
+    model: 'IL-150-250-Var',
+    name: '威乐 Wilo 高效变频立式管道水泵 150m³/h',
+    ratedCapacitykW: 150,
+    ratedPowerkW: 18.0,
     copOrEff: 83.0,
-    ratedFlowm3h: 180,
-    priceRmbTenThousand: 3.2,
+    ratedFlowm3h: 150,
+    priceRmbTenThousand: 2.8,
     description: '三维流体叶轮优化，超耐磨机械密封，扬程 30m'
   },
   {
-    id: 'pump-wilo-350',
+    id: 'pump-wilo-250',
     category: 'pump',
     brand: '威乐 (Wilo)',
-    model: 'IL-350-300-Var',
-    name: '威乐 Wilo 高效变频立式管道水泵 350m³/h',
-    ratedCapacitykW: 350,
-    ratedPowerkW: 42.1,
+    model: 'IL-250-250-Var',
+    name: '威乐 Wilo 高效变频立式管道水泵 250m³/h',
+    ratedCapacitykW: 250,
+    ratedPowerkW: 30.0,
     copOrEff: 83.0,
-    ratedFlowm3h: 350,
-    priceRmbTenThousand: 5.5,
-    description: '大型空调水机房主循环水泵，高抗汽蚀设计，扬程 32m'
+    ratedFlowm3h: 250,
+    priceRmbTenThousand: 4.2,
+    description: '通用冷水/冷却/热水循环泵，高抗汽蚀，扬程 30m'
   },
   {
-    id: 'pump-kaiquan-200',
+    id: 'pump-wilo-400',
     category: 'pump',
-    brand: '凯泉 (Kaiquan)',
-    model: 'KQL-200-250-V',
-    name: '凯泉 KQL 高效单级单吸管道离心泵 200m³/h',
-    ratedCapacitykW: 200,
-    ratedPowerkW: 24.2,
-    copOrEff: 82.0,
-    ratedFlowm3h: 200,
-    priceRmbTenThousand: 2.6,
-    description: '国产优质水泵，全水力模型 CAD 精雕，扬程 30m'
+    brand: '威乐 (Wilo)',
+    model: 'IL-400-300-Var',
+    name: '威乐 Wilo 高效变频立式管道水泵 400m³/h',
+    ratedCapacitykW: 400,
+    ratedPowerkW: 48.1,
+    copOrEff: 83.0,
+    ratedFlowm3h: 400,
+    priceRmbTenThousand: 6.2,
+    description: '大中型水机房主水泵，高效抗震防噪基座，扬程 32m'
   },
   {
-    id: 'pump-kaiquan-500',
+    id: 'pump-wilo-650',
     category: 'pump',
-    brand: '凯泉 (Kaiquan)',
-    model: 'KQL-500-300-V',
-    name: '凯泉 KQL 高效单级单吸管道离心泵 500m³/h',
-    ratedCapacitykW: 500,
-    ratedPowerkW: 60.5,
-    copOrEff: 82.0,
-    ratedFlowm3h: 500,
-    priceRmbTenThousand: 6.0,
-    description: '大流量冷水泵/冷却泵，配置高品质防震基座'
+    brand: '威乐 (Wilo)',
+    model: 'IL-650-300-Var',
+    name: '威乐 Wilo 高效变频立式管道水泵 650m³/h',
+    ratedCapacitykW: 650,
+    ratedPowerkW: 78.2,
+    copOrEff: 83.0,
+    ratedFlowm3h: 650,
+    priceRmbTenThousand: 8.5,
+    description: '大型冷却泵/冷水泵，高强度立式结构，扬程 32m'
+  },
+  {
+    id: 'pump-wilo-1000',
+    category: 'pump',
+    brand: '威乐 (Wilo)',
+    model: 'IL-1000-350-Var',
+    name: '威乐 Wilo 高效变频立式管道水泵 1000m³/h',
+    ratedCapacitykW: 1000,
+    ratedPowerkW: 120.3,
+    copOrEff: 83.0,
+    ratedFlowm3h: 1000,
+    priceRmbTenThousand: 12.0,
+    description: '特大型集中冷站水泵，低噪音防水锤，扬程 35m'
   },
 
   // ----------------------------------------------------
-  // 6. 冷却塔 (Cooling Towers)
+  // 6. 冷却塔 (Cooling Towers) - 品牌：金日 (King Sun) [规格覆盖 100 m³/h ~ 1500 m³/h]
   // ----------------------------------------------------
+  {
+    id: 'tower-kingsun-100',
+    category: 'cooling_tower',
+    brand: '金日 (King Sun)',
+    model: 'KST-100-LowNoise',
+    name: '金日 超低噪声圆形逆流式冷却塔 100m³/h',
+    ratedCapacitykW: 100,
+    ratedPowerkW: 2.8,
+    copOrEff: 90.0,
+    ratedFlowm3h: 100,
+    priceRmbTenThousand: 2.1,
+    description: '小型冷却塔，优质玻璃钢外壳，逼近度 3.0°C'
+  },
   {
     id: 'tower-kingsun-200',
     category: 'cooling_tower',
@@ -442,7 +464,7 @@ export const EQUIPMENT_CATALOG: CatalogEquipmentItem[] = [
     copOrEff: 90.0,
     ratedFlowm3h: 200,
     priceRmbTenThousand: 3.5,
-    description: '优质玻璃钢外壳，高效阻燃填料，水滴飘逸率 < 0.001%'
+    description: '高效阻燃填料，水滴飘逸率 < 0.001%'
   },
   {
     id: 'tower-kingsun-400',
@@ -455,7 +477,7 @@ export const EQUIPMENT_CATALOG: CatalogEquipmentItem[] = [
     copOrEff: 90.0,
     ratedFlowm3h: 400,
     priceRmbTenThousand: 6.2,
-    description: '静音风机与宽流道布水器，冷却水逼近度升至 2.5°C'
+    description: '静音风机与宽流道布水器，冷却水逼近度 2.5°C'
   },
   {
     id: 'tower-kingsun-700',
@@ -469,6 +491,19 @@ export const EQUIPMENT_CATALOG: CatalogEquipmentItem[] = [
     ratedFlowm3h: 700,
     priceRmbTenThousand: 9.8,
     description: '大型冷却水循环塔，风机带皮带减速机双防震'
+  },
+  {
+    id: 'tower-kingsun-1200',
+    category: 'cooling_tower',
+    brand: '金日 (King Sun)',
+    model: 'KST-1200-LowNoise',
+    name: '金日 超低噪声圆形逆流式冷却塔 1200m³/h',
+    ratedCapacitykW: 1200,
+    ratedPowerkW: 30.0,
+    copOrEff: 90.0,
+    ratedFlowm3h: 1200,
+    priceRmbTenThousand: 15.0,
+    description: '特大型集中冷站冷却塔，高耐久玻璃钢框架与高热效填料'
   }
 ];
 

@@ -340,31 +340,54 @@ export const BuildingSubItemsManager: React.FC<Props> = ({
                 />
               </div>
 
-              <div className="mt-3 pt-3 border-t border-slate-800/80">
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center space-x-1">
-                  <Settings2 className="w-4 h-4 text-blue-400" />
-                  <span>空调系统形式：</span>
-                </label>
-                <select
-                  value={item.systemType}
-                  onChange={(e) => {
-                    const sysType = e.target.value as SystemType;
-                    onUpdateSubItem({ 
-                      ...item, 
-                      systemType: sysType,
-                      hybridSubSystems: sysType === 'hybrid' ? [
-                        { systemType: 'chiller_boiler', ratioPercent: 60 },
-                        { systemType: 'vrf', ratioPercent: 40 }
-                      ] : item.hybridSubSystems
-                    });
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-blue-300 font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                >
-                  {Object.values(SYSTEM_TYPES_META).map((sys) => (
-                    <option key={sys.id} value={sys.id}>{sys.name}</option>
-                  ))}
-                </select>
+              <div className="mt-3 pt-3 border-t border-slate-800/80 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center space-x-1">
+                    <Settings2 className="w-4 h-4 text-emerald-400" />
+                    <span>EPW气象城市：</span>
+                  </label>
+                  <select
+                    value={item.city || '上海'}
+                    onChange={(e) => {
+                      onUpdateSubItem({ ...item, city: e.target.value as any });
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-emerald-300 font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  >
+                    <option value="上海">上海 (夏热冬冷)</option>
+                    <option value="北京">北京 (寒冷北方)</option>
+                    <option value="广州">广州 (夏热冬暖)</option>
+                    <option value="成都">成都 (西南盆地)</option>
+                    <option value="武汉">武汉 (华中夏热)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center space-x-1">
+                    <Settings2 className="w-4 h-4 text-blue-400" />
+                    <span>空调系统形式：</span>
+                  </label>
+                  <select
+                    value={item.systemType}
+                    onChange={(e) => {
+                      const sysType = e.target.value as SystemType;
+                      onUpdateSubItem({ 
+                        ...item, 
+                        systemType: sysType,
+                        hybridSubSystems: sysType === 'hybrid' ? [
+                          { systemType: 'chiller_boiler', ratioPercent: 60 },
+                          { systemType: 'vrf', ratioPercent: 40 }
+                        ] : item.hybridSubSystems
+                      });
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-blue-300 font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  >
+                    {Object.values(SYSTEM_TYPES_META).map((sys) => (
+                      <option key={sys.id} value={sys.id}>{sys.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {isActive && (

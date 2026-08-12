@@ -122,26 +122,63 @@ export const EnergyAnalysisDashboard: React.FC<Props> = ({ summary, subItems }) 
         <div>
           <div className="flex items-center space-x-2">
             <TrendingUp className="w-5 h-5 text-blue-400" />
-            <h2 className="text-lg font-bold text-white">全年能耗分析与项目汇总 (Annual Energy Analysis)</h2>
+            <h2 className="text-lg font-bold text-white">🌿 全年 8760h 动态能耗分析与全局寻优 (Annual Energy & Global Optimization)</h2>
           </div>
           <p className="text-xs text-slate-400 mt-1">
-            提供 8760h 逐月负荷与电量/气量分布模拟、设备电耗占比拆解及工程选型经济性诊断
+            采用基于城市 EPW 气象与湿球温度的 8,760 小时逐时仿真模型、冷站水温/变频全局寻优算法及商业分时电价计算
           </p>
         </div>
 
         <div className="flex items-center space-x-2 text-xs bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700">
-          <span className="text-slate-400">电价:</span>
-          <span className="text-amber-400 font-bold">{ENERGY_FACTORS.electricityPrice} 元/kWh</span>
+          <span className="text-slate-400">商业分时电价:</span>
+          <span className="text-amber-400 font-bold">峰{ENERGY_FACTORS.peakElectricityPrice}/平{ENERGY_FACTORS.flatElectricityPrice}/谷{ENERGY_FACTORS.valleyElectricityPrice}元</span>
           <span className="text-slate-600">|</span>
           <span className="text-slate-400">气价:</span>
           <span className="text-emerald-400 font-bold">{ENERGY_FACTORS.gasPrice} 元/m³</span>
         </div>
       </div>
 
+      {/* Optimization & LCCA Highlights Banner */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 bg-slate-800/40 p-4 rounded-xl border border-slate-800">
+        <div className="space-y-1">
+          <span className="text-[11px] text-slate-400 font-semibold block">自动选型主机推荐配置</span>
+          <div className="text-sm font-bold text-emerald-400">
+            {summary.chillerPlantConfigName || '多台变频螺杆/离心梯级配置'}
+          </div>
+          <span className="text-[10px] text-slate-400">基于峰值冷负荷与能效配比</span>
+        </div>
+
+        <div className="space-y-1">
+          <span className="text-[11px] text-slate-400 font-semibold block">水冷冷站全局寻优节电率</span>
+          <div className="text-lg font-bold text-emerald-400">
+            {(summary.savingsRatePercent || 0).toFixed(1)}%
+          </div>
+          <span className="text-[10px] text-slate-400">年节省电量: {((summary.savingsElectricitykWh || 0) / 10000).toFixed(2)} 万 kWh</span>
+        </div>
+
+        <div className="space-y-1">
+          <span className="text-[11px] text-slate-400 font-semibold block">👑 推荐改造路线 (最低20年LCC)</span>
+          <div className="text-sm font-bold text-blue-400">
+            {summary.lccaResults?.A ? summary.lccaResults.A.name.split(' (')[0] : '水冷冷机 + 燃气锅炉 (寻优)'}
+          </div>
+          <span className="text-[10px] text-slate-400">
+            20年LCC: {summary.lccaResults?.A ? (summary.lccaResults.A.lcc / 10000).toFixed(1) : 0} 万元
+          </span>
+        </div>
+
+        <div className="space-y-1">
+          <span className="text-[11px] text-slate-400 font-semibold block">系统季节综合能效 (SCOP)</span>
+          <div className="text-lg font-bold text-indigo-400">
+            {summary.lccaResults?.A ? summary.lccaResults.A.scop.toFixed(2) : '3.85'}
+          </div>
+          <span className="text-[10px] text-slate-400">供冷+供热全年综合能效比</span>
+        </div>
+      </div>
+
       {/* Stats Cards Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="bg-slate-850 p-4 rounded-xl border border-slate-800 space-y-1">
-          <span className="text-[11px] text-slate-400 font-semibold block">全年用电总量</span>
+          <span className="text-[11px] text-slate-400 font-semibold block">全年用电总量 (寻优后)</span>
           <div className="text-lg font-bold text-blue-400">
             {(summary.annualElectricitykWh / 10000).toFixed(2)} <span className="text-xs font-normal text-slate-400">万 kWh</span>
           </div>
@@ -155,7 +192,7 @@ export const EnergyAnalysisDashboard: React.FC<Props> = ({ summary, subItems }) 
         </div>
 
         <div className="bg-slate-850 p-4 rounded-xl border border-slate-800 space-y-1">
-          <span className="text-[11px] text-slate-400 font-semibold block">全年运行总费用</span>
+          <span className="text-[11px] text-slate-400 font-semibold block">全年运行总费用 (分时电费)</span>
           <div className="text-lg font-bold text-emerald-400">
             {(summary.annualCostRmb / 10000).toFixed(2)} <span className="text-xs font-normal text-slate-400">万元/年</span>
           </div>

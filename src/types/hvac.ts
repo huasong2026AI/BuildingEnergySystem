@@ -77,6 +77,9 @@ export interface BuildingSubItem {
   cwSupplyTemp: number;  // 冷却水进水温度 °C (默认 32)
   cwReturnTemp: number;  // 冷却水出水温度 °C (默认 37)
 
+  // 气象选择 (EPW 气象城市)
+  city?: '北京' | '上海' | '广州' | '成都' | '武汉';
+
   customEquipment?: UserEquipmentOverrides;
 }
 
@@ -131,6 +134,10 @@ export interface EquipmentCalcResult {
   achpHeatingkW: number;
   achpPowerkW: number;
   achpCount: number;
+  achpChwPumpFlow: number; // m³/h (风冷热泵夏季冷水泵流量)
+  achpHwPumpFlow: number;  // m³/h (风冷热泵冬季热水泵流量)
+  achpChwPumpCount: number; // 风冷热泵冷水泵台数
+  achpHwPumpCount: number; // 风冷热泵热水泵台数
   achpSummerPumpPowerkW: number; // 夏季冷水泵功率 kW
   achpWinterPumpPowerkW: number; // 冬季热水泵功率 kW
 
@@ -251,6 +258,16 @@ export interface ProjectEnergySummary {
   
   monthlyData: MonthlyEnergyRecord[];
   discrepancies: EquipmentDiscrepancy[];
+
+  // 8760h 寻优扩展属性
+  baselineElectricitykWh?: number;
+  optimizedElectricitykWh?: number;
+  savingsElectricitykWh?: number;
+  savingsRatePercent?: number;
+
+  lccaResults?: any;
+  chillerPlantConfigName?: string;
+  chillerPlantJustification?: string;
 }
 
 // ----------------------------------------------------

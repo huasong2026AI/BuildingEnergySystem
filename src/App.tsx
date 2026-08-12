@@ -169,14 +169,6 @@ export function App() {
               onAddSubItem={handleAddSubItem}
               onDeleteSubItem={handleDeleteSubItem}
             />
-
-            {activeSubItem && (
-              <EquipmentConfigTable
-                subItem={activeSubItem}
-                allSubItems={subItems}
-                onUpdateSubItem={handleUpdateSubItem}
-              />
-            )}
           </div>
         )}
 

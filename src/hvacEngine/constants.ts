@@ -133,8 +133,12 @@ export const SYSTEM_TYPES_META: Record<SystemType, SystemTypeMeta> = {
 };
 
 export const ENERGY_FACTORS = {
-  electricityPrice: 0.85, // 元/kWh
+  electricityPrice: 0.85, // 平均元/kWh
+  peakElectricityPrice: 1.2, // 峰电价 元/kWh
+  flatElectricityPrice: 0.7, // 平电价 元/kWh
+  valleyElectricityPrice: 0.3, // 谷电价 元/kWh
   gasPrice: 3.5,          // 元/m³
   electricityCarbon: 0.581, // kg CO2 / kWh
   gasCarbon: 2.162        // kg CO2 / m³
 };
+
