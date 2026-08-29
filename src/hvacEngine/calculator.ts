@@ -1,5 +1,5 @@
-import type { BuildingSubItem, EquipmentCalcResult, EquipmentDiscrepancy, MonthlyEnergyRecord, ProjectEnergySummary } from '../types/hvac';
-import { ENERGY_FACTORS, SYSTEM_TYPES_META } from './constants';
+import type { BuildingSubItem, EquipmentCalcResult, EquipmentDiscrepancy, MonthlyEnergyRecord, ProjectEnergySummary, EnergyTariffConfig, LoadBinRecord, SCOPComplianceInfo } from '../types/hvac';
+import { ENERGY_FACTORS, SYSTEM_TYPES_META, DEFAULT_TARIFF_CONFIG } from './constants';
 import { generateHourlyWeather, type CityName } from './hourlyEngine/weatherGenerator';
 import { simulateHourlyLoad } from './hourlyEngine/loadSimulator';
 import { getRecommendedChillers } from './hourlyEngine/sizingEngine';
@@ -7,13 +7,22 @@ import { optimizeChillerPlant } from './hourlyEngine/systemOptimizer';
 import { evaluateLcca, calculateHourlyElectricityPrice } from './hourlyEngine/lccaModel';
 
 /**
- * 汇总整个项目的全年能耗、月度分布、碳排放与费用（集成 8760h 全年逐时气象、负荷与冷站全局寻优算法）
+ * 汇总整个项目的全年能耗、月度分布、碳排放与费用（集成 8760h 全年逐时气象、负荷与冷站全局寻优算法，支持自定义能源与峰谷平电价）
  */
-export function calculateProjectSummary(items: BuildingSubItem[]): ProjectEnergySummary {
+export function calculateProjectSummary(
+  items: BuildingSubItem[],
+  tariffConfig?: EnergyTariffConfig
+): ProjectEnergySummary {
+  const tariff: EnergyTariffConfig = tariffConfig || DEFAULT_TARIFF_CONFIG;
+
   let totalArea = 0;
   let totalCoolingLoadkW = 0;
   let totalHeatingLoadkW = 0;
   let totalInstalledPowerkW = 0;
+
+  let totalChillerCount = 0;
+  let totalChillerCapacitykW = 0;
+  let chillerBrandModel = '';
 
   const allDiscrepancies: EquipmentDiscrepancy[] = [];
 
@@ -24,7 +33,17 @@ export function calculateProjectSummary(items: BuildingSubItem[]): ProjectEnergy
     totalHeatingLoadkW += calc.heatingLoadkW;
     totalInstalledPowerkW += calc.totalInstalledElectricPowerkW;
 
-    const itemDiscrepancies = checkDiscrepancies(item, calc);
+    const count = item.customEquipment?.chillerCount || calc.chillerCount || 0;
+    const cap = item.customEquipment?.chillerCapacitykW || calc.chillerCapacitykW || 0;
+    if (count > 0 && cap > 0) {
+      totalChillerCount += count;
+      totalChillerCapacitykW += cap;
+      if (item.customEquipment?.selectedChillerProduct) {
+        chillerBrandModel = item.customEquipment.selectedChillerProduct.name;
+      }
+    }
+
+    const itemDiscrepancies = checkDiscrepancies(item, calc, tariff);
     allDiscrepancies.push(...itemDiscrepancies);
   });
 
@@ -41,7 +60,9 @@ export function calculateProjectSummary(items: BuildingSubItem[]): ProjectEnergy
       energyIntensitykWhPerM2: 0,
       costPerM2: 0,
       monthlyData: [],
-      discrepancies: []
+      discrepancies: [],
+      tariffConfig: tariff,
+      loadBins: []
     };
   }
 
@@ -53,34 +74,82 @@ export function calculateProjectSummary(items: BuildingSubItem[]): ProjectEnergy
   const weatherRecords = generateHourlyWeather(primaryCity);
   const hourlyLoadRecords = simulateHourlyLoad(totalArea, primaryType, weatherRecords);
 
-  // 3. 冷站选型推荐与能效全局寻优 (Optimize Chiller Plant)
+  // 3. 冷站选型推荐与能效全局寻优 (优先继承用户前置选型主机)
   const Q_peak_cool = hourlyLoadRecords[0]?.Q_peak_cool || totalCoolingLoadkW;
   const plantConfig = getRecommendedChillers(Q_peak_cool);
+  
+  // 若用户在前置设备表中已有明确主机配置，优先采用用户真实配置名称
+  const activePlantConfigName = totalChillerCount > 0
+    ? `${totalChillerCount}台 × ${(totalChillerCapacitykW / totalChillerCount).toFixed(0)}kW ${chillerBrandModel || '(变频离心/螺杆梯级)'}`
+    : plantConfig.config_name;
+
   const optRecords = optimizeChillerPlant(hourlyLoadRecords, plantConfig, 30.0, 4.0);
 
-  // 4. LCCA 全生命周期三类改造方案比选
+  // 4. 8760h 负荷频次直方图 (Bin Analysis)
+  const binRanges = [
+    { label: '0-10%', min: 0, max: 10 },
+    { label: '10-20%', min: 10, max: 20 },
+    { label: '20-30%', min: 20, max: 30 },
+    { label: '30-40%', min: 30, max: 40 },
+    { label: '40-50%', min: 40, max: 50 },
+    { label: '50-60%', min: 50, max: 60 },
+    { label: '60-70%', min: 60, max: 70 },
+    { label: '70-80%', min: 70, max: 80 },
+    { label: '80-90%', min: 80, max: 90 },
+    { label: '90-100%', min: 90, max: 100 },
+  ];
+
+  const binMap = binRanges.map(b => ({
+    binRange: b.label,
+    minRatio: b.min,
+    maxRatio: b.max,
+    hours: 0,
+    coolingEnergykWh: 0,
+    hoursPercentage: 0
+  }));
+
+  let totalCoolingHours = 0;
+  hourlyLoadRecords.forEach(rec => {
+    if (rec.Q_cool > 0) {
+      totalCoolingHours++;
+      const ratio = Math.min(99.9, (rec.Q_cool / Math.max(1, Q_peak_cool)) * 100);
+      const binIdx = Math.floor(ratio / 10);
+      if (binIdx >= 0 && binIdx < binMap.length) {
+        binMap[binIdx].hours += 1;
+        binMap[binIdx].coolingEnergykWh += rec.Q_cool;
+      }
+    }
+  });
+
+  const loadBins: LoadBinRecord[] = binMap.map(b => ({
+    ...b,
+    hoursPercentage: totalCoolingHours > 0 ? Number(((b.hours / totalCoolingHours) * 100).toFixed(1)) : 0,
+    coolingEnergykWh: Math.round(b.coolingEnergykWh)
+  }));
+
+  // 5. LCCA 全生命周期三类改造方案比选
   const lccaResults = evaluateLcca(
     optRecords, totalArea,
-    ENERGY_FACTORS.peakElectricityPrice,
-    ENERGY_FACTORS.flatElectricityPrice,
-    ENERGY_FACTORS.valleyElectricityPrice,
-    ENERGY_FACTORS.gasPrice
+    tariff.peakElectricityPrice,
+    tariff.flatElectricityPrice,
+    tariff.valleyElectricityPrice,
+    tariff.gasPrice
   );
 
-  // 5. 8760h 分时电价数组
+  // 6. 8760h 分时电价数组
   const hoursOfDay = optRecords.map(r => r.hourOfDay);
   const elecPrices = calculateHourlyElectricityPrice(
     hoursOfDay,
-    ENERGY_FACTORS.peakElectricityPrice,
-    ENERGY_FACTORS.flatElectricityPrice,
-    ENERGY_FACTORS.valleyElectricityPrice
+    tariff.peakElectricityPrice,
+    tariff.flatElectricityPrice,
+    tariff.valleyElectricityPrice
   );
 
-  // 6. 聚合月度数据与全年总量
+  // 7. 聚合月度数据与全年总量
   const monthNames = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
   const monthlyData: MonthlyEnergyRecord[] = [];
 
-  // 7. 按天数累加至月
+  // 8. 按天数累加至月
   const daysInMonths = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
   let hourPointer = 0;
 
@@ -89,6 +158,12 @@ export function calculateProjectSummary(items: BuildingSubItem[]): ProjectEnergy
   let annualCostRmb = 0;
   let totBaseEleckWh = 0;
   let totOptEleckWh = 0;
+
+  let totPlantChillerkWh = 0;
+  let totPlantChwPumpkWh = 0;
+  let totPlantCwPumpkWh = 0;
+  let totPlantTowerkWh = 0;
+  let totCoolingDemandkWh = 0;
 
   for (let m = 0; m < 12; m++) {
     const hoursInThisMonth = daysInMonths[m] * 24;
@@ -108,7 +183,9 @@ export function calculateProjectSummary(items: BuildingSubItem[]): ProjectEnergy
       const price = elecPrices[idx];
 
       const pChiller = rec.opt_P_Chiller;
-      const pPumps = rec.opt_P_CHWP + rec.opt_P_CWP;
+      const pChwp = rec.opt_P_CHWP;
+      const pCwp = rec.opt_P_CWP;
+      const pPumps = pChwp + pCwp;
       const pTowers = rec.opt_P_Tower;
       const pTerminals = totalArea * 0.008 * (rec.Q_cool > 0 || rec.Q_heat > 0 ? 1 : 0.1);
 
@@ -116,6 +193,12 @@ export function calculateProjectSummary(items: BuildingSubItem[]): ProjectEnergy
       mPumpskWh += pPumps;
       mTowerskWh += pTowers;
       mTerminalskWh += pTerminals;
+
+      totPlantChillerkWh += pChiller;
+      totPlantChwPumpkWh += pChwp;
+      totPlantCwPumpkWh += pCwp;
+      totPlantTowerkWh += pTowers;
+      totCoolingDemandkWh += rec.Q_cool;
 
       totBaseEleckWh += rec.base_P_Total;
       totOptEleckWh += rec.opt_P_Total;
@@ -127,7 +210,7 @@ export function calculateProjectSummary(items: BuildingSubItem[]): ProjectEnergy
       }
 
       const hourElec = pChiller + pPumps + pTowers + pTerminals;
-      const hourCost = (hourElec * price) + (gas * ENERGY_FACTORS.gasPrice);
+      const hourCost = (hourElec * price) + (gas * tariff.gasPrice);
       mCostRmb += hourCost;
     }
 
@@ -155,7 +238,39 @@ export function calculateProjectSummary(items: BuildingSubItem[]): ProjectEnergy
     annualCostRmb += mCostRmb;
   }
 
-  const annualCarbonTons = ((annualElectricitykWh * ENERGY_FACTORS.electricityCarbon) + (annualGasm3 * ENERGY_FACTORS.gasCarbon)) / 1000;
+  // 9. SCOP 计算与《公共建筑节能设计标准》GB 50189-2015 4.2.12 合规评定
+  const totalPlantEleckWh = totPlantChillerkWh + totPlantChwPumpkWh + totPlantCwPumpkWh + totPlantTowerkWh;
+  const rawSCOP = totalPlantEleckWh > 0 ? totCoolingDemandkWh / totalPlantEleckWh : 4.85;
+  const scop = Number(rawSCOP.toFixed(2));
+
+  let ratingLevel: '卓越 (五星级高效冷站)' | '优秀 (四星级高效冷站)' | '良好 (三星级高效冷站)' | '达标 (节能标准合格)' | '待提升' = '达标 (节能标准合格)';
+  if (scop >= 5.5) {
+    ratingLevel = '卓越 (五星级高效冷站)';
+  } else if (scop >= 5.0) {
+    ratingLevel = '优秀 (四星级高效冷站)';
+  } else if (scop >= 4.5) {
+    ratingLevel = '良好 (三星级高效冷站)';
+  } else if (scop >= 3.8) {
+    ratingLevel = '达标 (节能标准合格)';
+  } else {
+    ratingLevel = '待提升';
+  }
+
+  const scopCompliance: SCOPComplianceInfo = {
+    scop,
+    totalCoolingDemandkWh: Math.round(totCoolingDemandkWh),
+    chillerEleckWh: Math.round(totPlantChillerkWh),
+    chwPumpEleckWh: Math.round(totPlantChwPumpkWh),
+    cwPumpEleckWh: Math.round(totPlantCwPumpkWh),
+    towerEleckWh: Math.round(totPlantTowerkWh),
+    totalPlantEleckWh: Math.round(totalPlantEleckWh),
+    standardLimit: 3.50, // GB 50189 水冷冷站综合基准限值
+    ratingLevel,
+    isCompliant: scop >= 3.50,
+    standardCode: 'GB 50189-2015 第4.2.12条'
+  };
+
+  const annualCarbonTons = ((annualElectricitykWh * tariff.electricityCarbon) + (annualGasm3 * tariff.gasCarbon)) / 1000;
   const energyIntensitykWhPerM2 = totalArea > 0 ? annualElectricitykWh / totalArea : 0;
   const costPerM2 = totalArea > 0 ? annualCostRmb / totalArea : 0;
 
@@ -175,15 +290,16 @@ export function calculateProjectSummary(items: BuildingSubItem[]): ProjectEnergy
     costPerM2,
     monthlyData,
     discrepancies: allDiscrepancies,
-
     baselineElectricitykWh: totBaseEleckWh,
     optimizedElectricitykWh: totOptEleckWh,
     savingsElectricitykWh,
     savingsRatePercent,
-
     lccaResults,
-    chillerPlantConfigName: plantConfig.config_name,
-    chillerPlantJustification: plantConfig.justification
+    chillerPlantConfigName: activePlantConfigName,
+    chillerPlantJustification: plantConfig.justification,
+    tariffConfig: tariff,
+    loadBins,
+    scopCompliance
   };
 }
 
@@ -619,7 +735,8 @@ export function calculateEquipmentForSubItem(
  */
 export function checkDiscrepancies(
   item: BuildingSubItem, 
-  calc: EquipmentCalcResult
+  calc: EquipmentCalcResult,
+  tariffConfig?: EnergyTariffConfig
 ): EquipmentDiscrepancy[] {
   const custom = item.customEquipment;
   if (!custom) return [];
@@ -627,6 +744,7 @@ export function checkDiscrepancies(
   const list: EquipmentDiscrepancy[] = [];
   const hours = item.operatingHours || 3000;
   const sysMeta = SYSTEM_TYPES_META[item.systemType];
+  const elecPrice = tariffConfig?.averageElectricityPrice || ENERGY_FACTORS.electricityPrice;
 
   const evaluateField = (
     equipmentName: string,
@@ -652,7 +770,7 @@ export function checkDiscrepancies(
         extraPower = (userVal - calcVal) * 0.2;
       }
 
-      const extraAnnualCost = extraPower * hours * ENERGY_FACTORS.electricityPrice;
+      const extraAnnualCost = extraPower * hours * elecPrice;
 
       let message = '';
       if (isOversized) {

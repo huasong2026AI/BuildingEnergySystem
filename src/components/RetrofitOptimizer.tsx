@@ -1,59 +1,72 @@
 import React, { useState, useMemo } from 'react';
 import ReactECharts from 'echarts-for-react';
 import { 
-  Sparkles, Wrench, TrendingDown, Building, ShieldAlert, Cpu, Plus, Trash2, ShoppingBag, Check 
+  Sparkles, Wrench, TrendingDown, Building, ShieldAlert, Cpu, Plus, Trash2, ShoppingBag, Check, Flame, Wind, Zap 
 } from 'lucide-react';
 import { SYSTEM_TYPES_META } from '../hvacEngine/constants';
 import { calculateEquipmentForSubItem } from '../hvacEngine/calculator';
 import { EquipmentCatalogModal } from './EquipmentCatalogModal';
+import { AiRetrofitAdvisorModal } from './AiRetrofitAdvisorModal';
 import type { EquipmentCategory, CatalogEquipmentItem } from '../data/equipmentCatalog';
 import type { 
   SystemType, BuildingSubItem, UserEquipmentOverrides, ExistingChillerDetail, ExistingBoilerDetail, ExistingPumpDetail, 
-  ExistingAchpDetail, ExistingVrfDetail, ExistingDistrictDetail, ExistingGshpDetail, ExistingSplitDetail 
+  ExistingAchpDetail, ExistingVrfDetail, ExistingDistrictDetail, ExistingGshpDetail, ExistingSplitDetail, ExistingTowerDetail,
+  EnergyTariffConfig 
 } from '../types/hvac';
 
-export const RetrofitOptimizer: React.FC = () => {
+interface RetrofitOptimizerProps {
+  tariffConfig?: EnergyTariffConfig;
+  onUpdateTariffConfig?: (cfg: EnergyTariffConfig) => void;
+}
+
+export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConfig, onUpdateTariffConfig }) => {
+  const [isAiReportModalOpen, setIsAiReportModalOpen] = useState(false);
+
   // 1. 既有系统基本信息
   const [existingSystemType, setExistingSystemType] = useState<SystemType>('chiller_boiler');
   const [buildingName, setBuildingName] = useState<string>('某既有商业综合体及酒店');
   const [buildingArea, setBuildingArea] = useState<number>(55000);
   const [operatingHours, setOperatingHours] = useState<number>(3200);
-  const [electricityRate, setElectricityRate] = useState<number>(0.85);
-  const [gasRate] = useState<number>(3.5);
+  const [electricityRate, setElectricityRate] = useState<number>(tariffConfig?.averageElectricityPrice ?? 0.85);
+  const [gasRate, setGasRate] = useState<number>(tariffConfig?.gasPrice ?? 3.50);
 
-  // 2. 7 种系统的详细既有设备明细录入
+  // 2. 7 种系统的详细既有设备明细录入（与新建建筑自动配置设备类型 100% 对齐）
   const [chillers, setChillers] = useState<ExistingChillerDetail[]>([
-    { id: 'c1', modelName: '老旧螺杆式冷水机组 A组', capacitykW: 3000, powerkW: 769, cop: 3.9, count: 2 }
+    { id: 'c1', modelName: '老旧螺杆/离心机组 A组', capacitykW: 3000, powerkW: 769, cop: 3.9, count: 2 }
   ]);
 
   const [boilers, setBoilers] = useState<ExistingBoilerDetail[]>([
-    { id: 'b1', modelName: '老旧大气式燃气锅炉', capacitykW: 2400, powerkW: 18, gasFlowm3h: Number((2400 / (9.967 * 0.82)).toFixed(1)), efficiencyPercent: 82, count: 2 }
+    { id: 'b1', modelName: '老旧大气式燃气热水锅炉', capacitykW: 2400, powerkW: 18, gasFlowm3h: Number((2400 / (9.967 * 0.82)).toFixed(1)), efficiencyPercent: 82, count: 2 }
   ]);
 
   const [pumps, setPumps] = useState<ExistingPumpDetail[]>([
-    { id: 'p1', modelName: '工频冷水水泵', type: 'chw', flowm3h: 516, headm: 35, powerkW: 73, efficiencyPercent: 58, count: 3 },
-    { id: 'p2', modelName: '工频冷却水水泵', type: 'cw', flowm3h: 620, headm: 28, powerkW: 74, efficiencyPercent: 58, count: 3 },
-    { id: 'p3', modelName: '工频热水水泵', type: 'hw', flowm3h: 206, headm: 25, powerkW: 24, efficiencyPercent: 58, count: 2 }
+    { id: 'p1', modelName: '冷水水泵 (夏季冷水泵)', type: 'chw', flowm3h: 516, headm: 35, powerkW: 73, efficiencyPercent: 58, count: 3 },
+    { id: 'p2', modelName: '冷却水水泵', type: 'cw', flowm3h: 620, headm: 28, powerkW: 74, efficiencyPercent: 58, count: 3 },
+    { id: 'p3', modelName: '锅炉独立热水泵 (冬季热水循环泵)', type: 'hw', flowm3h: 206, headm: 25, powerkW: 24, efficiencyPercent: 58, count: 2 }
+  ]);
+
+  const [towers, setTowers] = useState<ExistingTowerDetail[]>([
+    { id: 't1', modelName: '冷却塔 (冷却水散热)', flowm3h: 700, fanPowerkW: 18.5, count: 3 }
   ]);
 
   const [achps, setAchps] = useState<ExistingAchpDetail[]>([
-    { id: 'a1', modelName: '老旧风冷热泵模块', coolingkW: 3000, heatingkW: 2400, powerkW: 1000, cop: 3.0, count: 12 }
+    { id: 'a1', modelName: '老旧风冷热泵主机模块', coolingkW: 3000, heatingkW: 2400, powerkW: 1000, cop: 3.0, count: 12 }
   ]);
 
   const [vrfs, setVrfs] = useState<ExistingVrfDetail[]>([
-    { id: 'v1', modelName: '老旧多联机室外机', coolingkW: 3000, powerkW: 857, eer: 3.5, count: 50 }
+    { id: 'v1', modelName: '老旧 VRF 多联机室外机', coolingkW: 3000, powerkW: 857, eer: 3.5, count: 50 }
   ]);
 
-  const [districts] = useState<ExistingDistrictDetail[]>([
+  const [districts, setDistricts] = useState<ExistingDistrictDetail[]>([
     { id: 'd1', modelName: '区域板式换热器机组', capacitykW: 3000, pumpFlowm3h: 516, pumpPowerkW: 73, count: 2 }
   ]);
 
-  const [gshps] = useState<ExistingGshpDetail[]>([
+  const [gshps, setGshps] = useState<ExistingGshpDetail[]>([
     { id: 'g1', modelName: '老旧地源热泵主机', coolingkW: 3000, powerkW: 666, cop: 4.5, groundFlowm3h: 600, groundPumpPowerkW: 78, loadFlowm3h: 516, loadPumpPowerkW: 73, count: 2 }
   ]);
 
-  const [splits] = useState<ExistingSplitDetail[]>([
-    { id: 's1', modelName: '老旧定频分体空调', capacitykW: 3000, powerkW: 1000, apf: 3.0, count: 1000 }
+  const [splits, setSplits] = useState<ExistingSplitDetail[]>([
+    { id: 's1', modelName: '老旧分体空调主机', capacitykW: 3000, powerkW: 1000, apf: 3.0, count: 1000 }
   ]);
 
   const [activeStep, setActiveStep] = useState<1 | 2 | 3>(1);
@@ -185,6 +198,7 @@ export const RetrofitOptimizer: React.FC = () => {
     let totalBoilerCapkW = 0;
     let totalBoilerGasFlow = 0;
     let totalPumpPowerkW = 0;
+    let totalTowerPowerkW = 0;
 
     if (existingSystemType === 'chiller_boiler' || existingSystemType === 'hybrid') {
       totalChillerCapkW = chillers.reduce((a, b) => a + b.capacitykW * b.count, 0);
@@ -192,10 +206,11 @@ export const RetrofitOptimizer: React.FC = () => {
       totalBoilerCapkW = boilers.reduce((a, b) => a + b.capacitykW * b.count, 0);
       totalBoilerGasFlow = boilers.reduce((a, b) => a + b.gasFlowm3h * b.count, 0);
       totalPumpPowerkW = pumps.reduce((a, b) => a + b.powerkW * b.count, 0);
+      totalTowerPowerkW = towers.reduce((a, b) => a + b.fanPowerkW * b.count, 0);
     } else if (existingSystemType === 'air_heat_pump') {
       totalChillerCapkW = achps.reduce((a, b) => a + b.coolingkW * b.count, 0);
       totalChillerPowerkW = achps.reduce((a, b) => a + b.powerkW * b.count, 0);
-      totalPumpPowerkW = pumps.reduce((a, b) => a + b.powerkW * b.count, 0);
+      totalPumpPowerkW = pumps.filter(p => p.type === 'chw' || p.type === 'hw').reduce((a, b) => a + b.powerkW * b.count, 0);
     } else if (existingSystemType === 'vrf') {
       totalChillerCapkW = vrfs.reduce((a, b) => a + b.coolingkW * b.count, 0);
       totalChillerPowerkW = vrfs.reduce((a, b) => a + b.powerkW * b.count, 0);
@@ -213,7 +228,7 @@ export const RetrofitOptimizer: React.FC = () => {
 
     const annualCoolingkWh = totalChillerPowerkW * operatingHours * 0.65;
     const annualPumpskWh = totalPumpPowerkW * operatingHours * 0.7;
-    const annualTowerskWh = (totalChillerCapkW > 0 ? totalChillerCapkW * 0.04 : 0) * operatingHours * 0.65;
+    const annualTowerskWh = totalTowerPowerkW * operatingHours * 0.65;
     
     const totalElectricitykWh = annualCoolingkWh + annualPumpskWh + annualTowerskWh;
     const totalGasm3 = totalBoilerGasFlow * operatingHours * 0.55;
@@ -229,6 +244,7 @@ export const RetrofitOptimizer: React.FC = () => {
       totalBoilerCapkW,
       totalBoilerGasFlow,
       totalPumpPowerkW,
+      totalTowerPowerkW,
       totalElectricitykWh,
       totalGasm3,
       electricityCost,
@@ -236,15 +252,93 @@ export const RetrofitOptimizer: React.FC = () => {
       totalCost,
       carbonTons
     };
-  }, [existingSystemType, chillers, boilers, pumps, achps, vrfs, districts, gshps, splits, operatingHours, electricityRate, gasRate]);
+  }, [existingSystemType, chillers, boilers, pumps, towers, achps, vrfs, districts, gshps, splits, operatingHours, electricityRate, gasRate]);
+
+  // ⚡ 一键根据主机自动推导匹配水泵与冷却塔
+  const handleAutoDerivePumpsAndTowers = () => {
+    const totalCoolkW = chillers.reduce((a, c) => a + c.capacitykW * c.count, 0);
+    const totalHeatkW = boilers.reduce((a, b) => a + b.capacitykW * b.count, 0);
+    const chillerCnt = Math.max(1, chillers.reduce((a, c) => a + c.count, 0));
+    const boilerCnt = Math.max(1, boilers.reduce((a, b) => a + b.count, 0));
+
+    if (totalCoolkW > 0 || totalHeatkW > 0) {
+      const newPumps: ExistingPumpDetail[] = [];
+      if (totalCoolkW > 0) {
+        // 冷水泵 (5℃ 温差: 7℃/12℃)
+        const chwFlow = Number(((totalCoolkW * 3.6) / (4.186 * 5)).toFixed(0));
+        const chwHead = 30;
+        const chwPower = Number(((chwFlow * chwHead) / 247.7).toFixed(1));
+        newPumps.push({
+          id: 'p-chw-auto',
+          modelName: '冷水水泵 (夏季冷水循环泵)',
+          type: 'chw',
+          flowm3h: Number((chwFlow / chillerCnt).toFixed(0)),
+          headm: chwHead,
+          powerkW: Number((chwPower / chillerCnt).toFixed(1)),
+          efficiencyPercent: 65,
+          count: chillerCnt + 1
+        });
+
+        // 冷却水泵 (5℃ 温差: 32℃/37℃)
+        const avgCop = chillers[0]?.cop || 4.0;
+        const qCond = totalCoolkW * (1 + 1 / avgCop);
+        const cwFlow = Number(((qCond * 3.6) / (4.186 * 5)).toFixed(0));
+        const cwHead = 26;
+        const cwPower = Number(((cwFlow * cwHead) / 247.7).toFixed(1));
+        newPumps.push({
+          id: 'p-cw-auto',
+          modelName: '冷却水水泵 (冷凝散热循环泵)',
+          type: 'cw',
+          flowm3h: Number((cwFlow / chillerCnt).toFixed(0)),
+          headm: cwHead,
+          powerkW: Number((cwPower / chillerCnt).toFixed(1)),
+          efficiencyPercent: 65,
+          count: chillerCnt + 1
+        });
+
+        // 冷却塔 (考虑 1.15 富裕系数)
+        const towerFlow = Number((cwFlow * 1.15).toFixed(0));
+        const towerFanPower = Number((towerFlow * 0.18).toFixed(1));
+        setTowers([{
+          id: 't-auto',
+          modelName: '开式方形横流冷却塔 (冷却水散热)',
+          flowm3h: Number((towerFlow / chillerCnt).toFixed(0)),
+          fanPowerkW: Number((towerFanPower / chillerCnt).toFixed(1)),
+          count: chillerCnt
+        }]);
+      }
+
+      if (totalHeatkW > 0) {
+        // 独立热水泵 (10℃ 温差: 60℃/50℃)
+        const hwFlow = Number(((totalHeatkW * 3.6) / (4.186 * 10)).toFixed(0));
+        const hwHead = 22;
+        const hwPower = Number(((hwFlow * hwHead) / 247.7).toFixed(1));
+        newPumps.push({
+          id: 'p-hw-auto',
+          modelName: '锅炉独立热水泵 (冬季热水循环泵)',
+          type: 'hw',
+          flowm3h: Number((hwFlow / boilerCnt).toFixed(0)),
+          headm: hwHead,
+          powerkW: Number((hwPower / boilerCnt).toFixed(1)),
+          efficiencyPercent: 65,
+          count: boilerCnt + 1
+        });
+      }
+
+      if (newPumps.length > 0) {
+        setPumps(newPumps);
+      }
+    }
+  };
 
   // 步骤 1：维持原系统，仅更换老旧高效设备方案
   const step1Result = useMemo(() => {
     const newChillerPowerkW = baseline.totalChillerCapkW / 6.8;
     const newPumpPowerkW = baseline.totalPumpPowerkW * (0.58 / 0.82) * 0.8;
     const newBoilerGasFlow = baseline.totalBoilerGasFlow * (0.82 / 0.95);
+    const newTowerPowerkW = baseline.totalTowerPowerkW * 0.75;
 
-    const newEleckWh = (newChillerPowerkW * 0.65 + newPumpPowerkW * 0.7) * operatingHours;
+    const newEleckWh = (newChillerPowerkW * 0.65 + newPumpPowerkW * 0.7 + newTowerPowerkW * 0.65) * operatingHours;
     const newGasm3 = newBoilerGasFlow * operatingHours * 0.55;
 
     const newElecCost = newEleckWh * electricityRate;
@@ -334,13 +428,13 @@ export const RetrofitOptimizer: React.FC = () => {
     return {
       backgroundColor: 'transparent',
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-      legend: { data: ['改造前既有现状', '改造优化后'], textStyle: { color: '#cbd5e1', fontSize: 12 }, top: 0 },
+      legend: { data: ['改造前既有现状', '改造优化后'], textStyle: { color: '#94a3b8', fontSize: 12 }, top: 0 },
       grid: { top: '15%', left: '3%', right: '4%', bottom: '8%', containLabel: true },
       xAxis: {
         type: 'category',
         data: ['年运行电费 (万元)', '年天然气费 (万元)', '年总能耗费用 (万元)', '年碳排放 (吨)'],
         axisLine: { lineStyle: { color: '#334155' } },
-        axisLabel: { color: '#cbd5e1', fontSize: 12 }
+        axisLabel: { color: '#94a3b8', fontSize: 12 }
       },
       yAxis: {
         type: 'value',
@@ -406,17 +500,25 @@ export const RetrofitOptimizer: React.FC = () => {
                 </span>
               </h2>
               <p className="text-sm text-slate-300 mt-1">
-                【步骤2:更换系统形式】支持在主流品牌库中挑选真实物理设备（电量取自设备铭牌真实电功率），精准计算运行费用与回收期！
+                既有系统设备分类与新建项目设备配置表 100% 保持一致，支持真实品牌型号物理铭牌电量精算！
               </p>
             </div>
           </div>
+
+          <button
+            onClick={() => setIsAiReportModalOpen(true)}
+            className="flex items-center space-x-2 px-5 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black rounded-xl text-xs shadow-lg shadow-emerald-500/25 border border-emerald-300/50 transition-all cursor-pointer shrink-0"
+          >
+            <Sparkles className="w-4 h-4 text-slate-950 animate-bounce" />
+            <span>🤖 AI 专家级改造诊断与多方案比选报告</span>
+          </button>
         </div>
       </div>
 
       {/* 2. Main Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        {/* Left 5 Cols: Detailed Existing Equipment Input Form */}
+        {/* Left 5 Cols: Detailed Existing Equipment Input Form (设备类型与新建建筑完全对齐) */}
         <div className="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-5 shadow-xl">
           
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -424,7 +526,7 @@ export const RetrofitOptimizer: React.FC = () => {
               <Building className="w-5 h-5 text-blue-400" />
               <span>既有建筑与老旧设备明细录入</span>
             </h3>
-            <span className="text-xs text-blue-400 font-semibold">支持全 7 种系统填报</span>
+            <span className="text-xs text-blue-400 font-semibold">设备类型与新建配置一致</span>
           </div>
 
           <div className="space-y-4 text-sm">
@@ -463,18 +565,18 @@ export const RetrofitOptimizer: React.FC = () => {
               </div>
             </div>
 
-            {/* 冷水机组 (chiller_boiler / hybrid) */}
+            {/* 1. 冷水机组 (chiller_boiler / hybrid) */}
             {(existingSystemType === 'chiller_boiler' || existingSystemType === 'hybrid') && (
               <div className="bg-slate-850 p-4 rounded-xl border border-slate-800 space-y-3">
                 <div className="flex items-center justify-between border-b border-slate-750 pb-2">
                   <span className="font-bold text-blue-300 flex items-center space-x-1">
                     <Cpu className="w-4 h-4 text-blue-400" />
-                    <span>冷水机组详细型号与参数 ({chillers.length} 组)</span>
+                    <span>冷水机组 (螺杆/离心/磁悬浮) ({chillers.length} 组)</span>
                   </span>
                   <button
                     onClick={() => setChillers([...chillers, {
                       id: `c-${Date.now()}`,
-                      modelName: `老旧机组 ${chillers.length + 1}`,
+                      modelName: `老旧螺杆/离心机组 ${chillers.length + 1}`,
                       capacitykW: 1500,
                       powerkW: 384,
                       cop: 3.9,
@@ -574,11 +676,11 @@ export const RetrofitOptimizer: React.FC = () => {
               </div>
             )}
 
-            {/* 燃气锅炉 */}
+            {/* 2. 燃气热水锅炉 */}
             {(existingSystemType === 'chiller_boiler' || existingSystemType === 'hybrid') && (
               <div className="bg-slate-850 p-4 rounded-xl border border-slate-800 space-y-2">
                 <span className="font-bold text-rose-400 block border-b border-slate-750 pb-2">
-                  燃气锅炉参数明细 (耗气量按制热量自动推算，支持修改)
+                  燃气热水锅炉 (耗气量按制热量自动推算，支持修改)
                 </span>
                 {boilers.map((b, idx) => (
                   <div key={b.id} className="grid grid-cols-4 gap-2 text-xs">
@@ -635,12 +737,23 @@ export const RetrofitOptimizer: React.FC = () => {
               </div>
             )}
 
-            {/* 水泵填报 */}
+            {/* 3. 水泵循环系统 */}
             {(existingSystemType === 'chiller_boiler' || existingSystemType === 'air_heat_pump' || existingSystemType === 'hybrid') && (
               <div className="bg-slate-850 p-4 rounded-xl border border-slate-800 space-y-3">
-                <span className="font-bold text-blue-300 block border-b border-slate-750 pb-2">
-                  水泵循环系统参数 (参数自动算好，实际不一致可修改)
-                </span>
+                <div className="flex items-center justify-between border-b border-slate-750 pb-2">
+                  <span className="font-bold text-blue-300">
+                    水泵循环系统 (冷水泵、冷却水泵、热水泵)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleAutoDerivePumpsAndTowers}
+                    className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1 rounded-lg flex items-center space-x-1 shadow-sm transition-all cursor-pointer"
+                    title="根据上方输入的冷水机组与锅炉参数，自动推导冷水泵、冷却水泵、冷却塔与热水泵流量与扬程"
+                  >
+                    <Zap className="w-3.5 h-3.5" />
+                    <span>⚡ 一键根据主机自动推导匹配</span>
+                  </button>
+                </div>
 
                 {pumps.map((p, idx) => (
                   <div key={p.id} className="bg-slate-900 p-3 rounded-lg border border-slate-800 space-y-2">
@@ -712,11 +825,63 @@ export const RetrofitOptimizer: React.FC = () => {
               </div>
             )}
 
-            {/* 风冷热泵 */}
+            {/* 4. 冷却塔 (冷却水散热) */}
+            {(existingSystemType === 'chiller_boiler' || existingSystemType === 'hybrid') && (
+              <div className="bg-slate-850 p-4 rounded-xl border border-slate-800 space-y-2">
+                <span className="font-bold text-emerald-400 block border-b border-slate-750 pb-2">
+                  冷却塔 (冷却水散热)
+                </span>
+                {towers.map((t, idx) => (
+                  <div key={t.id} className="grid grid-cols-3 gap-2 text-xs">
+                    <div>
+                      <span className="text-slate-300 block">流量(m³/h)</span>
+                      <input
+                        type="number"
+                        value={t.flowm3h}
+                        onChange={(e) => {
+                          const updated = [...towers];
+                          updated[idx].flowm3h = Number(e.target.value);
+                          setTowers(updated);
+                        }}
+                        className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white font-bold"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-slate-300 block">风机电功率(kW)</span>
+                      <input
+                        type="number"
+                        value={t.fanPowerkW}
+                        onChange={(e) => {
+                          const updated = [...towers];
+                          updated[idx].fanPowerkW = Number(e.target.value);
+                          setTowers(updated);
+                        }}
+                        className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-amber-300 font-bold"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-slate-300 block">台数</span>
+                      <input
+                        type="number"
+                        value={t.count}
+                        onChange={(e) => {
+                          const updated = [...towers];
+                          updated[idx].count = Number(e.target.value);
+                          setTowers(updated);
+                        }}
+                        className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white font-bold"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 5. 风冷热泵主机模块 */}
             {existingSystemType === 'air_heat_pump' && (
               <div className="bg-slate-850 p-4 rounded-xl border border-slate-800 space-y-3">
                 <span className="font-bold text-sky-400 block border-b border-slate-750 pb-2">
-                  风冷热泵主机模块明细
+                  风冷热泵主机模块
                 </span>
                 {achps.map((a, idx) => (
                   <div key={a.id} className="grid grid-cols-4 gap-2 text-xs">
@@ -778,11 +943,11 @@ export const RetrofitOptimizer: React.FC = () => {
               </div>
             )}
 
-            {/* VRF 多联机 */}
+            {/* 6. VRF 多联机室外机 */}
             {existingSystemType === 'vrf' && (
               <div className="bg-slate-850 p-4 rounded-xl border border-slate-800 space-y-3">
                 <span className="font-bold text-purple-400 block border-b border-slate-750 pb-2">
-                  VRF 多联机室外机明细
+                  VRF 多联机室外机
                 </span>
                 {vrfs.map((v, idx) => (
                   <div key={v.id} className="grid grid-cols-4 gap-2 text-xs">
@@ -844,24 +1009,227 @@ export const RetrofitOptimizer: React.FC = () => {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-3">
+            {/* 7. 区域能源换热器机组 */}
+            {existingSystemType === 'district_energy' && (
+              <div className="bg-slate-850 p-4 rounded-xl border border-slate-800 space-y-2">
+                <span className="font-bold text-teal-400 block border-b border-slate-750 pb-2">
+                  区域板式换热器机组与二次循环泵
+                </span>
+                {districts.map((d, idx) => (
+                  <div key={d.id} className="grid grid-cols-3 gap-2 text-xs">
+                    <div>
+                      <span className="text-slate-300 block">换热容量(kW)</span>
+                      <input
+                        type="number"
+                        value={d.capacitykW}
+                        onChange={(e) => {
+                          const updated = [...districts];
+                          updated[idx].capacitykW = Number(e.target.value);
+                          setDistricts(updated);
+                        }}
+                        className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white font-bold"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-slate-300 block">二次泵功率(kW)</span>
+                      <input
+                        type="number"
+                        value={d.pumpPowerkW}
+                        onChange={(e) => {
+                          const updated = [...districts];
+                          updated[idx].pumpPowerkW = Number(e.target.value);
+                          setDistricts(updated);
+                        }}
+                        className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-amber-300 font-bold"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-slate-300 block">机组台数</span>
+                      <input
+                        type="number"
+                        value={d.count}
+                        onChange={(e) => {
+                          const updated = [...districts];
+                          updated[idx].count = Number(e.target.value);
+                          setDistricts(updated);
+                        }}
+                        className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white font-bold"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 8. 地源热泵系统 */}
+            {existingSystemType === 'ground_heat_pump' && (
+              <div className="bg-slate-850 p-4 rounded-xl border border-slate-800 space-y-2">
+                <span className="font-bold text-indigo-400 block border-b border-slate-750 pb-2">
+                  地源热泵主机与源侧/负荷侧水泵
+                </span>
+                {gshps.map((g, idx) => (
+                  <div key={g.id} className="grid grid-cols-4 gap-2 text-xs">
+                    <div>
+                      <span className="text-slate-300 block">主机容量(kW)</span>
+                      <input
+                        type="number"
+                        value={g.coolingkW}
+                        onChange={(e) => {
+                          const updated = [...gshps];
+                          updated[idx].coolingkW = Number(e.target.value);
+                          setGshps(updated);
+                        }}
+                        className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white font-bold"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-slate-300 block">主机电功率(kW)</span>
+                      <input
+                        type="number"
+                        value={g.powerkW}
+                        onChange={(e) => {
+                          const updated = [...gshps];
+                          updated[idx].powerkW = Number(e.target.value);
+                          setGshps(updated);
+                        }}
+                        className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-amber-300 font-bold"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-slate-300 block">地埋管泵功率(kW)</span>
+                      <input
+                        type="number"
+                        value={g.groundPumpPowerkW}
+                        onChange={(e) => {
+                          const updated = [...gshps];
+                          updated[idx].groundPumpPowerkW = Number(e.target.value);
+                          setGshps(updated);
+                        }}
+                        className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-teal-300 font-bold"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-slate-300 block">台数</span>
+                      <input
+                        type="number"
+                        value={g.count}
+                        onChange={(e) => {
+                          const updated = [...gshps];
+                          updated[idx].count = Number(e.target.value);
+                          setGshps(updated);
+                        }}
+                        className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white font-bold"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 9. 分体空调系统 */}
+            {existingSystemType === 'split_ac' && (
+              <div className="bg-slate-850 p-4 rounded-xl border border-slate-800 space-y-2">
+                <span className="font-bold text-amber-400 block border-b border-slate-750 pb-2">
+                  分体空调主机
+                </span>
+                {splits.map((s, idx) => (
+                  <div key={s.id} className="grid grid-cols-3 gap-2 text-xs">
+                    <div>
+                      <span className="text-slate-300 block">总容量(kW)</span>
+                      <input
+                        type="number"
+                        value={s.capacitykW}
+                        onChange={(e) => {
+                          const updated = [...splits];
+                          updated[idx].capacitykW = Number(e.target.value);
+                          setSplits(updated);
+                        }}
+                        className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white font-bold"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-slate-300 block">总功率(kW)</span>
+                      <input
+                        type="number"
+                        value={s.powerkW}
+                        onChange={(e) => {
+                          const updated = [...splits];
+                          updated[idx].powerkW = Number(e.target.value);
+                          setSplits(updated);
+                        }}
+                        className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-amber-300 font-bold"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-slate-300 block">台数</span>
+                      <input
+                        type="number"
+                        value={s.count}
+                        onChange={(e) => {
+                          const updated = [...splits];
+                          updated[idx].count = Number(e.target.value);
+                          setSplits(updated);
+                        }}
+                        className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white font-bold"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="bg-slate-850 p-3.5 rounded-xl border border-slate-800 space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-750 pb-2">
+                <span className="font-bold text-amber-400 flex items-center space-x-1.5 text-xs">
+                  <Zap className="w-4 h-4 text-amber-400" />
+                  <span>能源价格设定 (电价与天然气单价)</span>
+                </span>
+                <span className="text-[11px] text-slate-400">实时联动精算</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <label className="block text-slate-300 mb-1 font-semibold">综合电价 (元/kWh)</label>
+                  <input
+                    type="number"
+                    step="0.05"
+                    value={electricityRate}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      setElectricityRate(val);
+                      if (onUpdateTariffConfig && tariffConfig) {
+                        onUpdateTariffConfig({ ...tariffConfig, averageElectricityPrice: val });
+                      }
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-amber-300 font-bold text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 mb-1 font-semibold">天然气单价 (元/m³)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={gasRate}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      setGasRate(val);
+                      if (onUpdateTariffConfig && tariffConfig) {
+                        onUpdateTariffConfig({ ...tariffConfig, gasPrice: val });
+                      }
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-rose-400 font-bold text-sm"
+                  />
+                </div>
+              </div>
+
               <div>
-                <label className="block text-slate-300 mb-1">年运行小时 (h)</label>
+                <label className="block text-slate-300 mb-1 text-xs">空调系统年运行小时 (h/年)</label>
                 <input
                   type="number"
                   value={operatingHours}
                   onChange={(e) => setOperatingHours(Number(e.target.value))}
-                  className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-white font-bold text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-slate-300 mb-1">电价 (元/kWh)</label>
-                <input
-                  type="number"
-                  step="0.05"
-                  value={electricityRate}
-                  onChange={(e) => setElectricityRate(Number(e.target.value))}
-                  className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-white text-sm"
+                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-white font-bold text-sm"
                 />
               </div>
             </div>
@@ -1023,6 +1391,126 @@ export const RetrofitOptimizer: React.FC = () => {
                     </thead>
                     <tbody className="divide-y divide-slate-800 text-slate-200">
                       
+                      {/* 冷水机组 */}
+                      {(targetSystemType === 'chiller_boiler' || targetSystemType === 'hybrid') && (
+                        <tr className="hover:bg-slate-800/60 transition-colors">
+                          <td className="py-3 px-3 font-bold text-white flex items-center space-x-2">
+                            <Cpu className="w-4 h-4 text-blue-400" />
+                            <span>冷水机组 (螺杆/离心/磁悬浮)</span>
+                          </td>
+                          <td className="py-3 px-3">
+                            {targetCustomEquipment.selectedChillerProduct ? (
+                              <div className="space-y-1">
+                                <span className="px-2 py-0.5 bg-blue-500/20 text-blue-300 font-bold text-xs rounded border border-blue-500/30 inline-flex items-center space-x-1">
+                                  <Check className="w-3.5 h-3.5 text-blue-400" />
+                                  <span>{targetCustomEquipment.selectedChillerProduct.brand} {targetCustomEquipment.selectedChillerProduct.model}</span>
+                                </span>
+                                <button
+                                  onClick={() => openCatalogModal('chiller', '冷水机组', (targetCustomEquipment.chillerCapacitykW || targetCalc.chillerCapacitykW) / (targetCustomEquipment.chillerCount || targetCalc.chillerCount), 'selectedChillerProduct')}
+                                  className="text-xs text-blue-400 hover:text-white underline block"
+                                >
+                                  更换品牌型号
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => openCatalogModal('chiller', '冷水机组', (targetCustomEquipment.chillerCapacitykW || targetCalc.chillerCapacitykW) / (targetCustomEquipment.chillerCount || targetCalc.chillerCount), 'selectedChillerProduct')}
+                                className="px-2.5 py-1 bg-blue-600/30 hover:bg-blue-600 text-blue-200 hover:text-white rounded text-xs font-bold border border-blue-500/40 flex items-center space-x-1 transition-all"
+                              >
+                                <ShoppingBag className="w-3.5 h-3.5" />
+                                <span>从品牌库选型 (约克/开利...)</span>
+                              </button>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 font-semibold text-slate-400">{targetCalc.chillerCapacitykW.toFixed(1)} kW</td>
+                          <td className="py-3 px-3">
+                            <input
+                              type="number"
+                              min={1}
+                              max={10}
+                              value={targetCustomEquipment.chillerCount ?? targetCalc.chillerCount}
+                              onChange={(e) => handleTargetCustomChange('chillerCount', Number(e.target.value))}
+                              className="w-16 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-center font-bold text-blue-300 text-sm"
+                            />
+                          </td>
+                          <td className="py-3 px-3 font-bold text-emerald-400">
+                            {((targetCustomEquipment.chillerCapacitykW || targetCalc.chillerCapacitykW) / (targetCustomEquipment.chillerCount || targetCalc.chillerCount)).toFixed(1)} kW/台
+                          </td>
+                          <td className="py-3 px-3">
+                            <input
+                              type="number"
+                              value={targetCustomEquipment.chillerCapacitykW ?? ''}
+                              placeholder={targetCalc.chillerCapacitykW.toFixed(1)}
+                              onChange={(e) => handleTargetCustomChange('chillerCapacitykW', e.target.value ? Number(e.target.value) : undefined)}
+                              className="w-28 bg-slate-950 border border-slate-700 rounded px-2.5 py-1 text-white font-bold text-sm"
+                            />
+                          </td>
+                          <td className="py-3 px-3 font-bold text-amber-300">
+                            {targetCustomEquipment.selectedChillerProduct ? `${targetCustomEquipment.selectedChillerProduct.actualPowerkW} kW/台` : `${(targetCalc.chillerPowerkW / targetCalc.chillerCount).toFixed(1)} kW (理论)`}
+                          </td>
+                        </tr>
+                      )}
+
+                      {/* 燃气热水锅炉 */}
+                      {(targetSystemType === 'chiller_boiler' || targetSystemType === 'hybrid') && (
+                        <tr className="hover:bg-slate-800/60 transition-colors">
+                          <td className="py-3 px-3 font-bold text-white flex items-center space-x-2">
+                            <Flame className="w-4 h-4 text-rose-500" />
+                            <span>燃气热水锅炉</span>
+                          </td>
+                          <td className="py-3 px-3">
+                            {targetCustomEquipment.selectedBoilerProduct ? (
+                              <div className="space-y-1">
+                                <span className="px-2 py-0.5 bg-rose-500/20 text-rose-300 font-bold text-xs rounded border border-rose-500/30 inline-flex items-center space-x-1">
+                                  <Check className="w-3.5 h-3.5 text-rose-400" />
+                                  <span>{targetCustomEquipment.selectedBoilerProduct.brand} {targetCustomEquipment.selectedBoilerProduct.model}</span>
+                                </span>
+                                <button
+                                  onClick={() => openCatalogModal('boiler', '燃气热水锅炉', (targetCustomEquipment.boilerCapacitykW || targetCalc.boilerCapacitykW) / (targetCustomEquipment.boilerCount || targetCalc.boilerCount), 'selectedBoilerProduct')}
+                                  className="text-xs text-rose-400 hover:text-white underline block"
+                                >
+                                  更换品牌型号
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => openCatalogModal('boiler', '燃气热水锅炉', (targetCustomEquipment.boilerCapacitykW || targetCalc.boilerCapacitykW) / (targetCustomEquipment.boilerCount || targetCalc.boilerCount), 'selectedBoilerProduct')}
+                                className="px-2.5 py-1 bg-rose-600/30 hover:bg-rose-600 text-rose-200 hover:text-white rounded text-xs font-bold border border-rose-500/40 flex items-center space-x-1 transition-all"
+                              >
+                                <ShoppingBag className="w-3.5 h-3.5" />
+                                <span>从品牌库选型 (方快/双良...)</span>
+                              </button>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 font-semibold text-slate-400">{targetCalc.boilerCapacitykW.toFixed(1)} kW</td>
+                          <td className="py-3 px-3">
+                            <input
+                              type="number"
+                              min={1}
+                              max={10}
+                              value={targetCustomEquipment.boilerCount ?? targetCalc.boilerCount}
+                              onChange={(e) => handleTargetCustomChange('boilerCount', Number(e.target.value))}
+                              className="w-16 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-center font-bold text-rose-300 text-sm"
+                            />
+                          </td>
+                          <td className="py-3 px-3 font-bold text-emerald-400">
+                            {((targetCustomEquipment.boilerCapacitykW || targetCalc.boilerCapacitykW) / (targetCustomEquipment.boilerCount || targetCalc.boilerCount)).toFixed(1)} kW/台
+                          </td>
+                          <td className="py-3 px-3">
+                            <input
+                              type="number"
+                              value={targetCustomEquipment.boilerCapacitykW ?? ''}
+                              placeholder={targetCalc.boilerCapacitykW.toFixed(1)}
+                              onChange={(e) => handleTargetCustomChange('boilerCapacitykW', e.target.value ? Number(e.target.value) : undefined)}
+                              className="w-28 bg-slate-950 border border-slate-700 rounded px-2.5 py-1 text-white font-bold text-sm"
+                            />
+                          </td>
+                          <td className="py-3 px-3 font-bold text-rose-400">
+                            {targetCustomEquipment.selectedBoilerProduct ? `${targetCustomEquipment.selectedBoilerProduct.gasFlowm3h || '-'} m³/h/台` : `${(targetCalc.boilerGasFlow / targetCalc.boilerCount).toFixed(1)} m³/h (理论)`}
+                          </td>
+                        </tr>
+                      )}
+
                       {/* 冷水水泵 */}
                       {targetSysMeta.hasChilledWaterPump && targetCalc.chwPumpFlow > 0 && (
                         <tr className="hover:bg-slate-800/60 transition-colors">
@@ -1084,7 +1572,7 @@ export const RetrofitOptimizer: React.FC = () => {
                       {targetSysMeta.hasHotWaterPump && targetCalc.hwPumpFlow > 0 && (
                         <tr className="hover:bg-slate-800/60 transition-colors">
                           <td className="py-3 px-3 font-bold text-white">
-                            {targetSystemType === 'air_heat_pump' ? '冬季热水循环泵' : '锅炉独立热水泵'}
+                            {targetSystemType === 'air_heat_pump' ? '冬季热水循环泵' : '锅炉独立热水泵 (冬季热水循环泵)'}
                           </td>
                           <td className="py-3 px-3">
                             {targetCustomEquipment.selectedHwPumpProduct ? (
@@ -1199,7 +1687,7 @@ export const RetrofitOptimizer: React.FC = () => {
                       {/* 冷却塔 */}
                       {targetSysMeta.hasCoolingTower && targetCalc.coolingTowerFlow > 0 && (
                         <tr className="hover:bg-slate-800/60 transition-colors">
-                          <td className="py-3 px-3 font-bold text-white">冷却塔 (散热)</td>
+                          <td className="py-3 px-3 font-bold text-white">冷却塔 (冷却水散热)</td>
                           <td className="py-3 px-3">
                             {targetCustomEquipment.selectedTowerProduct ? (
                               <div className="space-y-1">
@@ -1256,7 +1744,10 @@ export const RetrofitOptimizer: React.FC = () => {
                       {/* 风冷热泵主机模块 */}
                       {targetSystemType === 'air_heat_pump' && (
                         <tr className="hover:bg-slate-800/60 transition-colors">
-                          <td className="py-3 px-3 font-bold text-white">风冷热泵主机模块</td>
+                          <td className="py-3 px-3 font-bold text-white flex items-center space-x-2">
+                            <Wind className="w-4 h-4 text-sky-400" />
+                            <span>风冷热泵主机模块</span>
+                          </td>
                           <td className="py-3 px-3">
                             {targetCustomEquipment.selectedAchpProduct ? (
                               <div className="space-y-1">
@@ -1313,7 +1804,10 @@ export const RetrofitOptimizer: React.FC = () => {
                       {/* VRF多联机 */}
                       {targetSystemType === 'vrf' && (
                         <tr className="hover:bg-slate-800/60 transition-colors">
-                          <td className="py-3 px-3 font-bold text-white">VRF 多联机室外机</td>
+                          <td className="py-3 px-3 font-bold text-white flex items-center space-x-2">
+                            <Cpu className="w-4 h-4 text-purple-400" />
+                            <span>VRF 多联机室外机</span>
+                          </td>
                           <td className="py-3 px-3">
                             {targetCustomEquipment.selectedVrfProduct ? (
                               <div className="space-y-1">
@@ -1363,120 +1857,6 @@ export const RetrofitOptimizer: React.FC = () => {
                           </td>
                           <td className="py-3 px-3 font-bold text-amber-300">
                             {targetCustomEquipment.selectedVrfProduct ? `${targetCustomEquipment.selectedVrfProduct.actualPowerkW} kW/台` : `${(targetCalc.vrfPowerkW / targetCalc.vrfCount).toFixed(1)} kW (理论)`}
-                          </td>
-                        </tr>
-                      )}
-
-                      {/* 冷水机组 */}
-                      {targetSystemType === 'chiller_boiler' && (
-                        <tr className="hover:bg-slate-800/60 transition-colors">
-                          <td className="py-3 px-3 font-bold text-white">冷水机组 (螺杆/离心)</td>
-                          <td className="py-3 px-3">
-                            {targetCustomEquipment.selectedChillerProduct ? (
-                              <div className="space-y-1">
-                                <span className="px-2 py-0.5 bg-blue-500/20 text-blue-300 font-bold text-xs rounded border border-blue-500/30 inline-flex items-center space-x-1">
-                                  <Check className="w-3.5 h-3.5 text-blue-400" />
-                                  <span>{targetCustomEquipment.selectedChillerProduct.brand} {targetCustomEquipment.selectedChillerProduct.model}</span>
-                                </span>
-                                <button
-                                  onClick={() => openCatalogModal('chiller', '冷水机组', (targetCustomEquipment.chillerCapacitykW || targetCalc.chillerCapacitykW) / (targetCustomEquipment.chillerCount || targetCalc.chillerCount), 'selectedChillerProduct')}
-                                  className="text-xs text-blue-400 hover:text-white underline block"
-                                >
-                                  更换品牌型号
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => openCatalogModal('chiller', '冷水机组', (targetCustomEquipment.chillerCapacitykW || targetCalc.chillerCapacitykW) / (targetCustomEquipment.chillerCount || targetCalc.chillerCount), 'selectedChillerProduct')}
-                                className="px-2.5 py-1 bg-blue-600/30 hover:bg-blue-600 text-blue-200 hover:text-white rounded text-xs font-bold border border-blue-500/40 flex items-center space-x-1 transition-all"
-                              >
-                                <ShoppingBag className="w-3.5 h-3.5" />
-                                <span>从品牌库选型 (约克/开利...)</span>
-                              </button>
-                            )}
-                          </td>
-                          <td className="py-3 px-3 font-semibold text-slate-400">{targetCalc.chillerCapacitykW.toFixed(1)} kW</td>
-                          <td className="py-3 px-3">
-                            <input
-                              type="number"
-                              min={1}
-                              max={10}
-                              value={targetCustomEquipment.chillerCount ?? targetCalc.chillerCount}
-                              onChange={(e) => handleTargetCustomChange('chillerCount', Number(e.target.value))}
-                              className="w-16 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-center font-bold text-blue-300 text-sm"
-                            />
-                          </td>
-                          <td className="py-3 px-3 font-bold text-emerald-400">
-                            {((targetCustomEquipment.chillerCapacitykW || targetCalc.chillerCapacitykW) / (targetCustomEquipment.chillerCount || targetCalc.chillerCount)).toFixed(1)} kW/台
-                          </td>
-                          <td className="py-3 px-3">
-                            <input
-                              type="number"
-                              value={targetCustomEquipment.chillerCapacitykW ?? ''}
-                              placeholder={targetCalc.chillerCapacitykW.toFixed(1)}
-                              onChange={(e) => handleTargetCustomChange('chillerCapacitykW', e.target.value ? Number(e.target.value) : undefined)}
-                              className="w-28 bg-slate-950 border border-slate-700 rounded px-2.5 py-1 text-white font-bold text-sm"
-                            />
-                          </td>
-                          <td className="py-3 px-3 font-bold text-amber-300">
-                            {targetCustomEquipment.selectedChillerProduct ? `${targetCustomEquipment.selectedChillerProduct.actualPowerkW} kW/台` : `${(targetCalc.chillerPowerkW / targetCalc.chillerCount).toFixed(1)} kW (理论)`}
-                          </td>
-                        </tr>
-                      )}
-
-                      {/* 燃气锅炉 */}
-                      {targetSystemType === 'chiller_boiler' && (
-                        <tr className="hover:bg-slate-800/60 transition-colors">
-                          <td className="py-3 px-3 font-bold text-white">燃气热水锅炉</td>
-                          <td className="py-3 px-3">
-                            {targetCustomEquipment.selectedBoilerProduct ? (
-                              <div className="space-y-1">
-                                <span className="px-2 py-0.5 bg-rose-500/20 text-rose-300 font-bold text-xs rounded border border-rose-500/30 inline-flex items-center space-x-1">
-                                  <Check className="w-3.5 h-3.5 text-rose-400" />
-                                  <span>{targetCustomEquipment.selectedBoilerProduct.brand} {targetCustomEquipment.selectedBoilerProduct.model}</span>
-                                </span>
-                                <button
-                                  onClick={() => openCatalogModal('boiler', '燃气热水锅炉', (targetCustomEquipment.boilerCapacitykW || targetCalc.boilerCapacitykW) / (targetCustomEquipment.boilerCount || targetCalc.boilerCount), 'selectedBoilerProduct')}
-                                  className="text-xs text-rose-400 hover:text-white underline block"
-                                >
-                                  更换品牌型号
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => openCatalogModal('boiler', '燃气热水锅炉', (targetCustomEquipment.boilerCapacitykW || targetCalc.boilerCapacitykW) / (targetCustomEquipment.boilerCount || targetCalc.boilerCount), 'selectedBoilerProduct')}
-                                className="px-2.5 py-1 bg-rose-600/30 hover:bg-rose-600 text-rose-200 hover:text-white rounded text-xs font-bold border border-rose-500/40 flex items-center space-x-1 transition-all"
-                              >
-                                <ShoppingBag className="w-3.5 h-3.5" />
-                                <span>从品牌库选型 (方快/双良...)</span>
-                              </button>
-                            )}
-                          </td>
-                          <td className="py-3 px-3 font-semibold text-slate-400">{targetCalc.boilerCapacitykW.toFixed(1)} kW</td>
-                          <td className="py-3 px-3">
-                            <input
-                              type="number"
-                              min={1}
-                              max={10}
-                              value={targetCustomEquipment.boilerCount ?? targetCalc.boilerCount}
-                              onChange={(e) => handleTargetCustomChange('boilerCount', Number(e.target.value))}
-                              className="w-16 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-center font-bold text-rose-300 text-sm"
-                            />
-                          </td>
-                          <td className="py-3 px-3 font-bold text-emerald-400">
-                            {((targetCustomEquipment.boilerCapacitykW || targetCalc.boilerCapacitykW) / (targetCustomEquipment.boilerCount || targetCalc.boilerCount)).toFixed(1)} kW/台
-                          </td>
-                          <td className="py-3 px-3">
-                            <input
-                              type="number"
-                              value={targetCustomEquipment.boilerCapacitykW ?? ''}
-                              placeholder={targetCalc.boilerCapacitykW.toFixed(1)}
-                              onChange={(e) => handleTargetCustomChange('boilerCapacitykW', e.target.value ? Number(e.target.value) : undefined)}
-                              className="w-28 bg-slate-950 border border-slate-700 rounded px-2.5 py-1 text-white font-bold text-sm"
-                            />
-                          </td>
-                          <td className="py-3 px-3 font-bold text-rose-400">
-                            {targetCustomEquipment.selectedBoilerProduct ? `${targetCustomEquipment.selectedBoilerProduct.gasFlowm3h || '-'} m³/h/台` : `${(targetCalc.boilerGasFlow / targetCalc.boilerCount).toFixed(1)} m³/h (理论)`}
                           </td>
                         </tr>
                       )}
@@ -1625,6 +2005,24 @@ export const RetrofitOptimizer: React.FC = () => {
         </div>
 
       </div>
+
+      {/* 3. AI 专家级改造诊断与多方案比选报告弹窗 */}
+      <AiRetrofitAdvisorModal
+        isOpen={isAiReportModalOpen}
+        onClose={() => setIsAiReportModalOpen(false)}
+        buildingName={buildingName}
+        buildingArea={buildingArea}
+        existingSystemType={existingSystemType}
+        operatingHours={operatingHours}
+        electricityRate={electricityRate}
+        gasRate={gasRate}
+        chillers={chillers}
+        boilers={boilers}
+        pumps={pumps}
+        towers={towers}
+        baselineCost={baseline.totalCost}
+        tariffConfig={tariffConfig}
+      />
 
     </div>
   );

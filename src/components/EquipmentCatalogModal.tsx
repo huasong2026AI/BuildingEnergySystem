@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Check, Search, ShieldCheck, Cpu } from 'lucide-react';
-import { EQUIPMENT_CATALOG } from '../data/equipmentCatalog';
+import { getMergedEquipmentCatalog } from '../data/equipmentCatalog';
 import type { EquipmentCategory, CatalogEquipmentItem } from '../data/equipmentCatalog';
 
 interface Props {
@@ -27,7 +27,8 @@ export const EquipmentCatalogModal: React.FC<Props> = ({
 
   if (!isOpen) return null;
 
-  const categoryItems = EQUIPMENT_CATALOG.filter(item => item.category === category);
+  const allItems = getMergedEquipmentCatalog();
+  const categoryItems = allItems.filter(item => item.category === category);
 
   // 获取该类别下的所有可选品牌
   const availableBrands = Array.from(new Set(categoryItems.map(item => item.brand)));

@@ -167,6 +167,23 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
     sizingRuleText = `3. 大型冷站 (Q_chiller = ${Q_chiller.toFixed(1)} kW > 5500 kW): 推荐 3大1小 异构梯级配置 (1台磁悬浮 ${qSmall.toFixed(1)} kW + 3台变频离心机 ${qLarge.toFixed(1)} kW)`;
   }
 
+  // 实际配比率标签渲染辅助函数 (实际选型总值 ÷ 推荐标准联动值)
+  const renderRatioBadge = (configured: number, recommended: number) => {
+    if (recommended <= 0) return <span className="text-slate-500">-</span>;
+    const ratio = (configured / recommended) * 100;
+    let colorCls = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
+    if (ratio < 95 || ratio > 115) {
+      colorCls = 'bg-amber-500/20 text-amber-300 border-amber-500/40';
+    } else if (ratio > 105) {
+      colorCls = 'bg-blue-500/20 text-blue-300 border-blue-500/30';
+    }
+    return (
+      <span className={`px-2 py-0.5 rounded text-xs font-bold border ${colorCls} inline-flex items-center shadow-sm`}>
+        {ratio.toFixed(1)}%
+      </span>
+    );
+  };
+
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
       
@@ -291,87 +308,101 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
         </div>
       )}
 
-      {/* Water Temperature & Condition Form Inputs */}
-      <div className="bg-slate-850 border border-slate-800 rounded-xl p-4 space-y-3">
-        <h3 className="text-xs font-bold text-slate-200 flex items-center space-x-2">
-          <Thermometer className="w-4 h-4 text-blue-400" />
-          <span>设计水温工况与系统温差调整 (水温改变将自动联动重新推算水泵流量)</span>
-        </h3>
+      {/* Water Temperature & Condition Form Inputs (Only for Water-based Systems) */}
+      {(sysMeta.hasChilledWaterPump || sysMeta.hasHotWaterPump || sysMeta.hasCoolingWaterPump) && (
+        <div className="bg-slate-850 border border-slate-800 rounded-xl p-4 space-y-3">
+          <h3 className="text-xs font-bold text-slate-200 flex items-center space-x-2">
+            <Thermometer className="w-4 h-4 text-blue-400" />
+            <span>设计水温工况与系统温差调整 (最小步长 0.5°C，改变水温将自动联动推算水泵流量)</span>
+          </h3>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
-          {/* CHW Temp */}
-          <div className="bg-slate-900 p-3 rounded-lg border border-slate-750 flex items-center justify-between">
-            <div>
-              <span className="text-slate-300 font-bold block">冷冻水供回水温度</span>
-              <span className="text-[11px] text-slate-400">当前设计温差 ΔT_chw = {calc.deltaTchw} ℃</span>
-            </div>
-            <div className="flex items-center space-x-1.5">
-              <input
-                type="number"
-                value={subItem.chwSupplyTemp ?? 7}
-                onChange={e => handleWaterTempChange('chwSupplyTemp', Number(e.target.value))}
-                className="w-12 bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-center font-bold text-blue-400 focus:outline-none"
-              />
-              <span className="text-slate-500">/</span>
-              <input
-                type="number"
-                value={subItem.chwReturnTemp ?? 12}
-                onChange={e => handleWaterTempChange('chwReturnTemp', Number(e.target.value))}
-                className="w-12 bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-center font-bold text-blue-400 focus:outline-none"
-              />
-              <span className="text-slate-400">℃</span>
-            </div>
-          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
+            {/* CHW Temp */}
+            {sysMeta.hasChilledWaterPump && (
+              <div className="bg-slate-900 p-3 rounded-lg border border-slate-750 flex items-center justify-between">
+                <div>
+                  <span className="text-slate-300 font-bold block">冷冻水供回水温度</span>
+                  <span className="text-[11px] text-slate-400">当前设计温差 ΔT_chw = {calc.deltaTchw.toFixed(1)} ℃</span>
+                </div>
+                <div className="flex items-center space-x-1.5">
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={subItem.chwSupplyTemp ?? 7}
+                    onChange={e => handleWaterTempChange('chwSupplyTemp', Number(e.target.value))}
+                    className="w-14 bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-center font-bold text-blue-400 focus:outline-none"
+                  />
+                  <span className="text-slate-500">/</span>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={subItem.chwReturnTemp ?? 12}
+                    onChange={e => handleWaterTempChange('chwReturnTemp', Number(e.target.value))}
+                    className="w-14 bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-center font-bold text-blue-400 focus:outline-none"
+                  />
+                  <span className="text-slate-400">℃</span>
+                </div>
+              </div>
+            )}
 
-          {/* HW Temp */}
-          <div className="bg-slate-900 p-3 rounded-lg border border-slate-750 flex items-center justify-between">
-            <div>
-              <span className="text-slate-300 font-bold block">热水供回水温度</span>
-              <span className="text-[11px] text-slate-400">当前设计温差 ΔT_hw = {calc.deltaThw} ℃</span>
-            </div>
-            <div className="flex items-center space-x-1.5">
-              <input
-                type="number"
-                value={subItem.hwSupplyTemp ?? (isAchp ? 45 : 60)}
-                onChange={e => handleWaterTempChange('hwSupplyTemp', Number(e.target.value))}
-                className="w-12 bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-center font-bold text-rose-400 focus:outline-none"
-              />
-              <span className="text-slate-500">/</span>
-              <input
-                type="number"
-                value={subItem.hwReturnTemp ?? (isAchp ? 40 : 50)}
-                onChange={e => handleWaterTempChange('hwReturnTemp', Number(e.target.value))}
-                className="w-12 bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-center font-bold text-rose-400 focus:outline-none"
-              />
-              <span className="text-slate-400">℃</span>
-            </div>
-          </div>
+            {/* HW Temp */}
+            {sysMeta.hasHotWaterPump && (
+              <div className="bg-slate-900 p-3 rounded-lg border border-slate-750 flex items-center justify-between">
+                <div>
+                  <span className="text-slate-300 font-bold block">热水供回水温度</span>
+                  <span className="text-[11px] text-slate-400">当前设计温差 ΔT_hw = {calc.deltaThw.toFixed(1)} ℃</span>
+                </div>
+                <div className="flex items-center space-x-1.5">
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={subItem.hwSupplyTemp ?? (isAchp ? 45 : 60)}
+                    onChange={e => handleWaterTempChange('hwSupplyTemp', Number(e.target.value))}
+                    className="w-14 bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-center font-bold text-rose-400 focus:outline-none"
+                  />
+                  <span className="text-slate-500">/</span>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={subItem.hwReturnTemp ?? (isAchp ? 40 : 50)}
+                    onChange={e => handleWaterTempChange('hwReturnTemp', Number(e.target.value))}
+                    className="w-14 bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-center font-bold text-rose-400 focus:outline-none"
+                  />
+                  <span className="text-slate-400">℃</span>
+                </div>
+              </div>
+            )}
 
-          {/* CW Temp */}
-          <div className="bg-slate-900 p-3 rounded-lg border border-slate-750 flex items-center justify-between">
-            <div>
-              <span className="text-slate-300 font-bold block">冷却水进出水温度</span>
-              <span className="text-[11px] text-slate-400">当前设计温差 ΔT_cw = {calc.deltaTcw} ℃</span>
-            </div>
-            <div className="flex items-center space-x-1.5">
-              <input
-                type="number"
-                value={subItem.cwSupplyTemp ?? 32}
-                onChange={e => handleWaterTempChange('cwSupplyTemp', Number(e.target.value))}
-                className="w-12 bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-center font-bold text-emerald-400 focus:outline-none"
-              />
-              <span className="text-slate-500">/</span>
-              <input
-                type="number"
-                value={subItem.cwReturnTemp ?? 37}
-                onChange={e => handleWaterTempChange('cwReturnTemp', Number(e.target.value))}
-                className="w-12 bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-center font-bold text-emerald-400 focus:outline-none"
-              />
-              <span className="text-slate-400">℃</span>
-            </div>
+            {/* CW Temp */}
+            {sysMeta.hasCoolingWaterPump && sysMeta.hasCoolingTower && (
+              <div className="bg-slate-900 p-3 rounded-lg border border-slate-750 flex items-center justify-between">
+                <div>
+                  <span className="text-slate-300 font-bold block">冷却水进出水温度</span>
+                  <span className="text-[11px] text-slate-400">当前设计温差 ΔT_cw = {calc.deltaTcw.toFixed(1)} ℃</span>
+                </div>
+                <div className="flex items-center space-x-1.5">
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={subItem.cwSupplyTemp ?? 32}
+                    onChange={e => handleWaterTempChange('cwSupplyTemp', Number(e.target.value))}
+                    className="w-14 bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-center font-bold text-emerald-400 focus:outline-none"
+                  />
+                  <span className="text-slate-500">/</span>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={subItem.cwReturnTemp ?? 37}
+                    onChange={e => handleWaterTempChange('cwReturnTemp', Number(e.target.value))}
+                    className="w-14 bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-center font-bold text-emerald-400 focus:outline-none"
+                  />
+                  <span className="text-slate-400">℃</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-      </div>
+      )}
 
       {/* Main Equipment Selection & Warning Table */}
       <div className="overflow-x-auto border border-slate-800 rounded-xl">
@@ -384,6 +415,7 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
               <th className="py-3 px-3">配置台数 (台)</th>
               <th className="py-3 px-3 text-emerald-300">折算单台容量/流量</th>
               <th className="py-3 px-3">配置总值 (用户微调)</th>
+              <th className="py-3 px-3 text-cyan-300">实际配比率</th>
               <th className="py-3 px-3 text-amber-300">单台铭牌真实电量/气耗</th>
               <th className="py-3 px-3">可行性状态与恢复</th>
             </tr>
@@ -420,6 +452,9 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                 </td>
                 <td className="py-3 px-3 font-bold text-white">
                   {(custom.chillerCapacitykW || calc.chillerCapacitykW).toFixed(1)} kW
+                </td>
+                <td className="py-3 px-3">
+                  {renderRatioBadge(custom.chillerCapacitykW || calc.chillerCapacitykW, calc.chillerCapacitykW)}
                 </td>
                 <td className="py-3 px-3 font-bold text-amber-300">
                   {custom.selectedChillerProduct ? `${custom.selectedChillerProduct.actualPowerkW} kW (铭牌)` : `${(calc.chillerPowerkW / calc.chillerCount).toFixed(1)} kW (理论)`}
@@ -471,6 +506,9 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                 <td className="py-3 px-3 font-bold text-white">
                   {(custom.boilerCapacitykW || calc.boilerCapacitykW).toFixed(1)} kW
                 </td>
+                <td className="py-3 px-3">
+                  {renderRatioBadge(custom.boilerCapacitykW || calc.boilerCapacitykW, calc.boilerCapacitykW)}
+                </td>
                 <td className="py-3 px-3 font-bold text-amber-300">
                   {custom.selectedBoilerProduct ? `${custom.selectedBoilerProduct.gasFlowm3h || '-'} m³/h` : `${(calc.boilerGasFlow / calc.boilerCount).toFixed(1)} m³/h (理论)`}
                 </td>
@@ -513,6 +551,9 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                 </td>
                 <td className="py-3 px-3 font-bold text-white">
                   {(custom.vrfCoolingkW || calc.vrfCoolingkW).toFixed(1)} kW
+                </td>
+                <td className="py-3 px-3">
+                  {renderRatioBadge(custom.vrfCoolingkW || calc.vrfCoolingkW, calc.vrfCoolingkW)}
                 </td>
                 <td className="py-3 px-3 font-bold text-amber-300">
                   {custom.selectedVrfProduct ? `${custom.selectedVrfProduct.actualPowerkW} kW (铭牌)` : `${(calc.vrfPowerkW / Math.max(1, calc.vrfCount)).toFixed(1)} kW (理论)`}
@@ -557,6 +598,9 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                 <td className="py-3 px-3 font-bold text-white">
                   {(custom.achpCoolingkW || calc.achpCoolingkW).toFixed(1)} kW
                 </td>
+                <td className="py-3 px-3">
+                  {renderRatioBadge(custom.achpCoolingkW || calc.achpCoolingkW, calc.achpCoolingkW)}
+                </td>
                 <td className="py-3 px-3 font-bold text-amber-300">
                   {custom.selectedAchpProduct ? `${custom.selectedAchpProduct.actualPowerkW} kW (铭牌)` : `${(calc.achpPowerkW / Math.max(1, calc.achpCount)).toFixed(1)} kW (理论)`}
                 </td>
@@ -594,6 +638,9 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                 <td className="py-3 px-3 font-bold text-white">
                   {calc.achpChwPumpFlow.toFixed(1)} m³/h
                 </td>
+                <td className="py-3 px-3">
+                  {renderRatioBadge(calc.achpChwPumpFlow, calc.achpChwPumpFlow)}
+                </td>
                 <td className="py-3 px-3 font-bold text-amber-300">
                   {(calc.achpSummerPumpPowerkW / Math.max(1, calc.achpChwPumpCount)).toFixed(1)} kW (理论)
                 </td>
@@ -630,6 +677,9 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                 </td>
                 <td className="py-3 px-3 font-bold text-white">
                   {calc.achpHwPumpFlow.toFixed(1)} m³/h
+                </td>
+                <td className="py-3 px-3">
+                  {renderRatioBadge(calc.achpHwPumpFlow, calc.achpHwPumpFlow)}
                 </td>
                 <td className="py-3 px-3 font-bold text-amber-300">
                   {(calc.achpWinterPumpPowerkW / Math.max(1, calc.achpHwPumpCount)).toFixed(1)} kW (理论)
@@ -674,6 +724,9 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                 <td className="py-3 px-3 font-bold text-white">
                   {(custom.chwPumpFlow || calc.chwPumpFlow).toFixed(1)} m³/h
                 </td>
+                <td className="py-3 px-3">
+                  {renderRatioBadge(custom.chwPumpFlow || calc.chwPumpFlow, calc.chwPumpFlow)}
+                </td>
                 <td className="py-3 px-3 font-bold text-amber-300">
                   {custom.selectedChwPumpProduct ? `${custom.selectedChwPumpProduct.actualPowerkW} kW (铭牌)` : `${(calc.chwPumpPowerkW / calc.chwPumpCount).toFixed(1)} kW (理论)`}
                 </td>
@@ -716,6 +769,9 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                 </td>
                 <td className="py-3 px-3 font-bold text-white">
                   {(custom.hwPumpFlow || calc.hwPumpFlow).toFixed(1)} m³/h
+                </td>
+                <td className="py-3 px-3">
+                  {renderRatioBadge(custom.hwPumpFlow || calc.hwPumpFlow, calc.hwPumpFlow)}
                 </td>
                 <td className="py-3 px-3 font-bold text-amber-300">
                   {custom.selectedHwPumpProduct ? `${custom.selectedHwPumpProduct.actualPowerkW} kW (铭牌)` : `${(calc.hwPumpPowerkW / calc.hwPumpCount).toFixed(1)} kW (理论)`}
@@ -760,6 +816,9 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                 <td className="py-3 px-3 font-bold text-white">
                   {(custom.cwPumpFlow || calc.cwPumpFlow).toFixed(1)} m³/h
                 </td>
+                <td className="py-3 px-3">
+                  {renderRatioBadge(custom.cwPumpFlow || calc.cwPumpFlow, calc.cwPumpFlow)}
+                </td>
                 <td className="py-3 px-3 font-bold text-amber-300">
                   {custom.selectedCwPumpProduct ? `${custom.selectedCwPumpProduct.actualPowerkW} kW (铭牌)` : `${(calc.cwPumpPowerkW / calc.cwPumpCount).toFixed(1)} kW (理论)`}
                 </td>
@@ -802,6 +861,9 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                 </td>
                 <td className="py-3 px-3 font-bold text-white">
                   {(custom.coolingTowerFlow || calc.coolingTowerFlow).toFixed(1)} m³/h
+                </td>
+                <td className="py-3 px-3">
+                  {renderRatioBadge(custom.coolingTowerFlow || calc.coolingTowerFlow, calc.coolingTowerFlow)}
                 </td>
                 <td className="py-3 px-3 font-bold text-amber-300">
                   {custom.selectedTowerProduct ? `${custom.selectedTowerProduct.actualPowerkW} kW (铭牌)` : `${(calc.coolingTowerFanPowerkW / calc.coolingTowerCount).toFixed(1)} kW (理论)`}

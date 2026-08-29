@@ -104,33 +104,63 @@ export const InteractiveSystemSchematic: React.FC<Props> = ({ subItem }) => {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-900/90 p-3 rounded-lg border border-slate-750">
-          <div>
-            <span className="text-xs text-slate-300 block">设计容量/流量</span>
-            <span className="font-bold text-white text-sm">
-              {getNodeValue(selectedNode, calc, effectiveChwFlow, effectiveCwFlow, effectiveHwFlow, effectiveTowerFlow, effectiveChillerCap, effectiveBoilerCap)}
-            </span>
+        {subItem.systemType === 'vrf' ? (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-900/90 p-3 rounded-lg border border-slate-750">
+            <div>
+              <span className="text-xs text-slate-300 block">设计总制冷量</span>
+              <span className="font-bold text-white text-sm">
+                {calc.coolingLoadkW.toFixed(1)} kW
+              </span>
+            </div>
+            <div>
+              <span className="text-xs text-slate-300 block">系统换热形式</span>
+              <span className="font-bold text-purple-400 text-sm">
+                变频直接蒸发 (DX直膨)
+              </span>
+            </div>
+            <div>
+              <span className="text-xs text-slate-300 block">室外主机配置</span>
+              <span className="font-bold text-blue-400 text-sm">
+                {subItem.customEquipment?.vrfCount || calc.vrfCount} 台 (单台 {((subItem.customEquipment?.vrfCoolingkW || calc.vrfCoolingkW) / Math.max(1, subItem.customEquipment?.vrfCount || calc.vrfCount)).toFixed(1)} kW)
+              </span>
+            </div>
+            <div>
+              <span className="text-xs text-slate-300 block">选型校验状态</span>
+              <span className="font-bold text-emerald-400 text-sm flex items-center space-x-1">
+                <CheckCircle className="w-4 h-4 text-emerald-400" />
+                <span>运行正常</span>
+              </span>
+            </div>
           </div>
-          <div>
-            <span className="text-xs text-slate-300 block">供水/进水温度</span>
-            <span className="font-bold text-blue-400 text-sm">
-              {getNodeSupplyTemp(selectedNode, subItem, seasonMode)}
-            </span>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-900/90 p-3 rounded-lg border border-slate-750">
+            <div>
+              <span className="text-xs text-slate-300 block">设计容量/流量</span>
+              <span className="font-bold text-white text-sm">
+                {getNodeValue(selectedNode, calc, effectiveChwFlow, effectiveCwFlow, effectiveHwFlow, effectiveTowerFlow, effectiveChillerCap, effectiveBoilerCap)}
+              </span>
+            </div>
+            <div>
+              <span className="text-xs text-slate-300 block">供水/进水温度</span>
+              <span className="font-bold text-blue-400 text-sm">
+                {getNodeSupplyTemp(selectedNode, subItem, seasonMode)}
+              </span>
+            </div>
+            <div>
+              <span className="text-xs text-slate-300 block">回水/出水温度</span>
+              <span className="font-bold text-rose-400 text-sm">
+                {getNodeReturnTemp(selectedNode, subItem, seasonMode)}
+              </span>
+            </div>
+            <div>
+              <span className="text-xs text-slate-300 block">选型校验状态</span>
+              <span className="font-bold text-emerald-400 text-sm flex items-center space-x-1">
+                <CheckCircle className="w-4 h-4 text-emerald-400" />
+                <span>运行正常</span>
+              </span>
+            </div>
           </div>
-          <div>
-            <span className="text-xs text-slate-300 block">回水/出水温度</span>
-            <span className="font-bold text-rose-400 text-sm">
-              {getNodeReturnTemp(selectedNode, subItem, seasonMode)}
-            </span>
-          </div>
-          <div>
-            <span className="text-xs text-slate-300 block">选型校验状态</span>
-            <span className="font-bold text-emerald-400 text-sm flex items-center space-x-1">
-              <CheckCircle className="w-4 h-4 text-emerald-400" />
-              <span>运行正常</span>
-            </span>
-          </div>
-        </div>
+        )}
       </div>
 
     </div>

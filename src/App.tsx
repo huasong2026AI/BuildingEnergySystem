@@ -1,8 +1,12 @@
 import { useState, useMemo } from 'react';
-import type { BuildingSubItem } from './types/hvac';
+import type { BuildingSubItem, EnergyTariffConfig } from './types/hvac';
 import { INITIAL_SUB_ITEMS } from './data/initialProject';
 import { calculateProjectSummary } from './hvacEngine/calculator';
+import { DEFAULT_TARIFF_CONFIG } from './hvacEngine/constants';
 import { Header } from './components/Header';
+import { EnergyTariffModal } from './components/EnergyTariffModal';
+import { EquipmentBrandManagerModal } from './components/EquipmentBrandManagerModal';
+import { ProjectPresentationModal } from './components/ProjectPresentationModal';
 import { BuildingSubItemsManager } from './components/BuildingSubItemsManager';
 import { EquipmentConfigTable } from './components/EquipmentConfigTable';
 import { InteractiveSystemSchematic } from './components/InteractiveSystemSchematic';
@@ -13,13 +17,23 @@ import {
 } from 'lucide-react';
 
 export function App() {
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [tariffConfig, setTariffConfig] = useState<EnergyTariffConfig>(DEFAULT_TARIFF_CONFIG);
+  const [isTariffModalOpen, setIsTariffModalOpen] = useState(false);
+  const [isBrandCatalogModalOpen, setIsBrandCatalogModalOpen] = useState(false);
+  const [isPresentationModalOpen, setIsPresentationModalOpen] = useState(false);
+
   const [subItems, setSubItems] = useState<BuildingSubItem[]>(INITIAL_SUB_ITEMS);
   const [activeItemId, setActiveItemId] = useState<string>(INITIAL_SUB_ITEMS[0].id);
   const [activeTab, setActiveTab] = useState<'subItems' | 'equipment' | 'schematic' | 'analysis' | 'retrofit'>('subItems');
 
+  const toggleTheme = () => {
+    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
   const summary = useMemo(() => {
-    return calculateProjectSummary(subItems);
-  }, [subItems]);
+    return calculateProjectSummary(subItems, tariffConfig);
+  }, [subItems, tariffConfig]);
 
   const activeSubItem = useMemo(() => {
     return subItems.find(item => item.id === activeItemId) || subItems[0];
@@ -53,12 +67,38 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-blue-500 selection:text-white pb-16 w-full">
+    <div className={`min-h-screen ${theme === 'light' ? 'theme-light bg-[#f2f6f4] text-[#132a1e]' : 'bg-slate-950 text-slate-100'} font-sans selection:bg-emerald-500 selection:text-white pb-16 w-full transition-colors duration-200`}>
       
-      {/* 1. Header with Top-Right Retrofit Entrance Button */}
+      {/* 0. Global Energy Tariff Configuration Modal */}
+      <EnergyTariffModal
+        isOpen={isTariffModalOpen}
+        onClose={() => setIsTariffModalOpen(false)}
+        tariffConfig={tariffConfig}
+        onSaveTariffConfig={setTariffConfig}
+      />
+
+      {/* 0.1 Equipment Brand & Model Database Manager Modal */}
+      <EquipmentBrandManagerModal
+        isOpen={isBrandCatalogModalOpen}
+        onClose={() => setIsBrandCatalogModalOpen(false)}
+      />
+
+      {/* 0.2 Interactive 13-Slide Project Presentation Modal */}
+      <ProjectPresentationModal
+        isOpen={isPresentationModalOpen}
+        onClose={() => setIsPresentationModalOpen(false)}
+      />
+
+      {/* 1. Header with Top-Right Retrofit Entrance Button, Tariff Pill, Brand Catalog, Presentation PPT & Theme Switcher */}
       <Header
         summary={summary}
         activeTab={activeTab}
+        theme={theme}
+        tariffConfig={tariffConfig}
+        onToggleTheme={toggleTheme}
+        onOpenTariffModal={() => setIsTariffModalOpen(true)}
+        onOpenBrandCatalog={() => setIsBrandCatalogModalOpen(true)}
+        onOpenPresentationModal={() => setIsPresentationModalOpen(true)}
         onSelectTab={setActiveTab}
         onResetSample={handleResetSample}
         onExportReport={handleExportReport}
@@ -72,13 +112,13 @@ export function App() {
             onClick={() => setActiveTab('subItems')}
             className={`flex items-center space-x-2 px-5 py-3 rounded-xl text-xs font-bold transition-all ${
               activeTab === 'subItems'
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 ring-1 ring-blue-400/40'
+                ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-500/25 ring-1 ring-emerald-400/40'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
             }`}
           >
             <Building2 className="w-4 h-4" />
             <span>1. 建筑分类与面积 (Sub-items)</span>
-            <span className="ml-1 px-2 py-0.5 text-[10px] bg-slate-950/60 rounded-full text-blue-200">
+            <span className="ml-1 px-2 py-0.5 text-[10px] bg-slate-950/60 rounded-full text-emerald-200">
               {subItems.length} 个子项
             </span>
           </button>
@@ -87,7 +127,7 @@ export function App() {
             onClick={() => setActiveTab('equipment')}
             className={`flex items-center space-x-2 px-5 py-3 rounded-xl text-xs font-bold transition-all relative ${
               activeTab === 'equipment'
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 ring-1 ring-blue-400/40'
+                ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-500/25 ring-1 ring-emerald-400/40'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
             }`}
           >
@@ -104,7 +144,7 @@ export function App() {
             onClick={() => setActiveTab('schematic')}
             className={`flex items-center space-x-2 px-5 py-3 rounded-xl text-xs font-bold transition-all ${
               activeTab === 'schematic'
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 ring-1 ring-blue-400/40'
+                ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-500/25 ring-1 ring-emerald-400/40'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
             }`}
           >
@@ -116,7 +156,7 @@ export function App() {
             onClick={() => setActiveTab('analysis')}
             className={`flex items-center space-x-2 px-5 py-3 rounded-xl text-xs font-bold transition-all ${
               activeTab === 'analysis'
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 ring-1 ring-blue-400/40'
+                ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-500/25 ring-1 ring-emerald-400/40'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
             }`}
           >
@@ -180,10 +220,10 @@ export function App() {
                 <button
                   key={item.id}
                   onClick={() => setActiveItemId(item.id)}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
-                    item.id === activeItemId
-                      ? 'bg-blue-600 text-white shadow-md'
-                      : 'bg-slate-850 text-slate-400 hover:text-white'
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+                    activeItemId === item.id
+                      ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-500/20'
+                      : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700'
                   }`}
                 >
                   {item.name}
@@ -191,28 +231,26 @@ export function App() {
               ))}
             </div>
 
-            {activeSubItem && (
-              <EquipmentConfigTable
-                subItem={activeSubItem}
-                allSubItems={subItems}
-                onUpdateSubItem={handleUpdateSubItem}
-              />
-            )}
+            <EquipmentConfigTable
+              subItem={activeSubItem}
+              allSubItems={subItems}
+              onUpdateSubItem={handleUpdateSubItem}
+            />
           </div>
         )}
 
         {activeTab === 'schematic' && (
           <div className="space-y-6">
             <div className="flex items-center space-x-2 overflow-x-auto pb-2">
-              <span className="text-xs text-slate-400 font-medium">选择要模拟的系统拓扑图：</span>
+              <span className="text-xs text-slate-400 font-medium">切换查看子项拓扑图：</span>
               {subItems.map(item => (
                 <button
                   key={item.id}
                   onClick={() => setActiveItemId(item.id)}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
-                    item.id === activeItemId
-                      ? 'bg-blue-600 text-white shadow-md'
-                      : 'bg-slate-850 text-slate-400 hover:text-white'
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+                    activeItemId === item.id
+                      ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-500/20'
+                      : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700'
                   }`}
                 >
                   {item.name}
@@ -220,21 +258,30 @@ export function App() {
               ))}
             </div>
 
-            {activeSubItem && (
-              <InteractiveSystemSchematic subItem={activeSubItem} />
-            )}
+            <InteractiveSystemSchematic
+              subItem={activeSubItem}
+            />
           </div>
         )}
 
         {activeTab === 'analysis' && (
-          <EnergyAnalysisDashboard
-            summary={summary}
-            subItems={subItems}
-          />
+          <div className="space-y-6">
+            <EnergyAnalysisDashboard
+              summary={summary}
+              subItems={subItems}
+              tariffConfig={tariffConfig}
+              onOpenTariffModal={() => setIsTariffModalOpen(true)}
+            />
+          </div>
         )}
 
         {activeTab === 'retrofit' && (
-          <RetrofitOptimizer />
+          <div className="space-y-6">
+            <RetrofitOptimizer
+              tariffConfig={tariffConfig}
+              onUpdateTariffConfig={setTariffConfig}
+            />
+          </div>
         )}
 
       </main>

@@ -1,4 +1,4 @@
-import type { BuildingType, BuildingTypeMeta, SystemType, SystemTypeMeta } from '../types/hvac';
+import type { BuildingType, BuildingTypeMeta, SystemType, SystemTypeMeta, EnergyTariffConfig } from '../types/hvac';
 
 export const BUILDING_TYPES_META: Record<BuildingType, BuildingTypeMeta> = {
   hotel: {
@@ -132,11 +132,25 @@ export const SYSTEM_TYPES_META: Record<SystemType, SystemTypeMeta> = {
   }
 };
 
+export const DEFAULT_TARIFF_CONFIG: EnergyTariffConfig = {
+  electricityMode: 'weighted_tou',
+  peakElectricityPrice: 1.20,
+  flatElectricityPrice: 0.75,
+  valleyElectricityPrice: 0.35,
+  peakRatio: 35,
+  flatRatio: 45,
+  valleyRatio: 20,
+  averageElectricityPrice: 0.85, // (1.20*0.35 + 0.75*0.45 + 0.35*0.20) = 0.42 + 0.3375 + 0.07 = 0.8275 ~ 0.85
+  gasPrice: 3.50,
+  electricityCarbon: 0.581,
+  gasCarbon: 2.162
+};
+
 export const ENERGY_FACTORS = {
   electricityPrice: 0.85, // 平均元/kWh
   peakElectricityPrice: 1.2, // 峰电价 元/kWh
-  flatElectricityPrice: 0.7, // 平电价 元/kWh
-  valleyElectricityPrice: 0.3, // 谷电价 元/kWh
+  flatElectricityPrice: 0.75, // 平电价 元/kWh
+  valleyElectricityPrice: 0.35, // 谷电价 元/kWh
   gasPrice: 3.5,          // 元/m³
   electricityCarbon: 0.581, // kg CO2 / kWh
   gasCarbon: 2.162        // kg CO2 / m³

@@ -279,13 +279,19 @@ export const BuildingSubItemsManager: React.FC<Props> = ({
               onClick={() => onSelectSubItem(item.id)}
               className={`relative cursor-pointer rounded-2xl p-5 border transition-all duration-200 ${
                 isActive
-                  ? 'bg-slate-800/90 border-blue-500 ring-2 ring-blue-500/30 shadow-lg shadow-blue-500/10'
-                  : 'bg-slate-850/50 hover:bg-slate-800/60 border-slate-800 hover:border-slate-700'
+                  ? 'bg-slate-900 border-emerald-500 ring-2 ring-emerald-500/50 shadow-xl shadow-emerald-500/10'
+                  : 'bg-slate-900 hover:bg-slate-850 border-slate-800 hover:border-emerald-500/30'
               }`}
             >
+              {isActive && (
+                <span className="absolute -top-2.5 right-4 px-2.5 py-0.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-[10px] rounded-full shadow-md">
+                  当前选中
+                </span>
+              )}
+
               <div className="flex items-start justify-between">
                 <div className="flex items-center space-x-3">
-                  <div className="p-2.5 bg-slate-800 rounded-xl border border-slate-700/80">
+                  <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20">
                     {getIcon(item.type)}
                   </div>
                   <div>
@@ -306,7 +312,7 @@ export const BuildingSubItemsManager: React.FC<Props> = ({
                 </button>
               </div>
 
-              <div className="mt-4 pt-3 border-t border-slate-800/80 space-y-2">
+              <div className="mt-4 pt-3 border-t border-slate-800 space-y-2">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-slate-300">建筑面积：</span>
                   <div className="flex items-center space-x-1" onClick={(e) => e.stopPropagation()}>
@@ -314,7 +320,7 @@ export const BuildingSubItemsManager: React.FC<Props> = ({
                       type="number"
                       value={item.area}
                       onChange={(e) => onUpdateSubItem({ ...item, area: Math.max(1, Number(e.target.value)) })}
-                      className="w-24 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-right text-sm font-bold text-white focus:ring-1 focus:ring-blue-500"
+                      className="w-24 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-right text-sm font-bold text-white focus:ring-1 focus:ring-emerald-500"
                     />
                     <span className="text-slate-300">m²</span>
                   </div>
@@ -327,16 +333,16 @@ export const BuildingSubItemsManager: React.FC<Props> = ({
               </div>
 
               {/* Shared Plant checkbox on card */}
-              <div className="mt-3 flex items-center justify-between text-xs bg-slate-900/80 p-2.5 rounded-lg border border-slate-800" onClick={(e) => e.stopPropagation()}>
+              <div className="mt-3 flex items-center justify-between text-xs bg-slate-850 p-2.5 rounded-lg border border-slate-800" onClick={(e) => e.stopPropagation()}>
                 <span className="text-xs text-slate-300 flex items-center space-x-1">
-                  <Link2 className="w-4 h-4 text-blue-400" />
+                  <Link2 className="w-4 h-4 text-emerald-400" />
                   <span>共用集中冷热源机房</span>
                 </span>
                 <input
                   type="checkbox"
                   checked={!!item.useSharedPlant}
                   onChange={(e) => onUpdateSubItem({ ...item, useSharedPlant: e.target.checked })}
-                  className="rounded border-slate-700 bg-slate-800 text-blue-500 focus:ring-blue-500"
+                  className="rounded border-slate-700 bg-slate-800 text-emerald-500 focus:ring-emerald-500"
                 />
               </div>
 

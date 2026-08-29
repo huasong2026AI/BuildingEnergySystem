@@ -228,6 +228,44 @@ export interface EquipmentDiscrepancy {
   message: string;
 }
 
+export interface EnergyTariffConfig {
+  electricityMode: 'weighted_tou' | 'flat'; // 'weighted_tou' 分时峰谷平加权 | 'flat' 单一固定电价
+  peakElectricityPrice: number;   // 峰时电价 (元/kWh)
+  flatElectricityPrice: number;   // 平时电价 (元/kWh)
+  valleyElectricityPrice: number; // 谷时电价 (元/kWh)
+  peakRatio: number;              // 峰电时段用电量占比 (%)
+  flatRatio: number;              // 平电时段用电量占比 (%)
+  valleyRatio: number;            // 谷电时段用电量占比 (%)
+  averageElectricityPrice: number;// 综合平均电价 (元/kWh)
+  
+  gasPrice: number;               // 天然气单价 (元/m³)
+  electricityCarbon: number;      // 电力碳排放因子 (kg CO2/kWh)
+  gasCarbon: number;              // 天然气碳排放因子 (kg CO2/m³)
+}
+
+export interface LoadBinRecord {
+  binRange: string; // e.g. "0-10%", "10-20%", ..., "90-100%"
+  minRatio: number;
+  maxRatio: number;
+  hours: number;
+  coolingEnergykWh: number;
+  hoursPercentage: number;
+}
+
+export interface SCOPComplianceInfo {
+  scop: number;
+  totalCoolingDemandkWh: number;
+  chillerEleckWh: number;
+  chwPumpEleckWh: number;
+  cwPumpEleckWh: number;
+  towerEleckWh: number;
+  totalPlantEleckWh: number;
+  standardLimit: number; // GB 50189-2015 4.2.12 base limit
+  ratingLevel: '卓越 (五星级高效冷站)' | '优秀 (四星级高效冷站)' | '良好 (三星级高效冷站)' | '达标 (节能标准合格)' | '待提升';
+  isCompliant: boolean;
+  standardCode: string; // "GB 50189-2015 第4.2.12条"
+}
+
 export interface MonthlyEnergyRecord {
   month: number;
   monthName: string;
@@ -258,6 +296,9 @@ export interface ProjectEnergySummary {
   
   monthlyData: MonthlyEnergyRecord[];
   discrepancies: EquipmentDiscrepancy[];
+  tariffConfig?: EnergyTariffConfig;
+  loadBins?: LoadBinRecord[];
+  scopCompliance?: SCOPComplianceInfo;
 
   // 8760h 寻优扩展属性
   baselineElectricitykWh?: number;
@@ -350,5 +391,13 @@ export interface ExistingSplitDetail {
   capacitykW: number;
   powerkW: number;
   apf: number;
+  count: number;
+}
+
+export interface ExistingTowerDetail {
+  id: string;
+  modelName: string;
+  flowm3h: number;
+  fanPowerkW: number;
   count: number;
 }
