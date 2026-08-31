@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   X, Search, Plus, Trash2, Edit3, Layers, Cpu, 
-  Flame, Wind, Droplet, Sparkles, SlidersHorizontal, RotateCcw
+  Flame, Wind, Droplet, Sparkles, RotateCcw
 } from 'lucide-react';
 import { 
   getMergedEquipmentCatalog, addCustomCatalogEquipment, updateCatalogEquipment, 
@@ -17,13 +17,12 @@ interface Props {
 const CATEGORY_TABS: Array<{ id: EquipmentCategory | 'all'; name: string; icon: any }> = [
   { id: 'all', name: '全部设备库', icon: Layers },
   { id: 'magnetic_chiller', name: '磁悬浮冷水机组', icon: Sparkles },
-  { id: 'chiller', name: '变频螺杆/离心冷水机组', icon: Cpu },
+  { id: 'chiller', name: '变频水冷螺杆/离心冷机', icon: Cpu },
   { id: 'vacuum_boiler', name: '全预混冷凝真空热水锅炉', icon: Flame },
   { id: 'boiler', name: '常压燃气热水锅炉', icon: Flame },
-  { id: 'plate_hex', name: '板式换热器 (HEX)', icon: SlidersHorizontal },
   { id: 'pump', name: '循环水泵 (冷水/热水/冷却)', icon: Droplet },
   { id: 'cooling_tower', name: '冷却塔 (冷却水散热)', icon: Wind },
-  { id: 'achp', name: '风冷热泵机组 (ACHP)', icon: Wind },
+  { id: 'achp', name: '风冷螺杆/模块热泵 (ACHP)', icon: Wind },
   { id: 'vrf', name: 'VRF 变频多联机组', icon: Cpu },
 ];
 
@@ -212,8 +211,8 @@ export const EquipmentBrandManagerModal: React.FC<Props> = ({ isOpen, onClose })
           </div>
         </div>
 
-        {/* Category Navigation Bar (大字号、清晰标签，flex-shrink-0) */}
-        <div className="flex-shrink-0 px-6 bg-slate-850 border-b border-slate-800 flex items-center space-x-2 overflow-x-auto py-2.5 text-sm font-bold scrollbar-none">
+        {/* Category Navigation Bar (自适应换行，确保风冷热泵、VRF等全部10个分类100%可见，flex-shrink-0) */}
+        <div className="flex-shrink-0 px-6 bg-slate-850 border-b border-slate-800 flex flex-wrap items-center gap-2 py-3 text-sm font-bold">
           {CATEGORY_TABS.map(tab => {
             const Icon = tab.icon;
             const count = tab.id === 'all' 
@@ -228,7 +227,7 @@ export const EquipmentBrandManagerModal: React.FC<Props> = ({ isOpen, onClose })
                   setActiveCategory(tab.id);
                   setSelectedBrandFilter('all');
                 }}
-                className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl whitespace-nowrap text-xs font-bold transition-all cursor-pointer ${
+                className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-xl whitespace-nowrap text-xs font-bold transition-all cursor-pointer ${
                   isActive
                     ? 'bg-emerald-500 text-slate-950 shadow-md font-black ring-2 ring-emerald-400/50'
                     : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800'
@@ -236,7 +235,7 @@ export const EquipmentBrandManagerModal: React.FC<Props> = ({ isOpen, onClose })
               >
                 <Icon className={`w-4 h-4 ${isActive ? 'text-slate-950' : 'text-emerald-400'}`} />
                 <span>{tab.name}</span>
-                <span className={`px-2 py-0.2 text-xs rounded-full font-black ${isActive ? 'bg-slate-950 text-emerald-300' : 'bg-slate-800 text-slate-400'}`}>
+                <span className={`px-2 py-0.5 text-xs rounded-full font-black ${isActive ? 'bg-slate-950 text-emerald-300' : 'bg-slate-800 text-slate-400'}`}>
                   {count}
                 </span>
               </button>
@@ -264,19 +263,18 @@ export const EquipmentBrandManagerModal: React.FC<Props> = ({ isOpen, onClose })
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white font-bold text-sm"
                 >
                   <option value="magnetic_chiller">磁悬浮冷水机组</option>
-                  <option value="chiller">变频螺杆/离心冷水机组</option>
+                  <option value="chiller">变频水冷螺杆/离心冷机</option>
                   <option value="vacuum_boiler">全预混冷凝真空热水锅炉</option>
                   <option value="boiler">常压燃气热水锅炉</option>
-                  <option value="plate_hex">板式换热器 (HEX)</option>
                   <option value="pump">循环水泵 (冷水/热水/冷却)</option>
                   <option value="cooling_tower">冷却塔 (冷却水散热)</option>
-                  <option value="achp">风冷热泵机组 (ACHP)</option>
+                  <option value="achp">风冷螺杆/模块热泵 (ACHP)</option>
                   <option value="vrf">VRF 变频多联机组</option>
                 </select>
               </div>
 
               <div>
-                <label className="text-slate-300 block mb-1 font-semibold text-xs">品牌名称 (如：海尔/格力/约克/开利/方快/双良/威乐/凯泉/金日/良机/麦克维尔/大金/日立)</label>
+                <label className="text-slate-300 block mb-1 font-semibold text-xs">品牌名称 (如：海尔/格力/开利/约克/方快/双良/威乐/凯泉/金日/良机/特灵/麦克维尔/东芝/大金)</label>
                 <input
                   type="text"
                   required

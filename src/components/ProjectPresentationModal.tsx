@@ -588,9 +588,9 @@ export const ProjectPresentationModal: React.FC<Props> = ({ isOpen, onClose }) =
             </div>
 
             <div className="bg-white/95 p-4 rounded-2xl border-2 border-teal-200 space-y-1 shadow-xs">
-              <span className="text-teal-800 font-black block text-sm sm:text-base">2. 变频螺杆/离心机</span>
-              <span className="text-slate-950 font-black text-base sm:text-lg">约克 (York) / 开利 (Carrier)</span>
-              <p className="text-slate-600 text-xs sm:text-sm leading-snug">大型商业冷站主力，COP 6.1~6.3，变频调节优异</p>
+              <span className="text-teal-800 font-black block text-sm sm:text-base">2. 变频水冷螺杆/离心机</span>
+              <span className="text-slate-950 font-black text-base sm:text-lg">开利 (Carrier) / 约克 (York)</span>
+              <p className="text-slate-600 text-xs sm:text-sm leading-snug">开利 30XW-V 变频螺杆，超国标1级能效，COP 6.33</p>
             </div>
 
             <div className="bg-white/95 p-4 rounded-2xl border-2 border-rose-200 space-y-1 shadow-xs">
@@ -600,9 +600,9 @@ export const ProjectPresentationModal: React.FC<Props> = ({ isOpen, onClose }) =
             </div>
 
             <div className="bg-white/95 p-4 rounded-2xl border-2 border-cyan-200 space-y-1 shadow-xs">
-              <span className="text-cyan-800 font-black block text-sm sm:text-base">4. 板式换热器 (HEX)</span>
-              <span className="text-slate-950 font-black text-base sm:text-lg">阿法拉伐 / 双良 (Shuangliang)</span>
-              <p className="text-slate-600 text-xs sm:text-sm leading-snug">对流换热系数高，过渡季自然冷却核心设备</p>
+              <span className="text-cyan-800 font-black block text-sm sm:text-base">4. 风冷螺杆/模块热泵 (ACHP)</span>
+              <span className="text-slate-950 font-black text-base sm:text-lg">特灵 (Trane) / 麦克维尔</span>
+              <p className="text-slate-600 text-xs sm:text-sm leading-snug">特灵 RTXG 超高效双1级风冷螺杆，COP 3.63，免机房</p>
             </div>
 
             <div className="bg-white/95 p-4 rounded-2xl border-2 border-emerald-200 space-y-1 shadow-xs">
@@ -612,9 +612,9 @@ export const ProjectPresentationModal: React.FC<Props> = ({ isOpen, onClose }) =
             </div>
 
             <div className="bg-white/95 p-4 rounded-2xl border-2 border-purple-200 space-y-1 shadow-xs">
-              <span className="text-purple-800 font-black block text-sm sm:text-base">6. 冷却塔 / 风冷热泵 / VRF</span>
-              <span className="text-slate-950 font-black text-base sm:text-lg">金日 / 麦克维尔 / 大金 / 日立</span>
-              <p className="text-slate-600 text-xs sm:text-sm leading-snug">超低噪声高效散热，全直流变频多联机组</p>
+              <span className="text-purple-800 font-black block text-sm sm:text-base">6. 冷却塔 / VRF 变频多联机</span>
+              <span className="text-slate-950 font-black text-base sm:text-lg">金日 (King Sun) / 东芝 / 大金</span>
+              <p className="text-slate-600 text-xs sm:text-sm leading-snug">东芝 SMMS 单模块多联机 (IPLV 9.10) 与超低噪冷却塔</p>
             </div>
           </div>
 
