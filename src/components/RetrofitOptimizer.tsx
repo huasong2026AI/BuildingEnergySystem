@@ -256,6 +256,54 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
 
   // ⚡ 一键根据主机自动推导匹配水泵与冷却塔
   const handleAutoDerivePumpsAndTowers = () => {
+    // 1. 风冷热泵系统专属水泵推导 (仅夏季冷水泵 & 冬季热水泵，无冷却水系统)
+    if (existingSystemType === 'air_heat_pump') {
+      const totalCoolkW = achps.reduce((a, c) => a + c.coolingkW * c.count, 0);
+      const totalHeatkW = achps.reduce((a, c) => a + (c.heatingkW || c.coolingkW * 0.8) * c.count, 0);
+      const achpCnt = Math.max(1, achps.reduce((a, c) => a + c.count, 0));
+
+      const newPumps: ExistingPumpDetail[] = [];
+      if (totalCoolkW > 0) {
+        // 夏季冷水泵 (5℃ 温差: 7℃/12℃)
+        const chwFlow = Number(((totalCoolkW * 3.6) / (4.186 * 5)).toFixed(0));
+        const chwHead = 25;
+        const chwPower = Number(((chwFlow * chwHead) / 247.7).toFixed(1));
+        newPumps.push({
+          id: 'p-achp-chw-auto',
+          modelName: '风冷热泵-夏季冷水泵',
+          type: 'chw',
+          flowm3h: Number((chwFlow / achpCnt).toFixed(0)),
+          headm: chwHead,
+          powerkW: Number((chwPower / achpCnt).toFixed(1)),
+          efficiencyPercent: 65,
+          count: achpCnt
+        });
+      }
+
+      if (totalHeatkW > 0) {
+        // 冬季热水泵 (5℃ 温差: 45℃/40℃)
+        const hwFlow = Number(((totalHeatkW * 3.6) / (4.186 * 5)).toFixed(0));
+        const hwHead = 22;
+        const hwPower = Number(((hwFlow * hwHead) / 247.7).toFixed(1));
+        newPumps.push({
+          id: 'p-achp-hw-auto',
+          modelName: '风冷热泵-冬季热水泵',
+          type: 'hw',
+          flowm3h: Number((hwFlow / achpCnt).toFixed(0)),
+          headm: hwHead,
+          powerkW: Number((hwPower / achpCnt).toFixed(1)),
+          efficiencyPercent: 65,
+          count: achpCnt
+        });
+      }
+
+      if (newPumps.length > 0) {
+        setPumps(newPumps);
+      }
+      return;
+    }
+
+    // 2. 水冷冷水机组 + 燃气锅炉系统
     const totalCoolkW = chillers.reduce((a, c) => a + c.capacitykW * c.count, 0);
     const totalHeatkW = boilers.reduce((a, b) => a + b.capacitykW * b.count, 0);
     const chillerCnt = Math.max(1, chillers.reduce((a, c) => a + c.count, 0));
@@ -270,7 +318,7 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
         const chwPower = Number(((chwFlow * chwHead) / 247.7).toFixed(1));
         newPumps.push({
           id: 'p-chw-auto',
-          modelName: '冷水水泵 (夏季冷水循环泵)',
+          modelName: '冷水水泵 (夏季冷水泵)',
           type: 'chw',
           flowm3h: Number((chwFlow / chillerCnt).toFixed(0)),
           headm: chwHead,
@@ -287,7 +335,7 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
         const cwPower = Number(((cwFlow * cwHead) / 247.7).toFixed(1));
         newPumps.push({
           id: 'p-cw-auto',
-          modelName: '冷却水水泵 (冷凝散热循环泵)',
+          modelName: '冷却水水泵',
           type: 'cw',
           flowm3h: Number((cwFlow / chillerCnt).toFixed(0)),
           headm: cwHead,
@@ -301,7 +349,7 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
         const towerFanPower = Number((towerFlow * 0.18).toFixed(1));
         setTowers([{
           id: 't-auto',
-          modelName: '开式方形横流冷却塔 (冷却水散热)',
+          modelName: '冷却塔 (冷却水散热)',
           flowm3h: Number((towerFlow / chillerCnt).toFixed(0)),
           fanPowerkW: Number((towerFanPower / chillerCnt).toFixed(1)),
           count: chillerCnt
@@ -535,7 +583,22 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
               <label className="block text-slate-200 font-semibold mb-1">1. 既有冷热源系统形式</label>
               <select
                 value={existingSystemType}
-                onChange={(e) => setExistingSystemType(e.target.value as SystemType)}
+                onChange={(e) => {
+                  const newType = e.target.value as SystemType;
+                  setExistingSystemType(newType);
+                  if (newType === 'air_heat_pump') {
+                    setPumps([
+                      { id: 'p-achp-1', modelName: '风冷热泵-夏季冷水泵', type: 'chw', flowm3h: 516, headm: 25, powerkW: 52, efficiencyPercent: 58, count: 3 },
+                      { id: 'p-achp-2', modelName: '风冷热泵-冬季热水泵', type: 'hw', flowm3h: 412, headm: 22, powerkW: 37, efficiencyPercent: 58, count: 3 }
+                    ]);
+                  } else if (newType === 'chiller_boiler' || newType === 'hybrid') {
+                    setPumps([
+                      { id: 'p1', modelName: '冷水水泵 (夏季冷水泵)', type: 'chw', flowm3h: 516, headm: 35, powerkW: 73, efficiencyPercent: 58, count: 3 },
+                      { id: 'p2', modelName: '冷却水水泵', type: 'cw', flowm3h: 620, headm: 28, powerkW: 74, efficiencyPercent: 58, count: 3 },
+                      { id: 'p3', modelName: '锅炉独立热水泵 (冬季热水循环泵)', type: 'hw', flowm3h: 206, headm: 25, powerkW: 24, efficiencyPercent: 58, count: 2 }
+                    ]);
+                  }
+                }}
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-blue-300 font-bold text-sm focus:ring-2 focus:ring-blue-500"
               >
                 {Object.values(SYSTEM_TYPES_META).map(s => (
@@ -565,7 +628,7 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
               </div>
             </div>
 
-            {/* 1. 冷水机组 (chiller_boiler / hybrid) */}
+            {/* 1. 冷水机组 (仅 chiller_boiler / hybrid) */}
             {(existingSystemType === 'chiller_boiler' || existingSystemType === 'hybrid') && (
               <div className="bg-slate-850 p-4 rounded-xl border border-slate-800 space-y-3">
                 <div className="flex items-center justify-between border-b border-slate-750 pb-2">
@@ -676,11 +739,12 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
               </div>
             )}
 
-            {/* 2. 燃气热水锅炉 */}
+            {/* 2. 燃气热水锅炉 (仅 chiller_boiler / hybrid) */}
             {(existingSystemType === 'chiller_boiler' || existingSystemType === 'hybrid') && (
               <div className="bg-slate-850 p-4 rounded-xl border border-slate-800 space-y-2">
-                <span className="font-bold text-rose-400 block border-b border-slate-750 pb-2">
-                  燃气热水锅炉 (耗气量按制热量自动推算，支持修改)
+                <span className="font-bold text-rose-400 block border-b border-slate-750 pb-2 flex items-center space-x-1">
+                  <Flame className="w-4 h-4 text-rose-400" />
+                  <span>燃气热水锅炉 (耗气量按制热量自动推算，支持修改)</span>
                 </span>
                 {boilers.map((b, idx) => (
                   <div key={b.id} className="grid grid-cols-4 gap-2 text-xs">
@@ -737,18 +801,19 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
               </div>
             )}
 
-            {/* 3. 水泵循环系统 */}
-            {(existingSystemType === 'chiller_boiler' || existingSystemType === 'air_heat_pump' || existingSystemType === 'hybrid') && (
+            {/* 3. 水冷冷站水泵循环系统 (冷水机组专用水泵：冷水泵、冷却水泵、锅炉热水泵) */}
+            {(existingSystemType === 'chiller_boiler' || existingSystemType === 'hybrid') && (
               <div className="bg-slate-850 p-4 rounded-xl border border-slate-800 space-y-3">
                 <div className="flex items-center justify-between border-b border-slate-750 pb-2">
-                  <span className="font-bold text-blue-300">
-                    水泵循环系统 (冷水泵、冷却水泵、热水泵)
+                  <span className="font-bold text-blue-300 flex items-center space-x-1">
+                    <Wind className="w-4 h-4 text-cyan-400" />
+                    <span>冷站水泵循环系统 (冷水泵、冷却水泵、热水泵)</span>
                   </span>
                   <button
                     type="button"
                     onClick={handleAutoDerivePumpsAndTowers}
                     className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1 rounded-lg flex items-center space-x-1 shadow-sm transition-all cursor-pointer"
-                    title="根据上方输入的冷水机组与锅炉参数，自动推导冷水泵、冷却水泵、冷却塔与热水泵流量与扬程"
+                    title="根据冷水机组与锅炉参数，自动推导水泵与冷却塔"
                   >
                     <Zap className="w-3.5 h-3.5" />
                     <span>⚡ 一键根据主机自动推导匹配</span>
@@ -825,11 +890,12 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
               </div>
             )}
 
-            {/* 4. 冷却塔 (冷却水散热) */}
+            {/* 4. 冷却塔 (仅 chiller_boiler / hybrid) */}
             {(existingSystemType === 'chiller_boiler' || existingSystemType === 'hybrid') && (
               <div className="bg-slate-850 p-4 rounded-xl border border-slate-800 space-y-2">
-                <span className="font-bold text-emerald-400 block border-b border-slate-750 pb-2">
-                  冷却塔 (冷却水散热)
+                <span className="font-bold text-emerald-400 block border-b border-slate-750 pb-2 flex items-center space-x-1">
+                  <Flame className="w-4 h-4 text-emerald-400" />
+                  <span>冷却塔 (冷却水散热)</span>
                 </span>
                 {towers.map((t, idx) => (
                   <div key={t.id} className="grid grid-cols-3 gap-2 text-xs">
@@ -877,132 +943,264 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
               </div>
             )}
 
-            {/* 5. 风冷热泵主机模块 */}
+            {/* 5. 风冷热泵系统 (air_heat_pump) - 主机与专用冷热水泵 */}
             {existingSystemType === 'air_heat_pump' && (
-              <div className="bg-slate-850 p-4 rounded-xl border border-slate-800 space-y-3">
-                <span className="font-bold text-sky-400 block border-b border-slate-750 pb-2">
-                  风冷热泵主机模块
-                </span>
-                {achps.map((a, idx) => (
-                  <div key={a.id} className="grid grid-cols-4 gap-2 text-xs">
-                    <div>
-                      <span className="text-slate-300 block">总制冷量(kW)</span>
-                      <input
-                        type="number"
-                        value={a.coolingkW}
-                        onChange={(e) => {
-                          const updated = [...achps];
-                          updated[idx].coolingkW = Number(e.target.value);
-                          setAchps(updated);
-                        }}
-                        className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white font-bold"
-                      />
+              <>
+                {/* 5.1 风冷热泵主机模块 */}
+                <div className="bg-slate-850 p-4 rounded-xl border border-slate-800 space-y-3">
+                  <span className="font-bold text-sky-400 block border-b border-slate-750 pb-2 flex items-center space-x-1">
+                    <Wind className="w-4 h-4 text-sky-400" />
+                    <span>风冷热泵模块主机 (ACHP)</span>
+                  </span>
+                  {achps.map((a, idx) => (
+                    <div key={a.id} className="space-y-2 bg-slate-900 p-3 rounded-lg border border-slate-800">
+                      <div className="grid grid-cols-5 gap-2 text-xs">
+                        <div>
+                          <span className="text-slate-300 block">总制冷量(kW)</span>
+                          <input
+                            type="number"
+                            value={a.coolingkW}
+                            onChange={(e) => {
+                              const updated = [...achps];
+                              const cool = Number(e.target.value);
+                              updated[idx].coolingkW = cool;
+                              updated[idx].heatingkW = Number((cool * 0.8).toFixed(0));
+                              updated[idx].powerkW = Number((cool / Math.max(1, a.cop)).toFixed(1));
+                              setAchps(updated);
+                            }}
+                            className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white font-bold"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-slate-300 block">总制热量(kW)</span>
+                          <input
+                            type="number"
+                            value={a.heatingkW}
+                            onChange={(e) => {
+                              const updated = [...achps];
+                              updated[idx].heatingkW = Number(e.target.value);
+                              setAchps(updated);
+                            }}
+                            className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-rose-300 font-bold"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-slate-300 block">电功率(kW)</span>
+                          <input
+                            type="number"
+                            value={a.powerkW}
+                            onChange={(e) => {
+                              const updated = [...achps];
+                              updated[idx].powerkW = Number(e.target.value);
+                              setAchps(updated);
+                            }}
+                            className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-amber-300 font-bold"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-slate-300 block">COP值</span>
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={a.cop}
+                            onChange={(e) => {
+                              const updated = [...achps];
+                              const cop = Number(e.target.value);
+                              updated[idx].cop = cop;
+                              updated[idx].powerkW = Number((a.coolingkW / Math.max(1, cop)).toFixed(1));
+                              setAchps(updated);
+                            }}
+                            className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-sky-300 font-bold"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-slate-300 block">模块台数</span>
+                          <input
+                            type="number"
+                            value={a.count}
+                            onChange={(e) => {
+                              const updated = [...achps];
+                              updated[idx].count = Number(e.target.value);
+                              setAchps(updated);
+                            }}
+                            className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white font-bold"
+                          />
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-slate-300 block">电功率(kW)</span>
-                      <input
-                        type="number"
-                        value={a.powerkW}
-                        onChange={(e) => {
-                          const updated = [...achps];
-                          updated[idx].powerkW = Number(e.target.value);
-                          setAchps(updated);
-                        }}
-                        className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-amber-300 font-bold"
-                      />
-                    </div>
-                    <div>
-                      <span className="text-slate-300 block">COP值</span>
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={a.cop}
-                        onChange={(e) => {
-                          const updated = [...achps];
-                          updated[idx].cop = Number(e.target.value);
-                          setAchps(updated);
-                        }}
-                        className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-sky-300 font-bold"
-                      />
-                    </div>
-                    <div>
-                      <span className="text-slate-300 block">模块台数</span>
-                      <input
-                        type="number"
-                        value={a.count}
-                        onChange={(e) => {
-                          const updated = [...achps];
-                          updated[idx].count = Number(e.target.value);
-                          setAchps(updated);
-                        }}
-                        className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white font-bold"
-                      />
-                    </div>
+                  ))}
+                </div>
+
+                {/* 5.2 风冷热泵专用输配水泵 (仅夏季冷水泵 & 冬季热水泵，无冷却水泵无冷却塔) */}
+                <div className="bg-slate-850 p-4 rounded-xl border border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-750 pb-2">
+                    <span className="font-bold text-cyan-300 flex items-center space-x-1">
+                      <Wind className="w-4 h-4 text-cyan-400" />
+                      <span>风冷热泵输配水泵 (仅夏季冷水泵 & 冬季热水泵)</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleAutoDerivePumpsAndTowers}
+                      className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1 rounded-lg flex items-center space-x-1 shadow-sm transition-all cursor-pointer"
+                      title="根据风冷热泵总冷量与总热量，自动推导夏季冷水泵与冬季热水泵"
+                    >
+                      <Zap className="w-3.5 h-3.5" />
+                      <span>⚡ 一键根据主机自动推导匹配</span>
+                    </button>
                   </div>
-                ))}
-              </div>
+
+                  {pumps.filter(p => p.type === 'chw' || p.type === 'hw').map((p) => (
+                    <div key={p.id} className="bg-slate-900 p-3 rounded-lg border border-slate-800 space-y-2">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="font-bold text-slate-200">
+                          {p.type === 'chw' ? '风冷热泵-夏季冷水泵' : '风冷热泵-冬季热水泵'}
+                        </span>
+                        <span className="text-xs text-slate-400">效率 {p.efficiencyPercent}%</span>
+                      </div>
+
+                      <div className="grid grid-cols-4 gap-2 text-xs">
+                        <div>
+                          <span className="text-slate-300 block">流量(m³/h)</span>
+                          <input
+                            type="number"
+                            value={p.flowm3h}
+                            onChange={(e) => {
+                              const updated = [...pumps];
+                              const realIdx = pumps.findIndex(item => item.id === p.id);
+                              if (realIdx >= 0) {
+                                const fl = Number(e.target.value);
+                                updated[realIdx].flowm3h = fl;
+                                updated[realIdx].powerkW = Number(((fl * p.headm) / 247.7).toFixed(1));
+                                setPumps(updated);
+                              }
+                            }}
+                            className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white font-bold"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-slate-300 block">扬程(m)</span>
+                          <input
+                            type="number"
+                            value={p.headm}
+                            onChange={(e) => {
+                              const updated = [...pumps];
+                              const realIdx = pumps.findIndex(item => item.id === p.id);
+                              if (realIdx >= 0) {
+                                const hd = Number(e.target.value);
+                                updated[realIdx].headm = hd;
+                                updated[realIdx].powerkW = Number(((p.flowm3h * hd) / 247.7).toFixed(1));
+                                setPumps(updated);
+                              }
+                            }}
+                            className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white font-bold"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-slate-300 block">功率(kW)</span>
+                          <input
+                            type="number"
+                            value={p.powerkW}
+                            onChange={(e) => {
+                              const updated = [...pumps];
+                              const realIdx = pumps.findIndex(item => item.id === p.id);
+                              if (realIdx >= 0) {
+                                updated[realIdx].powerkW = Number(e.target.value);
+                                setPumps(updated);
+                              }
+                            }}
+                            className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-amber-300 font-bold"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-slate-300 block">台数 (1机对1泵)</span>
+                          <input
+                            type="number"
+                            value={p.count}
+                            onChange={(e) => {
+                              const updated = [...pumps];
+                              const realIdx = pumps.findIndex(item => item.id === p.id);
+                              if (realIdx >= 0) {
+                                updated[realIdx].count = Number(e.target.value);
+                                setPumps(updated);
+                              }
+                            }}
+                            className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white font-bold"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
 
-            {/* 6. VRF 多联机室外机 */}
+            {/* 6. VRF 变频多联机系统 (vrf) - 仅室外机，无水系统 */}
             {existingSystemType === 'vrf' && (
               <div className="bg-slate-850 p-4 rounded-xl border border-slate-800 space-y-3">
-                <span className="font-bold text-purple-400 block border-b border-slate-750 pb-2">
-                  VRF 多联机室外机
+                <span className="font-bold text-purple-400 block border-b border-slate-750 pb-2 flex items-center space-x-1">
+                  <Cpu className="w-4 h-4 text-purple-400" />
+                  <span>VRF 变频多联机室外机 (直接冷媒蒸发膨胀，无水泵/无冷却塔)</span>
                 </span>
                 {vrfs.map((v, idx) => (
-                  <div key={v.id} className="grid grid-cols-4 gap-2 text-xs">
-                    <div>
-                      <span className="text-slate-300 block">总制冷量(kW)</span>
-                      <input
-                        type="number"
-                        value={v.coolingkW}
-                        onChange={(e) => {
-                          const updated = [...vrfs];
-                          updated[idx].coolingkW = Number(e.target.value);
-                          setVrfs(updated);
-                        }}
-                        className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white font-bold"
-                      />
-                    </div>
-                    <div>
-                      <span className="text-slate-300 block">电功率(kW)</span>
-                      <input
-                        type="number"
-                        value={v.powerkW}
-                        onChange={(e) => {
-                          const updated = [...vrfs];
-                          updated[idx].powerkW = Number(e.target.value);
-                          setVrfs(updated);
-                        }}
-                        className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-amber-300 font-bold"
-                      />
-                    </div>
-                    <div>
-                      <span className="text-slate-300 block">EER/COP</span>
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={v.eer}
-                        onChange={(e) => {
-                          const updated = [...vrfs];
-                          updated[idx].eer = Number(e.target.value);
-                          setVrfs(updated);
-                        }}
-                        className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-purple-300 font-bold"
-                      />
-                    </div>
-                    <div>
-                      <span className="text-slate-300 block">外机台数</span>
-                      <input
-                        type="number"
-                        value={v.count}
-                        onChange={(e) => {
-                          const updated = [...vrfs];
-                          updated[idx].count = Number(e.target.value);
-                          setVrfs(updated);
-                        }}
-                        className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white font-bold"
-                      />
+                  <div key={v.id} className="bg-slate-900 p-3 rounded-lg border border-slate-800 space-y-2">
+                    <div className="grid grid-cols-4 gap-2 text-xs">
+                      <div>
+                        <span className="text-slate-300 block">总制冷量(kW)</span>
+                        <input
+                          type="number"
+                          value={v.coolingkW}
+                          onChange={(e) => {
+                            const updated = [...vrfs];
+                            const cool = Number(e.target.value);
+                            updated[idx].coolingkW = cool;
+                            updated[idx].powerkW = Number((cool / Math.max(1, v.eer)).toFixed(1));
+                            setVrfs(updated);
+                          }}
+                          className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white font-bold"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-slate-300 block">总电功率(kW)</span>
+                        <input
+                          type="number"
+                          value={v.powerkW}
+                          onChange={(e) => {
+                            const updated = [...vrfs];
+                            updated[idx].powerkW = Number(e.target.value);
+                            setVrfs(updated);
+                          }}
+                          className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-amber-300 font-bold"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-slate-300 block">EER / IPLV</span>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={v.eer}
+                          onChange={(e) => {
+                            const updated = [...vrfs];
+                            const eer = Number(e.target.value);
+                            updated[idx].eer = eer;
+                            updated[idx].powerkW = Number((v.coolingkW / Math.max(1, eer)).toFixed(1));
+                            setVrfs(updated);
+                          }}
+                          className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-purple-300 font-bold"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-slate-300 block">外机台数(台)</span>
+                        <input
+                          type="number"
+                          value={v.count}
+                          onChange={(e) => {
+                            const updated = [...vrfs];
+                            updated[idx].count = Number(e.target.value);
+                            setVrfs(updated);
+                          }}
+                          className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white font-bold"
+                        />
+                      </div>
                     </div>
                   </div>
                 ))}

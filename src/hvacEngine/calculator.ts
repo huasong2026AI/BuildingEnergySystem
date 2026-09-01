@@ -580,86 +580,71 @@ export function calculateEquipmentForSubItem(
     }
   }
 
-  // 覆盖自定义与真实选型品牌设备物理铭牌电量及气耗
+  // 覆盖自定义与真实选型品牌设备物理铭牌电量及气耗（仅影响总装机电功率和年能耗精算，不改变推荐标准值）
   const custom = item.customEquipment || {};
+  const recChillerCount = chillerCount;
+  const recBoilerCount = boilerCount;
+  const recChwPumpCount = chwPumpCount;
+  const recCwPumpCount = cwPumpCount;
+  const recCoolingTowerCount = coolingTowerCount;
+  const recHwPumpCount = hwPumpCount;
+  const recAchpCount = achpCount;
+  const recVrfCount = vrfCount;
+  const recAchpCoolingkW = achpCoolingkW;
+  const recAchpHeatingkW = achpHeatingkW;
 
   if (custom.selectedChillerProduct) {
-    chillerPowerkW = custom.selectedChillerProduct.actualPowerkW * (custom.chillerCount || chillerCount);
-    chillerCapacitykW = custom.selectedChillerProduct.ratedCapacitykW * (custom.chillerCount || chillerCount);
+    chillerPowerkW = custom.selectedChillerProduct.actualPowerkW * (custom.chillerCount || recChillerCount);
   } else if (custom.chillerCapacitykW) {
-    chillerCapacitykW = custom.chillerCapacitykW;
     chillerPowerkW = custom.chillerCapacitykW / chillerCOP;
   }
 
   if (custom.selectedBoilerProduct) {
-    boilerCapacitykW = custom.selectedBoilerProduct.ratedCapacitykW * (custom.boilerCount || boilerCount);
-    boilerGasFlow = (custom.selectedBoilerProduct.gasFlowm3h || (custom.selectedBoilerProduct.ratedCapacitykW / (9.967 * 0.95))) * (custom.boilerCount || boilerCount);
+    boilerGasFlow = (custom.selectedBoilerProduct.gasFlowm3h || (custom.selectedBoilerProduct.ratedCapacitykW / (9.967 * 0.95))) * (custom.boilerCount || recBoilerCount);
   } else if (custom.boilerCapacitykW) {
-    boilerCapacitykW = custom.boilerCapacitykW;
     boilerGasFlow = custom.boilerCapacitykW / (9.967 * boilerEfficiency);
   }
 
   if (custom.selectedChwPumpProduct) {
-    chwPumpPowerkW = custom.selectedChwPumpProduct.actualPowerkW * (custom.chwPumpCount || chwPumpCount);
-    chwPumpFlow = custom.selectedChwPumpProduct.ratedCapacitykW * (custom.chwPumpCount || chwPumpCount);
+    chwPumpPowerkW = custom.selectedChwPumpProduct.actualPowerkW * (custom.chwPumpCount || recChwPumpCount);
   } else if (custom.chwPumpFlow) {
-    chwPumpFlow = custom.chwPumpFlow;
     chwPumpPowerkW = (custom.chwPumpFlow * chwPumpHead) / 247.7;
   }
 
   if (custom.selectedCwPumpProduct) {
-    cwPumpPowerkW = custom.selectedCwPumpProduct.actualPowerkW * (custom.cwPumpCount || cwPumpCount);
-    cwPumpFlow = custom.selectedCwPumpProduct.ratedCapacitykW * (custom.cwPumpCount || cwPumpCount);
+    cwPumpPowerkW = custom.selectedCwPumpProduct.actualPowerkW * (custom.cwPumpCount || recCwPumpCount);
   } else if (custom.cwPumpFlow) {
-    cwPumpFlow = custom.cwPumpFlow;
     cwPumpPowerkW = (custom.cwPumpFlow * cwPumpHead) / 247.7;
   }
 
   if (custom.selectedTowerProduct) {
-    coolingTowerFanPowerkW = custom.selectedTowerProduct.actualPowerkW * (custom.coolingTowerCount || coolingTowerCount);
-    coolingTowerFlow = custom.selectedTowerProduct.ratedCapacitykW * (custom.coolingTowerCount || coolingTowerCount);
+    coolingTowerFanPowerkW = custom.selectedTowerProduct.actualPowerkW * (custom.coolingTowerCount || recCoolingTowerCount);
   } else if (custom.coolingTowerFlow) {
-    coolingTowerFlow = custom.coolingTowerFlow;
     coolingTowerFanPowerkW = custom.coolingTowerFlow * 0.18;
   }
 
   if (custom.selectedHwPumpProduct) {
-    hwPumpPowerkW = custom.selectedHwPumpProduct.actualPowerkW * (custom.hwPumpCount || hwPumpCount);
-    hwPumpFlow = custom.selectedHwPumpProduct.ratedCapacitykW * (custom.hwPumpCount || hwPumpCount);
+    hwPumpPowerkW = custom.selectedHwPumpProduct.actualPowerkW * (custom.hwPumpCount || recHwPumpCount);
   } else if (custom.hwPumpFlow) {
-    hwPumpFlow = custom.hwPumpFlow;
     hwPumpPowerkW = (custom.hwPumpFlow * hwPumpHead) / 247.7;
   }
 
   if (custom.selectedAchpProduct) {
-    achpPowerkW = custom.selectedAchpProduct.actualPowerkW * (custom.achpCount || achpCount);
-    achpCoolingkW = custom.selectedAchpProduct.ratedCapacitykW * (custom.achpCount || achpCount);
+    achpPowerkW = custom.selectedAchpProduct.actualPowerkW * (custom.achpCount || recAchpCount);
   } else if (custom.achpCoolingkW) {
-    achpCoolingkW = custom.achpCoolingkW;
     achpPowerkW = custom.achpCoolingkW / 3.2;
   }
 
   if (custom.selectedVrfProduct) {
-    vrfPowerkW = custom.selectedVrfProduct.actualPowerkW * (custom.vrfCount || vrfCount);
-    vrfCoolingkW = custom.selectedVrfProduct.ratedCapacitykW * (custom.vrfCount || vrfCount);
+    vrfPowerkW = custom.selectedVrfProduct.actualPowerkW * (custom.vrfCount || recVrfCount);
   } else if (custom.vrfCoolingkW) {
-    vrfCoolingkW = custom.vrfCoolingkW;
-        vrfPowerkW = custom.vrfCoolingkW / 3.85;
+    vrfPowerkW = custom.vrfCoolingkW / 3.85;
   }
 
-  if (custom.chillerCount) chillerCount = custom.chillerCount;
-  if (custom.boilerCount) boilerCount = custom.boilerCount;
-  if (custom.chwPumpCount) chwPumpCount = custom.chwPumpCount;
-  if (custom.cwPumpCount) cwPumpCount = custom.cwPumpCount;
-  if (custom.coolingTowerCount) coolingTowerCount = custom.coolingTowerCount;
-  if (custom.hwPumpCount) hwPumpCount = custom.hwPumpCount;
-  if (custom.achpCount) achpCount = custom.achpCount;
-  if (custom.vrfCount) vrfCount = custom.vrfCount;
-
-  const achpChwPumpFlow = achpCoolingkW > 0 ? (achpCoolingkW * 3.6) / (4.186 * deltaTchw) : 0;
-  const achpHwPumpFlow = achpHeatingkW > 0 ? (achpHeatingkW * 3.6) / (4.186 * deltaThw) : 0;
-  const achpChwPumpCount = achpCount > 0 ? achpCount : 0;
-  const achpHwPumpCount = achpCount > 0 ? achpCount : 0;
+  const achpChwPumpFlow = recAchpCoolingkW > 0 ? (recAchpCoolingkW * 3.6) / (4.186 * deltaTchw) : 0;
+  const achpHwPumpFlow = recAchpHeatingkW > 0 ? (recAchpHeatingkW * 3.6) / (4.186 * deltaThw) : 0;
+  const achpChwPumpCount = recAchpCount > 0 ? recAchpCount : 0;
+  const achpHwPumpCount = recAchpCount > 0 ? recAchpCount : 0;
 
   const sysMeta = SYSTEM_TYPES_META[item.systemType];
 

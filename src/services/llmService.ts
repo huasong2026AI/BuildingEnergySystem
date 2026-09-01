@@ -1,6 +1,6 @@
 /**
  * 大模型 API 服务 (Gemini / DeepSeek / 本地暖通专家引擎)
- * 遵循 llm-api-setup 规范
+ * 严格遵循 skills/llm-api-setup/SKILL.md 规范
  */
 
 export type LlmProvider = 'gemini' | 'deepseek' | 'local_expert';
@@ -8,21 +8,32 @@ export type LlmProvider = 'gemini' | 'deepseek' | 'local_expert';
 export interface LlmConfig {
   provider: LlmProvider;
   geminiApiKey: string;
-  geminiModel: string; // 默认 gemini-3.5-flash-lite, 备选 gemini-3.7-flash, gemini-3.1-flash-lite
+  geminiBaseUrl: string; // 默认 https://generativelanguage.googleapis.com 或自定义反向代理
+  geminiModel: string;   // 默认 gemini-3.5-flash-lite, 备选 gemini-3.1-flash-lite, gemini-3.7-flash, gemini-3.6-flash
   deepseekApiKey: string;
   deepseekBaseUrl: string;
-  deepseekModel: string; // deepseek-v4-flash
+  deepseekModel: string; // 默认 deepseek-v4-flash
 }
 
-const STORAGE_KEY = 'hvac_llm_config_v1';
+const STORAGE_KEY = 'hvac_llm_config_v3';
+
+const globalProcess = typeof globalThis !== 'undefined' ? (globalThis as any).process : undefined;
+const metaEnv = (import.meta as any).env || {};
+
+const envGeminiKey = globalProcess?.env?.GEMINI_API_KEY || metaEnv.VITE_GEMINI_API_KEY || metaEnv.GEMINI_API_KEY || '';
+const envGeminiModel = globalProcess?.env?.GEMINI_MODEL || metaEnv.VITE_GEMINI_MODEL || metaEnv.GEMINI_MODEL || 'gemini-3.5-flash-lite';
+const envDeepSeekKey = globalProcess?.env?.DEEPSEEK_API_KEY || metaEnv.VITE_DEEPSEEK_API_KEY || metaEnv.DEEPSEEK_API_KEY || '';
+const envDeepSeekBaseUrl = globalProcess?.env?.DEEPSEEK_BASE_URL || metaEnv.VITE_DEEPSEEK_BASE_URL || metaEnv.DEEPSEEK_BASE_URL || 'https://api.deepseek.com';
+const envDeepSeekModel = globalProcess?.env?.DEEPSEEK_MODEL || metaEnv.VITE_DEEPSEEK_MODEL || metaEnv.DEEPSEEK_MODEL || 'deepseek-v4-flash';
 
 export const DEFAULT_LLM_CONFIG: LlmConfig = {
   provider: 'gemini',
-  geminiApiKey: (import.meta as any).env?.VITE_GEMINI_API_KEY || '',
-  geminiModel: 'gemini-3.5-flash-lite',
-  deepseekApiKey: (import.meta as any).env?.VITE_DEEPSEEK_API_KEY || '',
-  deepseekBaseUrl: 'https://api.deepseek.com',
-  deepseekModel: 'deepseek-v4-flash',
+  geminiApiKey: envGeminiKey,
+  geminiBaseUrl: 'https://generativelanguage.googleapis.com',
+  geminiModel: envGeminiModel,
+  deepseekApiKey: envDeepSeekKey,
+  deepseekBaseUrl: envDeepSeekBaseUrl,
+  deepseekModel: envDeepSeekModel,
 };
 
 export function getStoredLlmConfig(): LlmConfig {
@@ -142,11 +153,11 @@ function localHvacExpertReasoning(userQuery: string, contextPrompt: string): str
 
 二、水力与能耗定量分析：
 1. 循环水量削减率：
-   • 根据热力学公式 $G = Q / (c \cdot \Delta T)$，温差由 5℃ 提升至 7℃，水系统循环流量直接减少：
-     $(1 - 5/7) = 28.57\%$；
+   • 根据热力学公式 $G = Q / (c \\cdot \\Delta T)$，温差由 5℃ 提升至 7℃，水系统循环流量直接减少：
+     $(1 - 5/7) = 28.57\\%$；
 2. 水泵输配电耗大幅降低：
-   • 管网沿程阻力 $H \propto G^2$，阻力降至原先的约 $0.714^2 \approx 51\%$；
-   • 水泵轴功率 $P \propto G \cdot H \propto G^3$，理论输配功率可减少近 60%，实际考虑电机效率后水泵节电率超 45%！
+   • 管网沿程阻力 $H \\propto G^2$，阻力降至原先的约 $0.714^2 \\approx 51\\%$；
+   • 水泵轴功率 $P \\propto G \\cdot H \\propto G^3$，理论输配功率可减少近 60%，实际考虑电机效率后水泵节电率超 45%！
 3. 末端表冷器校核要点：
    • 供水温度保持 7℃ 不变，回水温度升至 14℃，对末端风机盘管/空气处理机组换热面积有一定要求；
    • 对于既有建筑，原设计表冷器普遍存在 15%~25% 设计富裕量，完全满足大温差换热需求，且除湿能力不受影响。`;
@@ -204,7 +215,7 @@ function localHvacExpertReasoning(userQuery: string, contextPrompt: string): str
 }
 
 /**
- * 统一大模型 API 调用入口
+ * 统一大模型 API 调用入口（严格执行 llm-api-setup 规范）
  */
 export async function sendHvacChatMessage(
   messages: Array<{ sender: 'user' | 'ai'; text: string }>,
@@ -216,12 +227,11 @@ export async function sendHvacChatMessage(
 
   // 1. 本地内置暖通专家引擎
   if (config.provider === 'local_expert' || (!config.geminiApiKey && !config.deepseekApiKey)) {
-    // 模拟思考延迟提升真实感
     await new Promise(r => setTimeout(r, 600));
     return localHvacExpertReasoning(currentQuestion, systemPrompt);
   }
 
-  // 2. Google Gemini API 调用
+  // 2. Google Gemini API 调用 (默认 gemini-3.5-flash-lite，备选 gemini-3.1-flash-lite, gemini-3.7-flash, gemini-3.6-flash)
   if (config.provider === 'gemini') {
     if (!config.geminiApiKey) {
       return `【提示】未配置 Gemini API Key，已自动为您启用【本地内置暖通专家知识引擎】为您解答：\n\n` + 
@@ -229,14 +239,16 @@ export async function sendHvacChatMessage(
     }
 
     try {
-      const model = config.geminiModel || 'gemini-3.5-flash-lite';
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${config.geminiApiKey}`;
+      const model = (config.geminiModel || 'gemini-3.5-flash-lite').trim();
+      const baseUrl = (config.geminiBaseUrl || 'https://generativelanguage.googleapis.com').trim().replace(/\/+$/, '');
+      const apiKey = config.geminiApiKey.trim();
+      const endpoint = `${baseUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
       // 构造对话历史
       const contents = [
         {
           role: 'user',
-          parts: [{ text: `${systemPrompt}\n\n以下是对话历史与用户最新提问：` }]
+          parts: [{ text: `${systemPrompt}\n\n以下是工程项目对话历史与用户最新提问：` }]
         },
         ...messages.map(m => ({
           role: m.sender === 'user' ? 'user' : 'model',
@@ -250,7 +262,10 @@ export async function sendHvacChatMessage(
 
       const response = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey
+        },
         body: JSON.stringify({
           contents,
           generationConfig: {
@@ -262,7 +277,8 @@ export async function sendHvacChatMessage(
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData?.error?.message || `HTTP ${response.status}`);
+        const errMsg = errorData?.error?.message || `HTTP ${response.status} ${response.statusText}`;
+        throw new Error(errMsg);
       }
 
       const data = await response.json();
@@ -273,12 +289,16 @@ export async function sendHvacChatMessage(
       return replyText;
     } catch (err: any) {
       console.warn('Gemini API 调用异常，自动切换为本地暖通专家引擎:', err);
-      return `【Gemini API 调用提示: ${err.message || '网络异常'}，已自动切换为本地暖通专家知识库为您解答】：\n\n` + 
+      const isNetworkErr = err?.message?.includes('Failed to fetch') || err?.message?.includes('NetworkError');
+      const hint = isNetworkErr
+        ? '无法连接到 Google 官方服务器（请检查 VPN 网络环境，或在【⚙️ API 配置】中设置反向代理地址；也可一键切换为 DeepSeek 或 本地暖通专家库）'
+        : (err.message || '网络异常');
+      return `【Gemini API 提示: ${hint}，已自动为您启用本地暖通专家知识库解答】：\n\n` + 
         localHvacExpertReasoning(currentQuestion, systemPrompt);
     }
   }
 
-  // 3. DeepSeek API 调用
+  // 3. DeepSeek API 调用 (默认 deepseek-v4-flash, BaseUrl: https://api.deepseek.com)
   if (config.provider === 'deepseek') {
     if (!config.deepseekApiKey) {
       return `【提示】未配置 DeepSeek API Key，已自动启用【本地内置暖通专家知识引擎】为您解答：\n\n` + 
@@ -286,9 +306,9 @@ export async function sendHvacChatMessage(
     }
 
     try {
-      const baseUrl = config.deepseekBaseUrl || 'https://api.deepseek.com';
-      const model = config.deepseekModel || 'deepseek-chat';
-      const endpoint = `${baseUrl.replace(/\/+$/, '')}/chat/completions`;
+      const baseUrl = (config.deepseekBaseUrl || 'https://api.deepseek.com').trim().replace(/\/+$/, '');
+      const model = (config.deepseekModel || 'deepseek-v4-flash').trim();
+      const endpoint = `${baseUrl}/chat/completions`;
 
       const apiMessages = [
         { role: 'system', content: systemPrompt },
@@ -303,7 +323,7 @@ export async function sendHvacChatMessage(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${config.deepseekApiKey}`
+          'Authorization': `Bearer ${config.deepseekApiKey.trim()}`
         },
         body: JSON.stringify({
           model,
@@ -314,7 +334,8 @@ export async function sendHvacChatMessage(
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData?.error?.message || `HTTP ${response.status}`);
+        const errMsg = errorData?.error?.message || `HTTP ${response.status} ${response.statusText}`;
+        throw new Error(errMsg);
       }
 
       const data = await response.json();
@@ -325,7 +346,7 @@ export async function sendHvacChatMessage(
       return replyText;
     } catch (err: any) {
       console.warn('DeepSeek API 调用异常，自动切换为本地暖通专家引擎:', err);
-      return `【DeepSeek API 调用提示: ${err.message || '网络异常'}，已自动切换为本地暖通专家知识库为您解答】：\n\n` + 
+      return `【DeepSeek API 提示: ${err.message || '网络异常'}，已自动切换为本地暖通专家知识库为您解答】：\n\n` + 
         localHvacExpertReasoning(currentQuestion, systemPrompt);
     }
   }

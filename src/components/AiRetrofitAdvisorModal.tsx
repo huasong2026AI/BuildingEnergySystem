@@ -533,16 +533,16 @@ export const AiRetrofitAdvisorModal: React.FC<Props> = ({
                       onChange={e => setLlmConfig(prev => ({ ...prev, geminiModel: e.target.value }))}
                       className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-emerald-300 font-bold text-xs"
                     >
-                      <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (推荐首选)</option>
-                      <option value="gemini-3.7-flash">gemini-3.7-flash (强推理)</option>
-                      <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite (极速)</option>
-                      <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+                      <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (主要默认首选)</option>
+                      <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite (备选 - 极速)</option>
+                      <option value="gemini-3.7-flash">gemini-3.7-flash (备选 - 强推理/复杂逻辑)</option>
+                      <option value="gemini-3.6-flash">gemini-3.6-flash (备选 - 均衡)</option>
                     </select>
                   )}
 
                   {llmConfig.provider === 'deepseek' && (
                     <span className="px-2.5 py-1 bg-slate-950 border border-slate-700 rounded-lg text-blue-300 font-bold text-xs font-mono">
-                      deepseek-v4-flash (专属加速模型)
+                      deepseek-v4-flash (高速推理/可选接入)
                     </span>
                   )}
                 </div>
@@ -552,7 +552,7 @@ export const AiRetrofitAdvisorModal: React.FC<Props> = ({
                   className="flex items-center space-x-1 px-2.5 py-1 bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold cursor-pointer"
                 >
                   <Key className="w-3.5 h-3.5 text-amber-400" />
-                  <span>{showConfigModal ? '收起 API 配置' : '⚙️ API Key 配置'}</span>
+                  <span>{showConfigModal ? '收起 API 配置' : '⚙️ API Key 与代理配置'}</span>
                 </button>
               </div>
 
@@ -562,32 +562,56 @@ export const AiRetrofitAdvisorModal: React.FC<Props> = ({
                   <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
                     <span className="font-bold text-amber-400 flex items-center space-x-1">
                       <Key className="w-3.5 h-3.5" />
-                      <span>配置您的 Gemini / DeepSeek API Key</span>
+                      <span>配置您的 Gemini / DeepSeek API Key 与代理接口</span>
                     </span>
-                    <span className="text-[11px] text-slate-400">Key 仅保存在您本地浏览器中，绝不上载服务器</span>
+                    <span className="text-[11px] text-slate-400">密钥仅保存在本地浏览器 LocalStorage，不上传任何服务器</span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-slate-300 block mb-1 font-semibold">Google Gemini API Key:</label>
-                      <input
-                        type="password"
-                        placeholder="输入 AIzaSy... (若留空则自动使用本地专家库)"
-                        value={llmConfig.geminiApiKey}
-                        onChange={e => setLlmConfig(prev => ({ ...prev, geminiApiKey: e.target.value }))}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-emerald-500 text-xs font-mono"
-                      />
+                    <div className="space-y-2">
+                      <div>
+                        <label className="text-slate-300 block mb-1 font-semibold">Google Gemini API Key:</label>
+                        <input
+                          type="password"
+                          placeholder="输入 AIzaSy... (若留空则自动使用本地专家库)"
+                          value={llmConfig.geminiApiKey}
+                          onChange={e => setLlmConfig(prev => ({ ...prev, geminiApiKey: e.target.value }))}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-emerald-500 text-xs font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-slate-400 block mb-1 text-[11px]">Gemini 接口/代理地址 (默认官方，国内可配反代):</label>
+                        <input
+                          type="text"
+                          placeholder="https://generativelanguage.googleapis.com"
+                          value={llmConfig.geminiBaseUrl || ''}
+                          onChange={e => setLlmConfig(prev => ({ ...prev, geminiBaseUrl: e.target.value }))}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-slate-300 focus:outline-none focus:border-emerald-500 text-xs font-mono"
+                        />
+                      </div>
                     </div>
 
-                    <div>
-                      <label className="text-slate-300 block mb-1 font-semibold">DeepSeek API Key:</label>
-                      <input
-                        type="password"
-                        placeholder="输入 sk-... (若留空则自动使用本地专家库)"
-                        value={llmConfig.deepseekApiKey}
-                        onChange={e => setLlmConfig(prev => ({ ...prev, deepseekApiKey: e.target.value }))}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-blue-500 text-xs font-mono"
-                      />
+                    <div className="space-y-2">
+                      <div>
+                        <label className="text-slate-300 block mb-1 font-semibold">DeepSeek API Key:</label>
+                        <input
+                          type="password"
+                          placeholder="输入 sk-... (若留空则自动使用本地专家库)"
+                          value={llmConfig.deepseekApiKey}
+                          onChange={e => setLlmConfig(prev => ({ ...prev, deepseekApiKey: e.target.value }))}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-blue-500 text-xs font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-slate-400 block mb-1 text-[11px]">DeepSeek 接口地址 (默认官方):</label>
+                        <input
+                          type="text"
+                          placeholder="https://api.deepseek.com"
+                          value={llmConfig.deepseekBaseUrl || ''}
+                          onChange={e => setLlmConfig(prev => ({ ...prev, deepseekBaseUrl: e.target.value }))}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-slate-300 focus:outline-none focus:border-blue-500 text-xs font-mono"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
