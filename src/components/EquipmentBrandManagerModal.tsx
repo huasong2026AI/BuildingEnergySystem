@@ -61,7 +61,7 @@ export const EquipmentBrandManagerModal: React.FC<Props> = ({ isOpen, onClose })
     setEditingId(null);
     setFormData({
       category: activeCategory === 'all' ? 'magnetic_chiller' : activeCategory,
-      brand: activeCategory === 'all' ? '海尔 (Haier)' : (CATEGORY_BRANDS[activeCategory]?.split(' / ')[0] || '约克 (York)'),
+      brand: activeCategory === 'all' ? '凌擎 (Lingqing)' : (CATEGORY_BRANDS[activeCategory] || '特灵 (Trane)'),
       model: '',
       name: '',
       ratedCapacitykW: 1000,
@@ -175,7 +175,7 @@ export const EquipmentBrandManagerModal: React.FC<Props> = ({ isOpen, onClose })
                   暖通设备品牌与规格参数库 (HVAC Equipment Brand & Model Database)
                 </h3>
                 <span className="px-2.5 py-0.5 text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-full">
-                  当前库共 {catalogItems.length} 款设备 (每品类精选2大顶级品牌，支持全量修改/删除)
+                  当前库共 {catalogItems.length} 款设备 (各品类精选单一主流顶级品牌，支持全量修改/删除/扩充)
                 </span>
               </div>
               <p className="text-xs text-slate-300 mt-0.5">
@@ -396,7 +396,7 @@ export const EquipmentBrandManagerModal: React.FC<Props> = ({ isOpen, onClose })
               type="text"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              placeholder="搜索品牌 (海尔/格力/约克/开利...)、型号 (MX/YZ/19DV...) 或参数..."
+              placeholder="搜索品牌 (特灵/凌擎/大金/力聚/威乐/金日/方快...)、型号或参数..."
               className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
             />
           </div>
