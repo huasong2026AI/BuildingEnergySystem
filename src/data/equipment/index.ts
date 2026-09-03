@@ -39,15 +39,14 @@ export function getMergedEquipmentCatalog(): CatalogEquipmentItem[] {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       const items: CatalogEquipmentItem[] = JSON.parse(saved);
-      // 若缓存中的数据包含了最新的型号数量，则使用缓存
-      if (Array.isArray(items) && items.length >= DEFAULT_EQUIPMENT_CATALOG.length) {
+      if (Array.isArray(items)) {
         return items;
       }
     }
   } catch (e) {
     console.error('Failed to load equipment catalog', e);
   }
-  // 初始化或升级至最新默认库 (含凌擎 30 款磁悬浮全系列机型)
+  // 初始化为默认出厂库 (含 113 款完整品牌机型)
   localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_EQUIPMENT_CATALOG));
   return DEFAULT_EQUIPMENT_CATALOG;
 }
