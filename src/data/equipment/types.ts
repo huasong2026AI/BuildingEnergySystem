@@ -16,7 +16,7 @@ export interface CatalogEquipmentItem {
   name: string;             // 产品中文全称
   ratedCapacitykW: number;  // 额定制冷/制热容量 kW (水泵/冷却塔则表示额定流量 m³/h)
   ratedPowerkW: number;     // 真实额定输入电功率 kW (物理铭牌电功率)
-  copOrEff: number;         // COP / EER / 效率 (%)
+  copOrEff: number;         // COP / EER / 锅炉效率 (%) / VRF多联机则为全年能源消耗效率 APF (GB 21454)
   iplvOrPartLoadCop?: number;// IPLV / 部分负荷最高 COP
   ratedFlowm3h?: number;    // 水流量 m³/h
   gasFlowm3h?: number;      // 燃气消耗量 m³/h

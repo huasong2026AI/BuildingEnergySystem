@@ -2,7 +2,8 @@ import type { CatalogEquipmentItem } from './types';
 
 /**
  * VRF 变频多联机室外机产品库
- * 仅保留单一大品牌：大金 (Daikin) VRV 全系列 18 款机型（涵盖 8HP ~ 48HP 全马力区间）
+ * 仅保留单一大品牌：大金 (Daikin) VRV 全系列 18 款机型（8HP ~ 48HP）
+ * 严格遵照 GB 21454-2021《多联式空调(热泵)机组能效限定值及能效等级》，统一采用法定【全年能源消耗效率 APF】评价
  */
 export const VRF_OUTDOOR_UNITS: CatalogEquipmentItem[] = [
   {
@@ -13,10 +14,9 @@ export const VRF_OUTDOOR_UNITS: CatalogEquipmentItem[] = [
     name: '大金 VRV 全直流变频多联室外机 22.4kW (8HP)',
     ratedCapacitykW: 22.4,
     ratedPowerkW: 5.15,
-    copOrEff: 4.35,
-    iplvOrPartLoadCop: 7.8,
+    copOrEff: 5.5, // 全年能源消耗效率 APF (GB 21454-2021 一级能效)
     priceRmbTenThousand: 2.5,
-    description: '大金 VRV 全直流变频商用多联机室外机，制冷 22.4kW / 制热 25.0kW，IPLV高达 7.8，VRT智能冷媒温度调节'
+    description: '大金 VRV 全直流变频商用多联机室外机，制冷 22.4kW / 制热 25.0kW，符合GB 21454-2021国家1级能效，全年能源消耗效率 APF 5.5，VRT智能冷媒温度调节'
   },
   {
     id: 'vrf-daikin-10hp',
@@ -26,10 +26,9 @@ export const VRF_OUTDOOR_UNITS: CatalogEquipmentItem[] = [
     name: '大金 VRV 全直流变频多联室外机 28.0kW (10HP)',
     ratedCapacitykW: 28.0,
     ratedPowerkW: 6.85,
-    copOrEff: 4.09,
-    iplvOrPartLoadCop: 7.7,
+    copOrEff: 5.45, // 全年能源消耗效率 APF (GB 21454-2021 一级能效)
     priceRmbTenThousand: 3.0,
-    description: '大金 VRV 全直流变频商用多联机室外机，制冷 28.0kW / 制热 31.5kW，IPLV高达 7.7，VRT智能冷媒温度调节'
+    description: '大金 VRV 全直流变频商用多联机室外机，制冷 28.0kW / 制热 31.5kW，符合GB 21454-2021国家1级能效，全年能源消耗效率 APF 5.45，VRT智能冷媒温度调节'
   },
   {
     id: 'vrf-daikin-12hp',
@@ -39,10 +38,9 @@ export const VRF_OUTDOOR_UNITS: CatalogEquipmentItem[] = [
     name: '大金 VRV 全直流变频多联室外机 33.5kW (12HP)',
     ratedCapacitykW: 33.5,
     ratedPowerkW: 8.45,
-    copOrEff: 3.96,
-    iplvOrPartLoadCop: 7.6,
+    copOrEff: 5.4, // 全年能源消耗效率 APF (GB 21454-2021 一级能效)
     priceRmbTenThousand: 3.5,
-    description: '大金 VRV 全直流变频商用多联机室外机，制冷 33.5kW / 制热 37.5kW，IPLV高达 7.6，VRT智能冷媒温度调节'
+    description: '大金 VRV 全直流变频商用多联机室外机，制冷 33.5kW / 制热 37.5kW，符合GB 21454-2021国家1级能效，全年能源消耗效率 APF 5.4，VRT智能冷媒温度调节'
   },
   {
     id: 'vrf-daikin-14hp',
@@ -52,10 +50,9 @@ export const VRF_OUTDOOR_UNITS: CatalogEquipmentItem[] = [
     name: '大金 VRV 全直流变频多联室外机 40.0kW (14HP)',
     ratedCapacitykW: 40.0,
     ratedPowerkW: 10.3,
-    copOrEff: 3.88,
-    iplvOrPartLoadCop: 7.5,
+    copOrEff: 5.35, // 全年能源消耗效率 APF (GB 21454-2021 一级能效)
     priceRmbTenThousand: 4.1,
-    description: '大金 VRV 全直流变频商用多联机室外机，制冷 40.0kW / 制热 45.0kW，IPLV高达 7.5，VRT智能冷媒温度调节'
+    description: '大金 VRV 全直流变频商用多联机室外机，制冷 40.0kW / 制热 45.0kW，符合GB 21454-2021国家1级能效，全年能源消耗效率 APF 5.35，VRT智能冷媒温度调节'
   },
   {
     id: 'vrf-daikin-16hp',
@@ -65,10 +62,9 @@ export const VRF_OUTDOOR_UNITS: CatalogEquipmentItem[] = [
     name: '大金 VRV 全直流变频多联室外机 45.0kW (16HP)',
     ratedCapacitykW: 45.0,
     ratedPowerkW: 11.85,
-    copOrEff: 3.8,
-    iplvOrPartLoadCop: 7.4,
+    copOrEff: 5.3, // 全年能源消耗效率 APF (GB 21454-2021 一级能效)
     priceRmbTenThousand: 4.6,
-    description: '大金 VRV 全直流变频商用多联机室外机，制冷 45.0kW / 制热 50.0kW，IPLV高达 7.4，VRT智能冷媒温度调节'
+    description: '大金 VRV 全直流变频商用多联机室外机，制冷 45.0kW / 制热 50.0kW，符合GB 21454-2021国家1级能效，全年能源消耗效率 APF 5.3，VRT智能冷媒温度调节'
   },
   {
     id: 'vrf-daikin-18hp',
@@ -78,10 +74,9 @@ export const VRF_OUTDOOR_UNITS: CatalogEquipmentItem[] = [
     name: '大金 VRV 全直流变频多联室外机 50.4kW (18HP)',
     ratedCapacitykW: 50.4,
     ratedPowerkW: 13.5,
-    copOrEff: 3.73,
-    iplvOrPartLoadCop: 7.4,
+    copOrEff: 5.25, // 全年能源消耗效率 APF (GB 21454-2021 一级能效)
     priceRmbTenThousand: 5.2,
-    description: '大金 VRV 全直流变频商用多联机室外机，制冷 50.4kW / 制热 56.5kW，IPLV高达 7.4，VRT智能冷媒温度调节'
+    description: '大金 VRV 全直流变频商用多联机室外机，制冷 50.4kW / 制热 56.5kW，符合GB 21454-2021国家1级能效，全年能源消耗效率 APF 5.25，VRT智能冷媒温度调节'
   },
   {
     id: 'vrf-daikin-20hp',
@@ -91,10 +86,9 @@ export const VRF_OUTDOOR_UNITS: CatalogEquipmentItem[] = [
     name: '大金 VRV 全直流变频多联室外机 56.0kW (20HP)',
     ratedCapacitykW: 56.0,
     ratedPowerkW: 15.15,
-    copOrEff: 3.7,
-    iplvOrPartLoadCop: 7.35,
+    copOrEff: 5.2, // 全年能源消耗效率 APF (GB 21454-2021 一级能效)
     priceRmbTenThousand: 5.8,
-    description: '大金 VRV 全直流变频商用多联机室外机，制冷 56.0kW / 制热 63.0kW，IPLV高达 7.35，VRT智能冷媒温度调节'
+    description: '大金 VRV 全直流变频商用多联机室外机，制冷 56.0kW / 制热 63.0kW，符合GB 21454-2021国家1级能效，全年能源消耗效率 APF 5.2，VRT智能冷媒温度调节'
   },
   {
     id: 'vrf-daikin-22hp',
@@ -104,10 +98,9 @@ export const VRF_OUTDOOR_UNITS: CatalogEquipmentItem[] = [
     name: '大金 VRV 全直流变频多联室外机 61.5kW (22HP)',
     ratedCapacitykW: 61.5,
     ratedPowerkW: 16.85,
-    copOrEff: 3.65,
-    iplvOrPartLoadCop: 7.3,
+    copOrEff: 5.18, // 全年能源消耗效率 APF (GB 21454-2021 一级能效)
     priceRmbTenThousand: 6.4,
-    description: '大金 VRV 全直流变频商用多联机室外机，制冷 61.5kW / 制热 69.0kW，IPLV高达 7.3，VRT智能冷媒温度调节'
+    description: '大金 VRV 全直流变频商用多联机室外机，制冷 61.5kW / 制热 69.0kW，符合GB 21454-2021国家1级能效，全年能源消耗效率 APF 5.18，VRT智能冷媒温度调节'
   },
   {
     id: 'vrf-daikin-24hp',
@@ -117,10 +110,9 @@ export const VRF_OUTDOOR_UNITS: CatalogEquipmentItem[] = [
     name: '大金 VRV 全直流变频多联室外机 68.0kW (24HP)',
     ratedCapacitykW: 68.0,
     ratedPowerkW: 18.9,
-    copOrEff: 3.6,
-    iplvOrPartLoadCop: 7.25,
+    copOrEff: 5.15, // 全年能源消耗效率 APF (GB 21454-2021 一级能效)
     priceRmbTenThousand: 7.1,
-    description: '大金 VRV 全直流变频商用多联机室外机，制冷 68.0kW / 制热 76.5kW，IPLV高达 7.25，VRT智能冷媒温度调节'
+    description: '大金 VRV 全直流变频商用多联机室外机，制冷 68.0kW / 制热 76.5kW，符合GB 21454-2021国家1级能效，全年能源消耗效率 APF 5.15，VRT智能冷媒温度调节'
   },
   {
     id: 'vrf-daikin-26hp',
@@ -130,10 +122,9 @@ export const VRF_OUTDOOR_UNITS: CatalogEquipmentItem[] = [
     name: '大金 VRV 全直流变频多联室外机 73.5kW (26HP)',
     ratedCapacitykW: 73.5,
     ratedPowerkW: 20.6,
-    copOrEff: 3.57,
-    iplvOrPartLoadCop: 7.2,
+    copOrEff: 5.12, // 全年能源消耗效率 APF (GB 21454-2021 一级能效)
     priceRmbTenThousand: 7.7,
-    description: '大金 VRV 全直流变频商用多联机室外机，制冷 73.5kW / 制热 82.5kW，IPLV高达 7.2，VRT智能冷媒温度调节'
+    description: '大金 VRV 全直流变频商用多联机室外机，制冷 73.5kW / 制热 82.5kW，符合GB 21454-2021国家1级能效，全年能源消耗效率 APF 5.12，VRT智能冷媒温度调节'
   },
   {
     id: 'vrf-daikin-28hp',
@@ -143,10 +134,9 @@ export const VRF_OUTDOOR_UNITS: CatalogEquipmentItem[] = [
     name: '大金 VRV 全直流变频多联室外机 78.5kW (28HP)',
     ratedCapacitykW: 78.5,
     ratedPowerkW: 22.2,
-    copOrEff: 3.54,
-    iplvOrPartLoadCop: 7.15,
+    copOrEff: 5.1, // 全年能源消耗效率 APF (GB 21454-2021 一级能效)
     priceRmbTenThousand: 8.3,
-    description: '大金 VRV 全直流变频商用多联机室外机，制冷 78.5kW / 制热 88.0kW，IPLV高达 7.15，VRT智能冷媒温度调节'
+    description: '大金 VRV 全直流变频商用多联机室外机，制冷 78.5kW / 制热 88.0kW，符合GB 21454-2021国家1级能效，全年能源消耗效率 APF 5.1，VRT智能冷媒温度调节'
   },
   {
     id: 'vrf-daikin-30hp',
@@ -156,10 +146,9 @@ export const VRF_OUTDOOR_UNITS: CatalogEquipmentItem[] = [
     name: '大金 VRV 全直流变频多联室外机 85.0kW (30HP)',
     ratedCapacitykW: 85.0,
     ratedPowerkW: 24.3,
-    copOrEff: 3.5,
-    iplvOrPartLoadCop: 7.1,
+    copOrEff: 5.05, // 全年能源消耗效率 APF (GB 21454-2021 一级能效)
     priceRmbTenThousand: 9.0,
-    description: '大金 VRV 全直流变频商用多联机室外机，制冷 85.0kW / 制热 95.0kW，IPLV高达 7.1，VRT智能冷媒温度调节'
+    description: '大金 VRV 全直流变频商用多联机室外机，制冷 85.0kW / 制热 95.0kW，符合GB 21454-2021国家1级能效，全年能源消耗效率 APF 5.05，VRT智能冷媒温度调节'
   },
   {
     id: 'vrf-daikin-32hp',
@@ -169,10 +158,9 @@ export const VRF_OUTDOOR_UNITS: CatalogEquipmentItem[] = [
     name: '大金 VRV 全直流变频多联室外机 90.0kW (32HP)',
     ratedCapacitykW: 90.0,
     ratedPowerkW: 25.8,
-    copOrEff: 3.49,
-    iplvOrPartLoadCop: 7.05,
+    copOrEff: 5.0, // 全年能源消耗效率 APF (GB 21454-2021 一级能效)
     priceRmbTenThousand: 9.6,
-    description: '大金 VRV 全直流变频商用多联机室外机，制冷 90.0kW / 制热 100.0kW，IPLV高达 7.05，VRT智能冷媒温度调节'
+    description: '大金 VRV 全直流变频商用多联机室外机，制冷 90.0kW / 制热 100.0kW，符合GB 21454-2021国家1级能效，全年能源消耗效率 APF 5.0，VRT智能冷媒温度调节'
   },
   {
     id: 'vrf-daikin-34hp',
@@ -182,10 +170,9 @@ export const VRF_OUTDOOR_UNITS: CatalogEquipmentItem[] = [
     name: '大金 VRV 全直流变频多联室外机 96.0kW (34HP)',
     ratedCapacitykW: 96.0,
     ratedPowerkW: 27.9,
-    copOrEff: 3.44,
-    iplvOrPartLoadCop: 7.0,
+    copOrEff: 4.98, // 全年能源消耗效率 APF (GB 21454-2021 一级能效)
     priceRmbTenThousand: 10.3,
-    description: '大金 VRV 全直流变频商用多联机室外机，制冷 96.0kW / 制热 107.5kW，IPLV高达 7.0，VRT智能冷媒温度调节'
+    description: '大金 VRV 全直流变频商用多联机室外机，制冷 96.0kW / 制热 107.5kW，符合GB 21454-2021国家1级能效，全年能源消耗效率 APF 4.98，VRT智能冷媒温度调节'
   },
   {
     id: 'vrf-daikin-36hp',
@@ -195,10 +182,9 @@ export const VRF_OUTDOOR_UNITS: CatalogEquipmentItem[] = [
     name: '大金 VRV 全直流变频多联室外机 101.0kW (36HP)',
     ratedCapacitykW: 101.0,
     ratedPowerkW: 29.5,
-    copOrEff: 3.42,
-    iplvOrPartLoadCop: 6.95,
+    copOrEff: 4.95, // 全年能源消耗效率 APF (GB 21454-2021 一级能效)
     priceRmbTenThousand: 11.0,
-    description: '大金 VRV 全直流变频商用多联机室外机，制冷 101.0kW / 制热 113.0kW，IPLV高达 6.95，VRT智能冷媒温度调节'
+    description: '大金 VRV 全直流变频商用多联机室外机，制冷 101.0kW / 制热 113.0kW，符合GB 21454-2021国家1级能效，全年能源消耗效率 APF 4.95，VRT智能冷媒温度调节'
   },
   {
     id: 'vrf-daikin-40hp',
@@ -208,10 +194,9 @@ export const VRF_OUTDOOR_UNITS: CatalogEquipmentItem[] = [
     name: '大金 VRV 全直流变频多联室外机 113.0kW (40HP)',
     ratedCapacitykW: 113.0,
     ratedPowerkW: 33.6,
-    copOrEff: 3.36,
-    iplvOrPartLoadCop: 6.9,
+    copOrEff: 4.9, // 全年能源消耗效率 APF (GB 21454-2021 一级能效)
     priceRmbTenThousand: 12.3,
-    description: '大金 VRV 全直流变频商用多联机室外机，制冷 113.0kW / 制热 127.0kW，IPLV高达 6.9，VRT智能冷媒温度调节'
+    description: '大金 VRV 全直流变频商用多联机室外机，制冷 113.0kW / 制热 127.0kW，符合GB 21454-2021国家1级能效，全年能源消耗效率 APF 4.9，VRT智能冷媒温度调节'
   },
   {
     id: 'vrf-daikin-44hp',
@@ -221,10 +206,9 @@ export const VRF_OUTDOOR_UNITS: CatalogEquipmentItem[] = [
     name: '大金 VRV 全直流变频多联室外机 124.0kW (44HP)',
     ratedCapacitykW: 124.0,
     ratedPowerkW: 37.5,
-    copOrEff: 3.31,
-    iplvOrPartLoadCop: 6.85,
+    copOrEff: 4.85, // 全年能源消耗效率 APF (GB 21454-2021 一级能效)
     priceRmbTenThousand: 13.8,
-    description: '大金 VRV 全直流变频商用多联机室外机，制冷 124.0kW / 制热 139.0kW，IPLV高达 6.85，VRT智能冷媒温度调节'
+    description: '大金 VRV 全直流变频商用多联机室外机，制冷 124.0kW / 制热 139.0kW，符合GB 21454-2021国家1级能效，全年能源消耗效率 APF 4.85，VRT智能冷媒温度调节'
   },
   {
     id: 'vrf-daikin-48hp',
@@ -234,9 +218,8 @@ export const VRF_OUTDOOR_UNITS: CatalogEquipmentItem[] = [
     name: '大金 VRV 全直流变频多联室外机 135.0kW (48HP)',
     ratedCapacitykW: 135.0,
     ratedPowerkW: 41.2,
-    copOrEff: 3.28,
-    iplvOrPartLoadCop: 6.8,
+    copOrEff: 4.8, // 全年能源消耗效率 APF (GB 21454-2021 一级能效)
     priceRmbTenThousand: 15.2,
-    description: '大金 VRV 全直流变频商用多联机室外机，制冷 135.0kW / 制热 150.0kW，IPLV高达 6.8，VRT智能冷媒温度调节'
+    description: '大金 VRV 全直流变频商用多联机室外机，制冷 135.0kW / 制热 150.0kW，符合GB 21454-2021国家1级能效，全年能源消耗效率 APF 4.8，VRT智能冷媒温度调节'
   }
 ];

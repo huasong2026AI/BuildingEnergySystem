@@ -428,8 +428,12 @@ export const EquipmentBrandManagerModal: React.FC<Props> = ({ isOpen, onClose })
                   <th className="py-3.5 px-4 text-white">产品中文全称</th>
                   <th className="py-3.5 px-4 text-emerald-400">额定容量/流量</th>
                   <th className="py-3.5 px-4 text-amber-400">铭牌真实功率</th>
-                  <th className="py-3.5 px-4 text-blue-400">额定 COP/效率</th>
-                  <th className="py-3.5 px-4 text-purple-400">部分负荷 IPLV</th>
+                  <th className="py-3.5 px-4 text-blue-400">
+                    {activeCategory === 'vrf' ? '全年能效比 APF' : '额定 COP/效率'}
+                  </th>
+                  <th className="py-3.5 px-4 text-purple-400">
+                    {activeCategory === 'vrf' ? '国家能效标准' : '部分负荷 IPLV'}
+                  </th>
                   <th className="py-3.5 px-4">参考单价</th>
                   <th className="py-3.5 px-4">产品特色说明</th>
                   <th className="py-3.5 px-4 text-center">操作</th>
@@ -474,10 +478,27 @@ export const EquipmentBrandManagerModal: React.FC<Props> = ({ isOpen, onClose })
                           {item.ratedPowerkW} <span className="text-xs font-normal text-slate-400">kW</span>
                         </td>
                         <td className="py-3 px-4 font-black text-blue-300 whitespace-nowrap text-base">
-                          {item.copOrEff > 20 ? `${item.copOrEff}%` : item.copOrEff.toFixed(2)}
+                          {item.category === 'vrf' ? (
+                            <span className="inline-flex items-center space-x-1.5">
+                              <span className="text-emerald-400 font-bold">{item.copOrEff.toFixed(2)}</span>
+                              <span className="text-[10px] px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded font-semibold">APF</span>
+                            </span>
+                          ) : item.copOrEff > 20 ? (
+                            `${item.copOrEff}%`
+                          ) : (
+                            item.copOrEff.toFixed(2)
+                          )}
                         </td>
                         <td className="py-3 px-4 font-black text-purple-300 whitespace-nowrap text-base">
-                          {item.iplvOrPartLoadCop ? item.iplvOrPartLoadCop.toFixed(2) : '-'}
+                          {item.category === 'vrf' ? (
+                            <span className="px-2 py-0.5 bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded text-xs font-bold">
+                              GB 21454 1级能效
+                            </span>
+                          ) : item.iplvOrPartLoadCop ? (
+                            item.iplvOrPartLoadCop.toFixed(2)
+                          ) : (
+                            '-'
+                          )}
                         </td>
                         <td className="py-3 px-4 font-semibold text-slate-300 whitespace-nowrap text-sm">
                           {item.priceRmbTenThousand ? `¥${item.priceRmbTenThousand}万` : '-'}

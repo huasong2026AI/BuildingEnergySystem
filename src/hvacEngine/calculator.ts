@@ -447,8 +447,8 @@ export function calculateEquipmentForSubItem(
         hwPumpCount += subBoilerCount; // 热水泵一锅炉对一泵
       } else if (sub.systemType === 'vrf') {
         vrfCoolingkW += subCoolLoad;
-        const vrfEER = 3.85;
-        vrfPowerkW += subCoolLoad / vrfEER;
+        const vrfAPF = 5.30; // 遵循 GB 21454-2021 全年能源消耗效率 APF
+        vrfPowerkW += subCoolLoad / vrfAPF;
         vrfCount += Math.ceil(subCoolLoad / 60);
       } else if (sub.systemType === 'air_heat_pump') {
         achpCoolingkW += subCoolLoad;
@@ -527,8 +527,8 @@ export function calculateEquipmentForSubItem(
 
       case 'vrf': {
         vrfCoolingkW = coolingLoadkW * simFactor;
-        const vrfEER = 3.85;
-        vrfPowerkW = vrfCoolingkW / vrfEER;
+        const vrfAPF = 5.30; // 遵循 GB 21454-2021 全年能源消耗效率 APF
+        vrfPowerkW = vrfCoolingkW / vrfAPF;
         vrfCount = Math.ceil(vrfCoolingkW / 60);
         break;
       }
@@ -638,7 +638,7 @@ export function calculateEquipmentForSubItem(
   if (custom.selectedVrfProduct) {
     vrfPowerkW = custom.selectedVrfProduct.actualPowerkW * (custom.vrfCount || recVrfCount);
   } else if (custom.vrfCoolingkW) {
-    vrfPowerkW = custom.vrfCoolingkW / 3.85;
+    vrfPowerkW = custom.vrfCoolingkW / 5.30;
   }
 
   const achpChwPumpFlow = recAchpCoolingkW > 0 ? (recAchpCoolingkW * 3.6) / (4.186 * deltaTchw) : 0;
@@ -812,7 +812,7 @@ export function checkDiscrepancies(
   }
 
   evaluateField('风冷热泵', '制冷量', calc.achpCoolingkW, custom.achpCoolingkW, 'kW', 1 / 3.2);
-  evaluateField('VRF多联机', '制冷量', calc.vrfCoolingkW, custom.vrfCoolingkW, 'kW', 1 / 3.85);
+  evaluateField('VRF多联机', '制冷容量 (APF计算)', calc.vrfCoolingkW, custom.vrfCoolingkW, 'kW', 1 / 5.30);
 
   return list;
 }

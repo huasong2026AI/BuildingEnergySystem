@@ -29,7 +29,7 @@ export const DEFAULT_EQUIPMENT_CATALOG: CatalogEquipmentItem[] = [
   ...VRF_OUTDOOR_UNITS
 ];
 
-const STORAGE_KEY = 'hvac_active_equipment_catalog_v8';
+const STORAGE_KEY = 'hvac_active_equipment_catalog_v9';
 
 /**
  * 获取全局生效的设备品牌库（支持用户自由增删改查）

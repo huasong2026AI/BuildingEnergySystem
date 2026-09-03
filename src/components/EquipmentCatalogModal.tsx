@@ -122,7 +122,9 @@ export const EquipmentCatalogModal: React.FC<Props> = ({
                   <th className="py-3 px-3">产品型号与名称</th>
                   <th className="py-3 px-3 text-emerald-300">额定物理容量/流量</th>
                   <th className="py-3 px-3 text-amber-300">真实铭牌电功率 (kW)</th>
-                  <th className="py-3 px-3 text-blue-300">COP / 能效 / 效率</th>
+                  <th className="py-3 px-3 text-blue-300">
+                    {category === 'vrf' ? '全年能效比 (APF)' : (category === 'boiler' || category === 'vacuum_boiler' ? '锅炉热效率' : '额定 COP / 效率')}
+                  </th>
                   {category === 'boiler' && <th className="py-3 px-3 text-rose-300">额定耗气量 (m³/h)</th>}
                   <th className="py-3 px-3">产品余量匹配状态</th>
                   <th className="py-3 px-3 text-center">操作选型</th>
@@ -157,7 +159,13 @@ export const EquipmentCatalogModal: React.FC<Props> = ({
                         {item.ratedPowerkW} kW
                       </td>
                       <td className="py-3 px-3 font-bold text-blue-300">
-                        {category === 'boiler' ? `${item.copOrEff}%` : item.copOrEff}
+                        {category === 'vrf' ? (
+                          <span className="text-emerald-400 font-black">{item.copOrEff.toFixed(2)} <span className="text-[10px] font-normal text-slate-400">(APF)</span></span>
+                        ) : category === 'boiler' || category === 'vacuum_boiler' ? (
+                          `${item.copOrEff}%`
+                        ) : (
+                          item.copOrEff
+                        )}
                       </td>
                       {category === 'boiler' && (
                         <td className="py-3 px-3 font-bold text-rose-400">
