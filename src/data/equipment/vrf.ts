@@ -65,31 +65,5 @@ export const VRF_OUTDOOR_UNITS: CatalogEquipmentItem[] = [
     iplvOrPartLoadCop: 8.00,
     priceRmbTenThousand: 4.8,
     description: '单模块顶出风，IPLV 8.00，制冷量45kW/制热量50kW，最多连接27台室内机'
-  },
-  {
-    id: 'vrf-daikin-28',
-    category: 'vrf',
-    brand: '大金 (Daikin)',
-    model: 'VRV-X7-28kW-10HP',
-    name: '大金 VRV-X7 全直流变频多联外机 28kW (10匹)',
-    ratedCapacitykW: 28,
-    ratedPowerkW: 6.8,
-    copOrEff: 4.12,
-    iplvOrPartLoadCop: 7.2,
-    priceRmbTenThousand: 3.2,
-    description: '大金第七代变频压缩机，超高 APF/IPLV，高回油可靠性'
-  },
-  {
-    id: 'vrf-daikin-45',
-    category: 'vrf',
-    brand: '大金 (Daikin)',
-    model: 'VRV-X7-45kW-16HP',
-    name: '大金 VRV-X7 全直流变频多联外机 45kW (16匹)',
-    ratedCapacitykW: 45,
-    ratedPowerkW: 11.2,
-    copOrEff: 4.02,
-    iplvOrPartLoadCop: 7.4,
-    priceRmbTenThousand: 5.2,
-    description: '大容量单模块外机，VRT 冷媒温度自适应调节，部分负荷极其省电'
   }
 ];

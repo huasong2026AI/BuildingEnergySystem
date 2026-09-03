@@ -11,7 +11,7 @@ export type EquipmentCategory =
 export interface CatalogEquipmentItem {
   id: string;
   category: EquipmentCategory;
-  brand: string;            // 品牌 (每类严格保留最多两个主流顶级品牌)
+  brand: string;            // 品牌 (每类严格仅保留单一主流型号最多的大品牌)
   model: string;            // 型号
   name: string;             // 产品中文全称
   ratedCapacitykW: number;  // 额定制冷/制热容量 kW (水泵/冷却塔则表示额定流量 m³/h)
@@ -26,12 +26,12 @@ export interface CatalogEquipmentItem {
 }
 
 export const CATEGORY_BRANDS: Record<EquipmentCategory, string> = {
-  magnetic_chiller: '凌擎 (Lingqing) / 海尔 (Haier) / 格力 (Gree)',
-  chiller: '开利 (Carrier) / 约克 (York)',
-  vacuum_boiler: '方快 (Fangkuai) / 双良 (Shuangliang)',
-  boiler: '方快 (Fangkuai) / 双良 (Shuangliang)',
-  pump: '威乐 (Wilo) / 凯泉 (Kaiquan)',
-  cooling_tower: '金日 (King Sun) / 良机 (Liangchi)',
-  achp: '特灵 (Trane) / 麦克维尔 (McQuay)',
-  vrf: '东芝 (Toshiba) / 大金 (Daikin)'
+  magnetic_chiller: '凌擎 (Lingqing)',
+  chiller: '特灵 (Trane)',
+  vacuum_boiler: '方快 (Fangkuai)',
+  boiler: '方快 (Fangkuai)',
+  pump: '威乐 (Wilo)',
+  cooling_tower: '金日 (King Sun)',
+  achp: '特灵 (Trane)',
+  vrf: '东芝 (Toshiba)'
 };

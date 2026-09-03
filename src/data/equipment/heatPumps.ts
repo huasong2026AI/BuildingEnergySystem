@@ -656,31 +656,5 @@ export const AIR_COOLED_HEAT_PUMPS: CatalogEquipmentItem[] = [
     ratedFlowm3h: 265.0,
     priceRmbTenThousand: 146,
     description: '特灵 RTXG 超高能效双1级风冷螺杆热泵，满足国标1级能效，制冷 1540.2kW / 制热 1555.6kW，部分负荷能效IPLV高达4.32'
-  },
-  {
-    id: 'achp-mcquay-130',
-    category: 'achp',
-    brand: '麦克维尔 (McQuay)',
-    model: 'MAC-130-VFD',
-    name: '麦克维尔 MAC 变频风冷热泵模块机 130kW',
-    ratedCapacitykW: 130,
-    ratedPowerkW: 39.4,
-    copOrEff: 3.3,
-    iplvOrPartLoadCop: 4.8,
-    priceRmbTenThousand: 12,
-    description: '全直流变频 EVI 喷气增焓技术，-25°C 极寒制热，夏季制冷 COP 3.3'
-  },
-  {
-    id: 'achp-mcquay-250',
-    category: 'achp',
-    brand: '麦克维尔 (McQuay)',
-    model: 'MAC-250-VFD',
-    name: '麦克维尔 MAC 高效变频风冷热泵机组 250kW',
-    ratedCapacitykW: 250,
-    ratedPowerkW: 73.5,
-    copOrEff: 3.4,
-    iplvOrPartLoadCop: 5.1,
-    priceRmbTenThousand: 22,
-    description: '双独立冷媒回路变频螺杆，夏供冷/冬供热一体化，免机房设计'
   }
 ];
