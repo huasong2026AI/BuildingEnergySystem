@@ -26,7 +26,7 @@ export interface CatalogEquipmentItem {
 }
 
 export const CATEGORY_BRANDS: Record<EquipmentCategory, string> = {
-  magnetic_chiller: '海尔 (Haier) / 格力 (Gree)',
+  magnetic_chiller: '凌擎 (Lingqing) / 海尔 (Haier) / 格力 (Gree)',
   chiller: '开利 (Carrier) / 约克 (York)',
   vacuum_boiler: '方快 (Fangkuai) / 双良 (Shuangliang)',
   boiler: '方快 (Fangkuai) / 双良 (Shuangliang)',
