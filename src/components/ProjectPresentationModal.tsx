@@ -52,7 +52,7 @@ export const ProjectPresentationModal: React.FC<Props> = ({ isOpen, onClose }) =
               </span>
             </h2>
             <p className="text-base sm:text-lg lg:text-xl text-emerald-900/90 font-semibold max-w-5xl mx-auto">
-              新建负荷动态推导 · 四步闭环自动化联动 · 8760h Bin 频次模拟 · GB 50189 SCOP 评级 · Gemini / DeepSeek 专家决策
+              多业态负荷动态建模 · 设备全系统自动配比 · 8760h Bin 能效模拟 · GB 21454 APF / SCOP 评级 · 双大模型专家决策
             </p>
           </div>
 
@@ -88,10 +88,10 @@ export const ProjectPresentationModal: React.FC<Props> = ({ isOpen, onClose }) =
             <div className="bg-white/95 p-4 rounded-2xl border-2 border-emerald-200 shadow-xs flex flex-col justify-between space-y-2">
               <div className="flex items-center space-x-2.5 text-emerald-700 font-bold text-base">
                 <Cpu className="w-6 h-6 text-emerald-600" />
-                <span>顶级设备品牌库</span>
+                <span>各大品类单一顶级品牌</span>
               </div>
-              <div className="text-lg sm:text-xl font-black text-emerald-950">磁悬浮/离心/真空锅炉</div>
-              <p className="text-sm text-slate-600 leading-snug">海尔/格力/约克/开利/方快自主录入与选型</p>
+              <div className="text-lg sm:text-xl font-black text-emerald-950">特灵/凌擎/大金/力聚/威乐</div>
+              <p className="text-sm text-slate-600 leading-snug">全库177款真实铭牌数据，GB 21454 APF认证</p>
             </div>
           </div>
 
@@ -237,7 +237,7 @@ export const ProjectPresentationModal: React.FC<Props> = ({ isOpen, onClose }) =
                 <span className="text-xs sm:text-sm font-bold text-teal-800 bg-teal-50 px-2.5 py-1 rounded-lg">水力热力</span>
               </div>
               <div>
-                <h4 className="font-black text-teal-950 text-base sm:text-lg">四步闭环选型</h4>
+                <h4 className="font-black text-teal-950 text-base sm:text-lg">多系统自动配比</h4>
                 <p className="text-xs sm:text-sm text-slate-600 mt-1.5 leading-relaxed">冷机梯级搭配、水温水泵流量热力联动、实际配比率</p>
               </div>
               <span className="text-xs sm:text-sm font-bold text-teal-800 bg-teal-100 p-2 rounded-xl text-center">GB 50736 规范约束</span>
@@ -366,66 +366,68 @@ export const ProjectPresentationModal: React.FC<Props> = ({ isOpen, onClose }) =
     // ----------------------------------------------------
     {
       id: 5,
-      badge: 'AUTOMATED SIZING LOGIC',
-      title: '四步闭环设备自动化选型联动推导逻辑',
-      subtitle: '依据 GB 50736 规范，冷热主机、水泵流量、锅炉与实际配比率严密关联',
+      badge: 'EQUIPMENT SIZING & SYSTEM BALANCE',
+      title: '全系统设备自动化配置与多系统水力平衡逻辑',
+      subtitle: '依据 GB 50736 规范，涵盖冷水机组、水泵流量、真空锅炉、风冷热泵 (ACHP) 与大金 VRV 多联机',
       icon: Cpu,
       content: (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 h-full items-stretch py-1 text-base">
           <div className="bg-white/95 p-4 rounded-2xl border-2 border-emerald-300 shadow-xs flex flex-col justify-between space-y-2.5">
             <div className="space-y-2">
-              <span className="px-3 py-1 bg-emerald-100 text-emerald-800 text-xs sm:text-sm font-black rounded-lg">第 1 步 · 主机配置</span>
-              <h4 className="text-base sm:text-lg font-black text-slate-900">冷水机组梯级推荐</h4>
+              <span className="px-3 py-1 bg-emerald-100 text-emerald-800 text-xs sm:text-sm font-black rounded-lg">模块 1 · 冷热源配置</span>
+              <h4 className="text-base sm:text-lg font-black text-slate-900">主机容量梯级匹配</h4>
               <p className="text-xs sm:text-sm text-slate-700 leading-relaxed">
-                • ≤2500kW: 2台变频螺杆<br />
-                • 2500~5500kW: 3台高效离心<br />
-                • &gt;5500kW: 3大1小 异构梯级
+                • 水冷离心/螺杆：特灵 CVHE/G 与 RTHD<br />
+                • 无油磁悬浮：凌擎 125~2200RT<br />
+                • 风冷热泵：特灵双一级能效模块<br />
+                • 多联机：大金 VRV 8~48HP
               </p>
             </div>
             <span className="text-xs sm:text-sm font-bold text-emerald-800 bg-emerald-50 p-2.5 rounded-xl text-center">
-              满足低负荷高 COP 运行
+              满足部分负荷高 COP/APF 运行
             </span>
           </div>
 
           <div className="bg-white/95 p-4 rounded-2xl border-2 border-teal-300 shadow-xs flex flex-col justify-between space-y-2.5">
             <div className="space-y-2">
-              <span className="px-3 py-1 bg-teal-100 text-teal-800 text-xs sm:text-sm font-black rounded-lg">第 2 步 · 水力联动</span>
-              <h4 className="text-base sm:text-lg font-black text-slate-900">水温与流量热力推导</h4>
+              <span className="px-3 py-1 bg-teal-100 text-teal-800 text-xs sm:text-sm font-black rounded-lg">模块 2 · 水力温差联动</span>
+              <h4 className="text-base sm:text-lg font-black text-slate-900">流量与水塔热力推导</h4>
               <p className="text-xs sm:text-sm font-mono text-slate-800 leading-relaxed bg-slate-50 p-2.5 rounded-xl">
                 G = Q·3.6 / (4.186·ΔT)<br />
                 冷水泵: 7/12℃ (ΔT=5℃)<br />
-                冷却塔: 冷却泵流量 × 1.15
+                金日冷却塔: 冷却泵流量 × 1.15<br />
+                ACHP/VRF: 专属回路无冗余
               </p>
             </div>
             <span className="text-xs sm:text-sm font-bold text-teal-800 bg-teal-50 p-2.5 rounded-xl text-center">
-              微调水温自动重算水泵
+              温差变动自动动态重算泵塔
             </span>
           </div>
 
           <div className="bg-white/95 p-4 rounded-2xl border-2 border-cyan-300 shadow-xs flex flex-col justify-between space-y-2.5">
             <div className="space-y-2">
-              <span className="px-3 py-1 bg-cyan-100 text-cyan-800 text-xs sm:text-sm font-black rounded-lg">第 3 步 · 供热匹配</span>
-              <h4 className="text-base sm:text-lg font-black text-slate-900">真空锅炉与热水泵</h4>
+              <span className="px-3 py-1 bg-cyan-100 text-cyan-800 text-xs sm:text-sm font-black rounded-lg">模块 3 · 供热设备匹配</span>
+              <h4 className="text-base sm:text-lg font-black text-slate-900">力聚超低氮真空锅炉</h4>
               <p className="text-xs sm:text-sm text-slate-700 leading-relaxed">
-                根据总热负荷匹配全预混真空锅炉（效率 98.5%），按 60/50℃ 温差自动联动热水泵。
+                按总热负荷匹配力聚水冷预混冷凝真空锅炉（热效率 104.5%~106.2%），联动威乐热水泵，微负压永无爆炸隐患。
               </p>
             </div>
             <span className="text-xs sm:text-sm font-bold text-cyan-800 bg-cyan-50 p-2.5 rounded-xl text-center">
-              低氮冷凝潜热深度回收
+              冷凝潜热深度回收 NOx&lt;30mg
             </span>
           </div>
 
           <div className="bg-white/95 p-4 rounded-2xl border-2 border-purple-300 shadow-xs flex flex-col justify-between space-y-2.5">
             <div className="space-y-2">
-              <span className="px-3 py-1 bg-purple-100 text-purple-800 text-xs sm:text-sm font-black rounded-lg">第 4 步 · 配比校核</span>
-              <h4 className="text-base sm:text-lg font-black text-slate-900">实际配比率智能反馈</h4>
+              <span className="px-3 py-1 bg-purple-100 text-purple-800 text-xs sm:text-sm font-black rounded-lg">模块 4 · 配比智能校验</span>
+              <h4 className="text-base sm:text-lg font-black text-slate-900">实际配比率红字预警</h4>
               <p className="text-xs sm:text-sm text-slate-700 leading-relaxed">
-                <span className="font-bold text-purple-900">配比率 = 配置总值 ÷ 推荐值</span><br />
-                95%~105% 翡翠绿合规；偏离触发红字预警！
+                <span className="font-bold text-purple-900">配比率 = 配置总容量 ÷ 理论推荐值</span><br />
+                95%~105% 翡翠绿合规；偏离过大自动触发醒目红字预警并量化浪费电费！
               </p>
             </div>
             <span className="text-xs sm:text-sm font-bold text-purple-800 bg-purple-50 p-2.5 rounded-xl text-center">
-              杜绝超量选型造成浪费
+              杜绝超量大马拉小车浪费
             </span>
           </div>
         </div>
@@ -574,52 +576,52 @@ export const ProjectPresentationModal: React.FC<Props> = ({ isOpen, onClose }) =
     // ----------------------------------------------------
     {
       id: 8,
-      badge: 'EQUIPMENT CATALOG & CRUD',
-      title: '暖通主流设备品牌与规格参数库',
-      subtitle: '每品类精选 2 大主流顶级标杆品牌，全量支持自定义录入、修改与删除',
+      badge: 'SINGLE TOP BRAND EQUIPMENT CATALOG',
+      title: '暖通主流设备品牌与规格参数库（各大品类单一顶级品牌）',
+      subtitle: '各大品类严格精选单一主流标杆品牌，全库共 177 款设备，全量基于真实物理铭牌电功率精算',
       icon: Layers,
       content: (
         <div className="space-y-3.5 h-full flex flex-col justify-between py-1 text-base">
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-3.5 text-sm">
             <div className="bg-white/95 p-4 rounded-2xl border-2 border-emerald-200 space-y-1 shadow-xs">
-              <span className="text-emerald-800 font-black block text-sm sm:text-base">1. 磁悬浮冷水机组</span>
-              <span className="text-slate-950 font-black text-base sm:text-lg">海尔 (Haier) / 格力 (Gree)</span>
-              <p className="text-slate-600 text-xs sm:text-sm leading-snug">无油轴承，IPLV 10.8~11.5，使用寿命长达30年</p>
+              <span className="text-emerald-800 font-black block text-sm sm:text-base">1. 磁悬浮冷水机组 (30款)</span>
+              <span className="text-slate-950 font-black text-base sm:text-lg">凌擎 (Lingqing) LSBLX全系列</span>
+              <p className="text-slate-600 text-xs sm:text-sm leading-snug">125RT~2200RT (440~7737kW)，无油磁悬浮，COP高达7.04，零机械摩擦</p>
             </div>
 
             <div className="bg-white/95 p-4 rounded-2xl border-2 border-teal-200 space-y-1 shadow-xs">
-              <span className="text-teal-800 font-black block text-sm sm:text-base">2. 变频水冷螺杆/离心机</span>
-              <span className="text-slate-950 font-black text-base sm:text-lg">开利 (Carrier) / 约克 (York)</span>
-              <p className="text-slate-600 text-xs sm:text-sm leading-snug">开利 30XW-V 变频螺杆，超国标1级能效，COP 6.33</p>
+              <span className="text-teal-800 font-black block text-sm sm:text-base">2. 变频水冷螺杆/离心冷机 (42款)</span>
+              <span className="text-slate-950 font-black text-base sm:text-lg">特灵 (Trane) CVHE/G 与 RTHD</span>
+              <p className="text-slate-600 text-xs sm:text-sm leading-snug">CVHE/G 离心机 16款 (400~1400冷吨) + RTHD 双螺杆 26款 (151~413冷吨)</p>
             </div>
 
             <div className="bg-white/95 p-4 rounded-2xl border-2 border-rose-200 space-y-1 shadow-xs">
-              <span className="text-rose-800 font-black block text-sm sm:text-base">3. 全预混真空热水锅炉</span>
-              <span className="text-slate-950 font-black text-base sm:text-lg">方快 (Fangkuai) / 双良</span>
-              <p className="text-slate-600 text-xs sm:text-sm leading-snug">超低氮冷凝真空技术，热效率高达 98%~99%</p>
+              <span className="text-rose-800 font-black block text-sm sm:text-base">3. 全预混真空热水机组 (10款)</span>
+              <span className="text-slate-950 font-black text-base sm:text-lg">力聚 (Liju) 水冷预混超低氮</span>
+              <p className="text-slate-600 text-xs sm:text-sm leading-snug">0.35MW~7.0MW (30~600万大卡)，热效率超105%，微负压永无爆炸隐患</p>
             </div>
 
             <div className="bg-white/95 p-4 rounded-2xl border-2 border-cyan-200 space-y-1 shadow-xs">
-              <span className="text-cyan-800 font-black block text-sm sm:text-base">4. 风冷螺杆/模块热泵 (ACHP)</span>
-              <span className="text-slate-950 font-black text-base sm:text-lg">特灵 (Trane) / 麦克维尔</span>
-              <p className="text-slate-600 text-xs sm:text-sm leading-snug">特灵 RTXG 超高效双1级风冷螺杆，COP 3.63，免机房</p>
+              <span className="text-cyan-800 font-black block text-sm sm:text-base">4. 风冷螺杆/模块热泵 (48款)</span>
+              <span className="text-slate-950 font-black text-base sm:text-lg">特灵 (Trane) 双1级模块热泵</span>
+              <p className="text-slate-600 text-xs sm:text-sm leading-snug">RTWD / CXAX / CGAM / RTXG 全系列，超高制冷COP 3.64，夏冷冬热一体</p>
             </div>
 
             <div className="bg-white/95 p-4 rounded-2xl border-2 border-emerald-200 space-y-1 shadow-xs">
-              <span className="text-emerald-800 font-black block text-sm sm:text-base">5. 循环水泵 (冷/热/冷却)</span>
-              <span className="text-slate-950 font-black text-base sm:text-lg">威乐 (Wilo) / 凯泉 (Kaiquan)</span>
-              <p className="text-slate-600 text-xs sm:text-sm leading-snug">IE4 超高效电机，双吸中开，水力效率达 83%</p>
+              <span className="text-emerald-800 font-black block text-sm sm:text-base">5. 循环水泵 (14款)</span>
+              <span className="text-slate-950 font-black text-base sm:text-lg">威乐 (Wilo) 中开双吸离心泵</span>
+              <p className="text-slate-600 text-xs sm:text-sm leading-snug">流量 60~1200 m³/h，水力效率高达86.5%，精准覆盖 100RT~1500RT 各级工况</p>
             </div>
 
             <div className="bg-white/95 p-4 rounded-2xl border-2 border-purple-200 space-y-1 shadow-xs">
-              <span className="text-purple-800 font-black block text-sm sm:text-base">6. 冷却塔 / VRF 变频多联机</span>
-              <span className="text-slate-950 font-black text-base sm:text-lg">金日 (King Sun) / 东芝 / 大金</span>
-              <p className="text-slate-600 text-xs sm:text-sm leading-snug">东芝 SMMS 单模块多联机 (IPLV 9.10) 与超低噪冷却塔</p>
+              <span className="text-purple-800 font-black block text-sm sm:text-base">6. 冷却塔 (13款) & VRV多联机 (18款)</span>
+              <span className="text-slate-950 font-black text-base sm:text-lg">金日 (King Sun) / 大金 (Daikin)</span>
+              <p className="text-slate-600 text-xs sm:text-sm leading-snug">金日超低噪横流塔 (100~1500 m³/h)；大金VRV (8~48HP) 全面标称 GB 21454 APF</p>
             </div>
           </div>
 
           <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-300 flex items-center justify-between text-xs sm:text-sm text-emerald-950 font-bold">
-            <span>💡 <b>品牌库开放性机制</b>：支持在前端随时【➕ 补充新设备型号】、【✏️ 修改铭牌参数】与【🗑️ 删除】，数据永久持久化。</span>
+            <span>💡 <b>单品牌精选优势</b>：彻底解决多品牌混乱杂糅，每类设备均对接一线权威厂商真实性能曲线，并支持用户自由增删改查。</span>
           </div>
         </div>
       )
@@ -905,7 +907,7 @@ export const ProjectPresentationModal: React.FC<Props> = ({ isOpen, onClose }) =
               数字化与 AI 深度融合，驱动建筑能效全生命周期跃升
             </h3>
             <p className="text-sm sm:text-base text-slate-700 leading-relaxed">
-              本系统实现了从负荷推导、四步自动化设备联动、8760h 频次模拟到既有 AI 改造决策的完整工程闭环，为设计院、节能服务公司 (EMCO) 与楼宇业主提供强有力的数字化工具。
+              本系统实现了从负荷推导、设备全系统自动配比联动、8760h 频次模拟到既有 AI 改造决策的完整工程闭环，为设计院、节能服务公司 (EMCO) 与楼宇业主提供强有力的数字化工具。
             </p>
           </div>
 
