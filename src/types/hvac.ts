@@ -280,6 +280,25 @@ export interface MonthlyEnergyRecord {
   avgCOP: number;
 }
 
+export interface SubItemEnergyBreakdown {
+  subItemId: string;
+  subItemName: string;
+  buildingType: string;
+  systemType: string;
+  area: number;
+  areaPercent: number;
+  coolingLoadkW: number;
+  heatingLoadkW: number;
+  annualElectricitykWh: number;
+  annualGasm3: number;
+  annualCostRmb: number;
+  annualCarbonTons: number;
+  energyIntensitykWhPerM2: number;
+  costPercent: number;
+  elecPercent: number;
+  summary: ProjectEnergySummary;
+}
+
 export interface ProjectEnergySummary {
   totalArea: number; // m²
   totalCoolingLoadkW: number;
@@ -309,6 +328,9 @@ export interface ProjectEnergySummary {
   lccaResults?: any;
   chillerPlantConfigName?: string;
   chillerPlantJustification?: string;
+
+  // 多子项独立分析与全项目综合汇总扩展
+  subItemSummaries?: SubItemEnergyBreakdown[];
 }
 
 // ----------------------------------------------------
