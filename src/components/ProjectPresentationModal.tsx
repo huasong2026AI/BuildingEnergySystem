@@ -5,7 +5,7 @@ import {
   Award, Layers, BarChart3, CheckCircle2, AlertTriangle, Bot,
   Leaf, Flame, Wind, Download, Loader2
 } from 'lucide-react';
-import { exportProjectPptx } from '../services/pptxExportService';
+import { createPresentation, captureSlideElement, addSlideImage } from '../services/pptxExportService';
 
 interface Props {
   isOpen: boolean;
@@ -25,16 +25,40 @@ export const ProjectPresentationModal: React.FC<Props> = ({ isOpen, onClose }) =
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isOverviewMode, setIsOverviewMode] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [exportingSlideIdx, setExportingSlideIdx] = useState<number | null>(null);
+  const [exportProgress, setExportProgress] = useState<string>('');
+  const exportSlideRef = React.useRef<HTMLDivElement>(null);
 
   const handleExportPptx = async () => {
+    if (isExporting) return;
     try {
       setIsExporting(true);
-      await exportProjectPptx();
+      const pres = createPresentation();
+
+      for (let i = 0; i < slides.length; i++) {
+        setExportProgress(`正在渲染第 ${i + 1} / ${slides.length} 页...`);
+        setExportingSlideIdx(i);
+
+        // 等待浏览器两帧完成 DOM 真实渲染与样式绘制
+        await new Promise((resolve) =>
+          requestAnimationFrame(() => setTimeout(resolve, 150))
+        );
+
+        if (exportSlideRef.current) {
+          const dataUrl = await captureSlideElement(exportSlideRef.current);
+          addSlideImage(pres, dataUrl);
+        }
+      }
+
+      setExportProgress('正在保存 PPTX 文档...');
+      await pres.writeFile({ fileName: '公共建筑暖通空调能效分析与AI智能改造决策系统_项目汇报.pptx' });
     } catch (err) {
       console.error('PPTX export error:', err);
       alert('保存 PPT 失败，请重试！');
     } finally {
       setIsExporting(false);
+      setExportingSlideIdx(null);
+      setExportProgress('');
     }
   };
 
@@ -1056,13 +1080,13 @@ export const ProjectPresentationModal: React.FC<Props> = ({ isOpen, onClose }) =
             <button
               onClick={handleExportPptx}
               disabled={isExporting}
-              className="flex items-center space-x-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-sm font-black transition-all cursor-pointer shadow-xs"
-              title="保存并下载原生 13 页 PowerPoint 演示文稿 (.pptx)"
+              className="flex items-center space-x-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white rounded-xl text-sm font-black transition-all cursor-pointer shadow-xs"
+              title="保存并下载与网页 100% 相同的高清 PowerPoint 演示文稿 (.pptx)"
             >
               {isExporting ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>正在导出 PPT...</span>
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  <span>{exportProgress || '正在生成 PPT...'}</span>
                 </>
               ) : (
                 <>
@@ -1178,8 +1202,73 @@ export const ProjectPresentationModal: React.FC<Props> = ({ isOpen, onClose }) =
           </div>
         )}
 
+        </div>
       </div>
-    </div>
-  </>
-);
+
+      {/* PPT 高清保真导出舞台 (处于底层，完全复刻网站样式与超清 16:9 比例) */}
+      {exportingSlideIdx !== null && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '1440px',
+            height: '810px',
+            zIndex: 40,
+            pointerEvents: 'none',
+          }}
+        >
+          <div
+            ref={exportSlideRef}
+            style={{
+              width: '1440px',
+              height: '810px',
+              boxSizing: 'border-box',
+              background: 'linear-gradient(135deg, #f4f9f6 0%, #edf6f1 50%, #e6f3eb 100%)',
+            }}
+            className="p-8 flex flex-col justify-between overflow-hidden text-slate-900 border-2 border-emerald-300 rounded-3xl"
+          >
+            {/* Header */}
+            <div className="flex-shrink-0 border-b border-emerald-200/80 pb-3 mb-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <span className="px-3.5 py-1 bg-emerald-200/90 text-emerald-950 text-xs sm:text-sm font-black tracking-wider rounded-full border border-emerald-300">
+                    {slides[exportingSlideIdx].badge}
+                  </span>
+                  <span className="text-sm text-emerald-800 font-mono font-bold">
+                    SLIDE {slides[exportingSlideIdx].id} OF {slides.length}
+                  </span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs font-mono font-bold text-emerald-700 bg-white/80 px-3 py-1 rounded-lg border border-emerald-200">
+                    https://buildingenergysystem.pages.dev
+                  </span>
+                </div>
+              </div>
+              <h2 className="text-xl sm:text-2xl lg:text-3xl font-black text-emerald-950 mt-2 tracking-tight">
+                {slides[exportingSlideIdx].title}
+              </h2>
+              {slides[exportingSlideIdx].subtitle && (
+                <p className="text-sm sm:text-base text-emerald-900/90 font-semibold mt-1">
+                  {slides[exportingSlideIdx].subtitle}
+                </p>
+              )}
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 min-h-0 my-auto py-1 flex flex-col justify-between">
+              {slides[exportingSlideIdx].content}
+            </div>
+
+            {/* Footer */}
+            <div className="flex-shrink-0 pt-2.5 border-t border-emerald-200/80 flex items-center justify-between text-xs text-emerald-800 font-mono font-bold">
+              <span>公共建筑暖通空调全生命周期能效分析与 AI 智能改造决策系统</span>
+              <span>标准：GB 50189 / GB 55015</span>
+              <span>第 {exportingSlideIdx + 1} / {slides.length} 页</span>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
 };
