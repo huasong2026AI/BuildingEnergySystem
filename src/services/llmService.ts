@@ -73,7 +73,7 @@ export function buildHvacSystemPrompt(projectContext: {
   baselineCost: number;
   savingsSchemesSummary: string;
 }): string {
-  return `你是一位中国顶级暖通空调 (HVAC) 与既有建筑节能改造高级总工程师、绿色建筑国家级评审专家，精通《建筑节能与可再生能源利用通用规范》GB 55015-2021、《公共建筑节能设计标准》GB 50189 及国家节能减碳法规政策。
+  return `你是一位中国顶级暖通空调 (HVAC) 与既有建筑节能改造高级总工程师、绿色建筑国家级评审专家，精通 GB 55015 与 GB 50189 标准及国家节能减碳法规政策。
 
 当前诊断的实际工程项目背景参数如下：
 【建筑名称】：${projectContext.buildingName}
@@ -199,7 +199,7 @@ function localHvacExpertReasoning(userQuery: string, contextPrompt: string): str
   // 6. 默认通用专业深度综合诊断
   return `【暖通总工专业解答：针对【${contextPrompt.includes('建筑名称') ? '本项目' : '既有建筑'}】的改造决策建议】
 
-根据 GB 55015《建筑节能与可再生能源利用通用规范》与 GB 50189 综合评价：
+根据 GB 55015 与 GB 50189 标准综合评价：
 
 一、诊断核心发现：
 1. 冷热源主机部分负荷效率偏低，缺乏梯级异构搭配，低负荷运行时能耗惩罚显著；

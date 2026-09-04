@@ -692,7 +692,7 @@ export const AiRetrofitAdvisorModal: React.FC<Props> = ({
         {/* Footer */}
         <div className="flex-shrink-0 px-6 py-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-xs">
           <span className="text-slate-400">
-            * 报告依据 GB 55015《建筑节能与可再生能源利用通用规范》与 GB 50189 自动生成
+            * 报告依据 GB 55015 与 GB 50189 标准自动生成
           </span>
           <button
             onClick={onClose}

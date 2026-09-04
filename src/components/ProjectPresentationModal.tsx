@@ -3,8 +3,9 @@ import {
   X, ChevronLeft, ChevronRight, Grid, 
   Building2, Cpu, Zap, TrendingUp, Sparkles, ShieldCheck, 
   Award, Layers, BarChart3, CheckCircle2, AlertTriangle, Bot,
-  Leaf, Flame, Wind
+  Leaf, Flame, Wind, Download, Loader2
 } from 'lucide-react';
+import { exportProjectPptx } from '../services/pptxExportService';
 
 interface Props {
   isOpen: boolean;
@@ -23,6 +24,19 @@ interface Slide {
 export const ProjectPresentationModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isOverviewMode, setIsOverviewMode] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportPptx = async () => {
+    try {
+      setIsExporting(true);
+      await exportProjectPptx();
+    } catch (err) {
+      console.error('PPTX export error:', err);
+      alert('保存 PPT 失败，请重试！');
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const slides: Slide[] = [
     // ----------------------------------------------------
@@ -32,7 +46,7 @@ export const ProjectPresentationModal: React.FC<Props> = ({ isOpen, onClose }) =
       id: 1,
       badge: 'GREEN BUILDING & HVAC AI PLATFORM',
       title: '公共建筑暖通空调能效分析与 AI 智能改造决策系统',
-      subtitle: '基于 GB 50189 与 GB 55015《建筑节能与可再生能源利用通用规范》全生命周期数字化赋能平台',
+      subtitle: '基于 GB 50189 与 GB 55015 标准的全生命周期数字化赋能平台',
       icon: Leaf,
       content: (
         <div className="flex flex-col justify-between h-full space-y-4 py-2 text-base">
@@ -64,7 +78,7 @@ export const ProjectPresentationModal: React.FC<Props> = ({ isOpen, onClose }) =
                 <span>工程规范标准</span>
               </div>
               <div className="text-lg sm:text-xl font-black text-emerald-950">GB 50189 / GB 55015</div>
-              <p className="text-sm text-slate-600 leading-snug">依据国家建筑节能与可再生能源通用规范</p>
+              <p className="text-sm text-slate-600 leading-snug">依据国家标准全生命周期评价</p>
             </div>
 
             <div className="bg-white/95 p-4 rounded-2xl border-2 border-teal-200 shadow-xs flex flex-col justify-between space-y-2">
@@ -634,7 +648,7 @@ export const ProjectPresentationModal: React.FC<Props> = ({ isOpen, onClose }) =
       id: 9,
       badge: 'RETROFIT COMPARISON (GB 55015)',
       title: '既有建筑节能改造三大 Pareto 方案比选',
-      subtitle: '依据 GB 55015《建筑节能与可再生能源利用通用规范》，兼顾初投资规模、节费率与静态投资回收期',
+      subtitle: '依据 GB 55015 规范，兼顾初投资规模、节费率与静态投资回收期',
       icon: TrendingUp,
       content: (
         <div className="flex flex-col justify-between h-full space-y-3.5 py-1 text-base">
@@ -919,7 +933,7 @@ export const ProjectPresentationModal: React.FC<Props> = ({ isOpen, onClose }) =
 
             <div className="bg-white/95 p-4 rounded-2xl border-2 border-teal-200 shadow-xs space-y-1.5">
               <span className="font-black text-teal-800 text-base sm:text-lg block">高合规性</span>
-              <p className="text-slate-600 text-xs sm:text-sm">严格遵守 GB 50189 SCOP 评级与 GB 55015《建筑节能与可再生能源利用通用规范》。</p>
+              <p className="text-slate-600 text-xs sm:text-sm">严格遵守 GB 50189 SCOP 评级与 GB 55015 规范标准。</p>
             </div>
 
             <div className="bg-white/95 p-4 rounded-2xl border-2 border-purple-200 shadow-xs space-y-1.5">
@@ -1040,10 +1054,22 @@ export const ProjectPresentationModal: React.FC<Props> = ({ isOpen, onClose }) =
             </button>
 
             <button
-              onClick={() => window.print()}
-              className="flex items-center space-x-2 px-3.5 py-2 bg-white hover:bg-emerald-50 text-emerald-900 rounded-xl text-sm font-black border border-emerald-300 transition-all cursor-pointer shadow-xs"
+              onClick={handleExportPptx}
+              disabled={isExporting}
+              className="flex items-center space-x-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-sm font-black transition-all cursor-pointer shadow-xs"
+              title="保存并下载原生 13 页 PowerPoint 演示文稿 (.pptx)"
             >
-              <span>导出/打印全部页面</span>
+              {isExporting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>正在导出 PPT...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  <span>保存这个 PPT (.pptx)</span>
+                </>
+              )}
             </button>
 
             <button
@@ -1153,57 +1179,6 @@ export const ProjectPresentationModal: React.FC<Props> = ({ isOpen, onClose }) =
         )}
 
       </div>
-    </div>
-
-    {/* 完整 13 页打印专属容器 (屏幕浏览时隐藏，系统打印时全量渲染 13 页 PPT) */}
-    <div className="hidden print:block ppt-print-deck w-full bg-white text-slate-900 p-0 m-0">
-      {slides.map((slide, idx) => (
-        <div
-          key={slide.id}
-          className="ppt-print-page bg-white p-8 mb-6 border-2 border-emerald-400 rounded-2xl"
-          style={{
-            pageBreakAfter: 'always',
-            breakAfter: 'page',
-            pageBreakInside: 'avoid',
-            breakInside: 'avoid',
-            minHeight: '260mm'
-          }}
-        >
-          {/* 打印页眉 */}
-          <div className="border-b-2 border-emerald-600 pb-3 mb-4 flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <span className="px-3 py-1 bg-emerald-100 text-emerald-950 text-xs font-black rounded-full border border-emerald-300">
-                {slide.badge}
-              </span>
-              <h2 className="text-xl font-black text-emerald-950">
-                {slide.title}
-              </h2>
-            </div>
-            <div className="text-right flex items-center space-x-4">
-              <a
-                href="https://buildingenergysystem.pages.dev"
-                className="text-xs font-mono font-bold text-emerald-700 underline"
-              >
-                https://buildingenergysystem.pages.dev
-              </a>
-              <span className="text-sm font-black text-emerald-950 font-mono">
-                第 {idx + 1} / {slides.length} 页
-              </span>
-            </div>
-          </div>
-
-          {slide.subtitle && (
-            <p className="text-sm font-semibold text-emerald-900 mb-4">
-              {slide.subtitle}
-            </p>
-          )}
-
-          {/* 打印主体内容 */}
-          <div className="py-2 text-slate-900">
-            {slide.content}
-          </div>
-        </div>
-      ))}
     </div>
   </>
 );
