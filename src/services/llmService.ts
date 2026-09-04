@@ -73,7 +73,7 @@ export function buildHvacSystemPrompt(projectContext: {
   baselineCost: number;
   savingsSchemesSummary: string;
 }): string {
-  return `你是一位中国顶级暖通空调 (HVAC) 与既有建筑节能改造高级总工程师、绿色建筑国家级评审专家，精通《既有建筑节能改造技术规范》JGJ/T 129、《公共建筑节能设计标准》GB 50189-2015 及国家节能减碳法规政策。
+  return `你是一位中国顶级暖通空调 (HVAC) 与既有建筑节能改造高级总工程师、绿色建筑国家级评审专家，精通《建筑节能与可再生能源利用通用规范》GB 55015-2021、《公共建筑节能设计标准》GB 50189 及国家节能减碳法规政策。
 
 当前诊断的实际工程项目背景参数如下：
 【建筑名称】：${projectContext.buildingName}
@@ -130,7 +130,7 @@ function localHvacExpertReasoning(userQuery: string, contextPrompt: string): str
     return `【暖通总工专业解答：磁悬浮无油离心机 vs 变频螺杆/传统离心机选型比选】
 
 一、选型决策推荐：
-对于商业综合体、星级酒店、高端办公等全年冷负荷波动大、低负荷运行时间长的建筑，【首选 1~2 台磁悬浮无油变频离心冷机作为基载与小负荷调节主机】。
+对于大型公共建筑、星级酒店、高端办公等全年冷负荷波动大、低负荷运行时间长的建筑，【首选 1~2 台磁悬浮无油变频离心冷机作为基载与小负荷调节主机】。
 
 二、技术性能深度对比：
 1. 部分负荷能效 (IPLV / NPLV)：
@@ -199,7 +199,7 @@ function localHvacExpertReasoning(userQuery: string, contextPrompt: string): str
   // 6. 默认通用专业深度综合诊断
   return `【暖通总工专业解答：针对【${contextPrompt.includes('建筑名称') ? '本项目' : '既有建筑'}】的改造决策建议】
 
-根据 JGJ/T 129《既有建筑节能改造技术规范》与 GB 50189-2015 综合评价：
+根据 GB 55015《建筑节能与可再生能源利用通用规范》与 GB 50189 综合评价：
 
 一、诊断核心发现：
 1. 冷热源主机部分负荷效率偏低，缺乏梯级异构搭配，低负荷运行时能耗惩罚显著；

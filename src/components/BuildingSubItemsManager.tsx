@@ -137,7 +137,7 @@ export const BuildingSubItemsManager: React.FC<Props> = ({
             <h2 className="text-xl font-bold text-white">建筑分类与功能子项 (Building Sub-items)</h2>
           </div>
           <p className="text-sm text-slate-300 mt-1">
-            按商业综合体/园区划分酒店、办公、Mall、大型超市等子项。支持**复合空调系统**（组合多种基础冷热源系统并自定义负荷占比）！
+            按公共建筑/园区划分酒店、办公、商场、大型超市等子项。支持**复合空调系统**（组合多种基础冷热源系统并自定义负荷占比）！
           </p>
         </div>
 

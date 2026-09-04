@@ -238,6 +238,35 @@
     display: none !important;
   }
 
+  /* PPT 汇报全量 13 页打印专属规则 */
+  body.ppt-modal-open > #root > div > header,
+  body.ppt-modal-open > #root > div > div.w-full,
+  body.ppt-modal-open > #root > div > main,
+  body.ppt-modal-open .print\:hidden {
+    display: none !important;
+  }
+
+  body.ppt-modal-open {
+    background-color: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  body.ppt-modal-open .ppt-print-deck {
+    display: block !important;
+    width: 100% !important;
+  }
+
+  body.ppt-modal-open .ppt-print-page {
+    page-break-after: always !important;
+    break-after: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    box-shadow: none !important;
+    border: 1.5px solid #a7f3d0 !important;
+    background-color: #ffffff !important;
+  }
+
   body {
     background-color: #ffffff !important;
     color: #11281c !important;

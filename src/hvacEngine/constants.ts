@@ -19,7 +19,7 @@ export const BUILDING_TYPES_META: Record<BuildingType, BuildingTypeMeta> = {
   },
   mall: {
     id: 'mall',
-    name: '商业综合体/Mall',
+    name: '大型商场/Mall',
     defaultCoolingIndex: 145, // W/m²
     defaultHeatingIndex: 90,  // W/m²
     defaultOperatingHours: 3600, // h/year

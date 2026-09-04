@@ -24,7 +24,7 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
 
   // 1. 既有系统基本信息
   const [existingSystemType, setExistingSystemType] = useState<SystemType>('chiller_boiler');
-  const [buildingName, setBuildingName] = useState<string>('某既有商业综合体及酒店');
+  const [buildingName, setBuildingName] = useState<string>('某既有公共建筑及酒店');
   const [buildingArea, setBuildingArea] = useState<number>(55000);
   const [operatingHours, setOperatingHours] = useState<number>(3200);
   const [electricityRate, setElectricityRate] = useState<number>(tariffConfig?.averageElectricityPrice ?? 0.85);

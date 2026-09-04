@@ -31,8 +31,8 @@ export const ProjectPresentationModal: React.FC<Props> = ({ isOpen, onClose }) =
     {
       id: 1,
       badge: 'GREEN BUILDING & HVAC AI PLATFORM',
-      title: '商业综合体暖通空调能效分析与 AI 智能改造决策系统',
-      subtitle: '基于 GB 50189-2015 与 JGJ/T 129 标准的全生命周期暖通工程数字化赋能平台',
+      title: '公共建筑暖通空调能效分析与 AI 智能改造决策系统',
+      subtitle: '基于 GB 50189 与 GB 55015《建筑节能与可再生能源利用通用规范》全生命周期数字化赋能平台',
       icon: Leaf,
       content: (
         <div className="flex flex-col justify-between h-full space-y-4 py-2 text-base">
@@ -41,12 +41,12 @@ export const ProjectPresentationModal: React.FC<Props> = ({ isOpen, onClose }) =
               <Sparkles className="w-6 h-6 text-emerald-600 animate-pulse" />
               <span>国家“双碳”战略引领 · 公共建筑超低能耗暖通数字化解决方案</span>
             </div>
-            <span className="text-sm font-mono text-emerald-800 bg-white px-3.5 py-1 rounded-xl border border-emerald-200 font-bold">标准：GB 50189 / JGJ/T 129</span>
+            <span className="text-sm font-mono text-emerald-800 bg-white px-3.5 py-1 rounded-xl border border-emerald-200 font-bold">标准：GB 50189 / GB 55015</span>
           </div>
 
           <div className="text-center space-y-3 py-2">
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-emerald-950 tracking-tight leading-tight">
-              商业综合体与公共建筑暖通空调<br />
+              公共建筑暖通空调<br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-800">
                 全生命周期能效分析与 AI 改造决策系统
               </span>
@@ -63,8 +63,8 @@ export const ProjectPresentationModal: React.FC<Props> = ({ isOpen, onClose }) =
                 <ShieldCheck className="w-6 h-6 text-emerald-600" />
                 <span>工程规范标准</span>
               </div>
-              <div className="text-lg sm:text-xl font-black text-emerald-950">GB 50189 / JGJ/T 129</div>
-              <p className="text-sm text-slate-600 leading-snug">严格依据国家与行业节能设计评价技术规范</p>
+              <div className="text-lg sm:text-xl font-black text-emerald-950">GB 50189 / GB 55015</div>
+              <p className="text-sm text-slate-600 leading-snug">依据国家建筑节能与可再生能源通用规范</p>
             </div>
 
             <div className="bg-white/95 p-4 rounded-2xl border-2 border-teal-200 shadow-xs flex flex-col justify-between space-y-2">
@@ -81,7 +81,7 @@ export const ProjectPresentationModal: React.FC<Props> = ({ isOpen, onClose }) =
                 <Bot className="w-6 h-6 text-emerald-600" />
                 <span>AI 大模型专家</span>
               </div>
-              <div className="text-lg sm:text-xl font-black text-emerald-950">Gemini 3.5 / DeepSeek</div>
+              <div className="text-lg sm:text-xl font-black text-emerald-950">Gemini 3.7 / DeepSeek</div>
               <p className="text-sm text-slate-600 leading-snug">全量工程上下文注入，专业技术无障碍对答</p>
             </div>
 
@@ -274,7 +274,7 @@ export const ProjectPresentationModal: React.FC<Props> = ({ isOpen, onClose }) =
               </div>
               <div>
                 <h4 className="font-black text-purple-950 text-base sm:text-lg">既有 AI 改造诊断</h4>
-                <p className="text-xs sm:text-sm text-slate-600 mt-1.5 leading-relaxed">JGJ/T 129 方案比选、5大边缘群控、Gemini/DeepSeek</p>
+                <p className="text-xs sm:text-sm text-slate-600 mt-1.5 leading-relaxed">GB 55015 方案比选、5大边缘群控、Gemini/DeepSeek</p>
               </div>
               <span className="text-xs sm:text-sm font-bold text-purple-800 bg-purple-100 p-2 rounded-xl text-center">全量工程上下文对答</span>
             </div>
@@ -325,7 +325,7 @@ export const ProjectPresentationModal: React.FC<Props> = ({ isOpen, onClose }) =
               </ul>
             </div>
             <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-200 text-sm sm:text-base font-mono text-emerald-950 flex justify-between items-center">
-              <span>典型商业综合体示例:</span>
+              <span>典型公共建筑示例:</span>
               <b className="text-emerald-700 text-base sm:text-lg">总面积 55,000 m² (商场 35k + 办公 20k)</b>
             </div>
           </div>
@@ -632,9 +632,9 @@ export const ProjectPresentationModal: React.FC<Props> = ({ isOpen, onClose }) =
     // ----------------------------------------------------
     {
       id: 9,
-      badge: 'RETROFIT COMPARISON (JGJ/T 129)',
+      badge: 'RETROFIT COMPARISON (GB 55015)',
       title: '既有建筑节能改造三大 Pareto 方案比选',
-      subtitle: '依据 JGJ/T 129 规范，兼顾初投资规模、节费率与静态投资回收期',
+      subtitle: '依据 GB 55015《建筑节能与可再生能源利用通用规范》，兼顾初投资规模、节费率与静态投资回收期',
       icon: TrendingUp,
       content: (
         <div className="flex flex-col justify-between h-full space-y-3.5 py-1 text-base">
@@ -827,7 +827,7 @@ export const ProjectPresentationModal: React.FC<Props> = ({ isOpen, onClose }) =
                 <div className="font-black text-slate-900">💬 现场提问：“使用一级泵系统还是二级泵系统？”</div>
                 <div className="bg-white p-3 rounded-xl border border-emerald-200 text-slate-800 space-y-1.5 leading-relaxed text-xs sm:text-sm">
                   <span className="text-emerald-700 font-black block text-sm">👉 AI 专家定量回答要点：</span>
-                  <p>1. 针对本工程 55,000 m² 商业综合体，管网阻力 ≤300kPa 下<b>强烈推荐变频一级泵 (VPF)</b>；</p>
+                  <p>1. 针对本工程 55,000 m² 公共建筑，管网阻力 ≤300kPa 下<b>强烈推荐变频一级泵 (VPF)</b>；</p>
                   <p>2. 省去二级泵降低初投资 20%~30%，消除旁通混水温升 (0.5~1.2℃)，输配节电 15%~25%；</p>
                   <p>3. 落实冷机 10%~20%/min 变流量适应性与末端最不利动态压差控制。</p>
                 </div>
@@ -840,13 +840,13 @@ export const ProjectPresentationModal: React.FC<Props> = ({ isOpen, onClose }) =
     },
 
     // ----------------------------------------------------
-    // Slide 12: 商业工程实测案例与经济环境效益 (超大字号版)
+    // Slide 12: 公共建筑工程实测案例与经济环境效益 (超大字号版)
     // ----------------------------------------------------
     {
       id: 12,
-      badge: 'COMMERCIAL CASE STUDY & ROI',
-      title: '商业工程实测案例与经济环境效益',
-      subtitle: '华东某 58,000 m² 商业综合体冷站实测：年节电 42.8 万 kWh，投资回收期 3.2 年',
+      badge: 'PUBLIC BUILDING CASE STUDY & ROI',
+      title: '公共建筑工程实测案例与经济环境效益',
+      subtitle: '华东某 58,000 m² 公共建筑冷站实测：年节电 42.8 万 kWh，投资回收期 3.2 年',
       icon: Award,
       content: (
         <div className="space-y-4 h-full flex flex-col justify-between py-1 text-base">
@@ -919,17 +919,32 @@ export const ProjectPresentationModal: React.FC<Props> = ({ isOpen, onClose }) =
 
             <div className="bg-white/95 p-4 rounded-2xl border-2 border-teal-200 shadow-xs space-y-1.5">
               <span className="font-black text-teal-800 text-base sm:text-lg block">高合规性</span>
-              <p className="text-slate-600 text-xs sm:text-sm">严格遵守 GB 50189 SCOP 五星级评价与 JGJ/T 129 既有改造标准。</p>
+              <p className="text-slate-600 text-xs sm:text-sm">严格遵守 GB 50189 SCOP 评级与 GB 55015《建筑节能与可再生能源利用通用规范》。</p>
             </div>
 
             <div className="bg-white/95 p-4 rounded-2xl border-2 border-purple-200 shadow-xs space-y-1.5">
               <span className="font-black text-purple-800 text-base sm:text-lg block">高智能化</span>
-              <p className="text-slate-600 text-xs sm:text-sm">全量工程上下文无缝对接 Gemini 3.5 / DeepSeek 大模型专家咨询。</p>
+              <p className="text-slate-600 text-xs sm:text-sm">全量工程上下文无缝对接 Gemini 3.7 / DeepSeek 大模型专家咨询。</p>
             </div>
           </div>
 
-          <div className="text-sm sm:text-base text-emerald-800 font-black">
-            感谢聆听 · 欢迎交流与工程合作
+          <div className="flex flex-col items-center justify-center space-y-1.5 pt-1">
+            <div className="text-base sm:text-lg text-emerald-800 font-black">
+              感谢聆听 · 欢迎交流与工程合作
+            </div>
+            <div className="flex items-center space-x-2 text-xs sm:text-sm font-semibold">
+              <span className="text-slate-500">在线系统体验：</span>
+              <a 
+                href="https://buildingenergysystem.pages.dev" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-emerald-700 hover:text-emerald-900 font-mono font-bold underline hover:no-underline transition-colors inline-flex items-center space-x-1"
+                title="点击直接打开在线系统"
+              >
+                <span>https://buildingenergysystem.pages.dev</span>
+                <span className="text-xs">↗</span>
+              </a>
+            </div>
           </div>
         </div>
       )
@@ -958,31 +973,57 @@ export const ProjectPresentationModal: React.FC<Props> = ({ isOpen, onClose }) =
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, isOverviewMode, slides.length, onClose]);
 
+  // 控制打印模式下 body 样式
+  useEffect(() => {
+    if (isOpen) {
+      document.body.classList.add('ppt-modal-open');
+    } else {
+      document.body.classList.remove('ppt-modal-open');
+    }
+    return () => {
+      document.body.classList.remove('ppt-modal-open');
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const current = slides[currentSlide];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/80 backdrop-blur-md overflow-hidden animate-in fade-in duration-150">
-      {/* 节能环保淡绿主题容器 - 超大字号大屏展演模式 */}
-      <div className="bg-gradient-to-br from-[#f4f9f6] via-[#edf6f1] to-[#e6f3eb] border-2 border-emerald-400/80 rounded-2xl w-[92vw] max-w-[1450px] h-[82vh] max-h-[82vh] shadow-2xl overflow-hidden flex flex-col my-auto text-slate-900">
-        
-        {/* Top Control Bar (flex-shrink-0 绝对锁定在顶部) */}
-        <div className="flex-shrink-0 px-6 py-3.5 bg-white/95 border-b border-emerald-200 flex items-center justify-between shadow-xs">
-          <div className="flex items-center space-x-3.5">
-            <div className="p-2.5 bg-emerald-100 text-emerald-800 rounded-xl border border-emerald-300">
-              <Leaf className="w-6 h-6 text-emerald-600" />
+    <>
+      {/* 屏幕交互演示弹窗 (打印时隐藏) */}
+      <div className="print:hidden fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/80 backdrop-blur-md overflow-hidden animate-in fade-in duration-150">
+        {/* 节能环保淡绿主题容器 - 大屏展演模式 */}
+        <div className="bg-gradient-to-br from-[#f4f9f6] via-[#edf6f1] to-[#e6f3eb] border-2 border-emerald-400/80 rounded-2xl w-[92vw] max-w-[1450px] h-[82vh] max-h-[82vh] shadow-2xl overflow-hidden flex flex-col my-auto text-slate-900">
+          
+          {/* Top Control Bar (flex-shrink-0 绝对锁定在顶部) */}
+          <div className="flex-shrink-0 px-6 py-3.5 bg-white/95 border-b border-emerald-200 flex items-center justify-between shadow-xs">
+            <div className="flex items-center space-x-3.5">
+              <div className="p-2.5 bg-emerald-100 text-emerald-800 rounded-xl border border-emerald-300">
+                <Leaf className="w-6 h-6 text-emerald-600" />
+              </div>
+              <div>
+                <h3 className="text-base sm:text-lg font-black text-emerald-950">
+                  项目汇报 PPT 演示系统 (Eco-Green Edition)
+                </h3>
+                <div className="flex items-center space-x-2.5 mt-0.5">
+                  <a
+                    href="https://buildingenergysystem.pages.dev"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs sm:text-sm text-emerald-700 hover:text-emerald-900 font-mono font-bold underline hover:no-underline transition-colors inline-flex items-center space-x-1"
+                    title="点击直接访问在线系统"
+                  >
+                    <span>https://buildingenergysystem.pages.dev</span>
+                    <span className="text-[10px]">↗</span>
+                  </a>
+                  <span className="text-emerald-300">|</span>
+                  <span className="text-xs sm:text-sm text-emerald-800/80 font-mono font-bold">
+                    第 {currentSlide + 1} / {slides.length} 页 · 支持键盘 ← / → 翻页
+                  </span>
+                </div>
+              </div>
             </div>
-            <div>
-              <h3 className="text-base sm:text-lg font-black text-emerald-950 flex items-center space-x-2.5">
-                <span>项目汇报 PPT 演示系统 (Eco-Green Edition)</span>
-                <span className="px-3 py-0.5 bg-emerald-100 text-emerald-800 text-xs font-black rounded-full">超大字展演版</span>
-              </h3>
-              <span className="text-xs sm:text-sm text-emerald-800/80 font-mono font-bold">
-                第 {currentSlide + 1} / {slides.length} 页 · 支持键盘 ← / → 键翻页
-              </span>
-            </div>
-          </div>
 
           <div className="flex items-center space-x-3">
             <button
@@ -1113,5 +1154,57 @@ export const ProjectPresentationModal: React.FC<Props> = ({ isOpen, onClose }) =
 
       </div>
     </div>
-  );
+
+    {/* 完整 13 页打印专属容器 (屏幕浏览时隐藏，系统打印时全量渲染 13 页 PPT) */}
+    <div className="hidden print:block ppt-print-deck w-full bg-white text-slate-900 p-0 m-0">
+      {slides.map((slide, idx) => (
+        <div
+          key={slide.id}
+          className="ppt-print-page bg-white p-8 mb-6 border-2 border-emerald-400 rounded-2xl"
+          style={{
+            pageBreakAfter: 'always',
+            breakAfter: 'page',
+            pageBreakInside: 'avoid',
+            breakInside: 'avoid',
+            minHeight: '260mm'
+          }}
+        >
+          {/* 打印页眉 */}
+          <div className="border-b-2 border-emerald-600 pb-3 mb-4 flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <span className="px-3 py-1 bg-emerald-100 text-emerald-950 text-xs font-black rounded-full border border-emerald-300">
+                {slide.badge}
+              </span>
+              <h2 className="text-xl font-black text-emerald-950">
+                {slide.title}
+              </h2>
+            </div>
+            <div className="text-right flex items-center space-x-4">
+              <a
+                href="https://buildingenergysystem.pages.dev"
+                className="text-xs font-mono font-bold text-emerald-700 underline"
+              >
+                https://buildingenergysystem.pages.dev
+              </a>
+              <span className="text-sm font-black text-emerald-950 font-mono">
+                第 {idx + 1} / {slides.length} 页
+              </span>
+            </div>
+          </div>
+
+          {slide.subtitle && (
+            <p className="text-sm font-semibold text-emerald-900 mb-4">
+              {slide.subtitle}
+            </p>
+          )}
+
+          {/* 打印主体内容 */}
+          <div className="py-2 text-slate-900">
+            {slide.content}
+          </div>
+        </div>
+      ))}
+    </div>
+  </>
+);
 };

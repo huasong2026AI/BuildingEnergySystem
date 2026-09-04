@@ -144,7 +144,7 @@ export const AiRetrofitAdvisorModal: React.FC<Props> = ({
                   AI 既有建筑节能改造专家级诊断与方案比选报告
                 </h3>
                 <span className="px-2 py-0.5 text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded">
-                  JGJ/T 129 规范标准
+                  GB 55015 规范标准
                 </span>
               </div>
               <p className="text-xs text-slate-300 mt-0.5">
@@ -234,7 +234,7 @@ export const AiRetrofitAdvisorModal: React.FC<Props> = ({
                 <div className="flex items-center justify-between border-b border-slate-750 pb-2">
                   <span className="font-bold text-white text-sm flex items-center space-x-2">
                     <AlertTriangle className="w-4 h-4 text-amber-400" />
-                    <span>既有系统关键性能缺陷（基于 GB 50189 与 JGJ/T 129 现场诊断）</span>
+                    <span>既有系统关键性能缺陷（基于 GB 50189 与 GB 55015 现场诊断）</span>
                   </span>
                   <span className="text-xs text-rose-400 font-bold">
                     现状基准年综合能耗费用：¥{(baselineCost / 10000).toFixed(2)} 万元
@@ -447,7 +447,7 @@ export const AiRetrofitAdvisorModal: React.FC<Props> = ({
               <div className="flex items-center space-x-3 border-b border-slate-750 pb-3">
                 <Award className="w-6 h-6 text-emerald-400" />
                 <div>
-                  <h4 className="font-bold text-white text-base">某大型商业综合体冷站节能改造工程实测案例</h4>
+                  <h4 className="font-bold text-white text-base">某大型公共建筑冷站节能改造工程实测案例</h4>
                   <span className="text-xs text-slate-400">建筑面积：58,000 m² | 地点：华东夏热冬冷区 | 改造前后实测对比</span>
                 </div>
               </div>
@@ -659,7 +659,7 @@ export const AiRetrofitAdvisorModal: React.FC<Props> = ({
                           ? `Gemini (${llmConfig.geminiModel}) 专家模型正在结合全量工程数据进行深度推理...`
                           : llmConfig.provider === 'deepseek'
                           ? `DeepSeek (${llmConfig.deepseekModel}) 正在计算工程经济性与技术方案...`
-                          : '本地暖通专家引擎正在结合 JGJ/T 129 规范论证...'}
+                          : '本地暖通专家引擎正在结合 GB 55015 规范论证...'}
                       </span>
                     </div>
                   </div>
@@ -692,7 +692,7 @@ export const AiRetrofitAdvisorModal: React.FC<Props> = ({
         {/* Footer */}
         <div className="flex-shrink-0 px-6 py-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-xs">
           <span className="text-slate-400">
-            * 报告依据 JGJ/T 129《既有建筑节能改造技术规范》与 GB 50189-2015 自动生成
+            * 报告依据 GB 55015《建筑节能与可再生能源利用通用规范》与 GB 50189 自动生成
           </span>
           <button
             onClick={onClose}
