@@ -28,7 +28,18 @@ export const EquipmentCatalogModal: React.FC<Props> = ({
   if (!isOpen) return null;
 
   const allItems = getMergedEquipmentCatalog();
-  const categoryItems = allItems.filter(item => item.category === category);
+  // 智能合并选型库：
+  // 1. 冷水机组 (chiller) 选型时，同时展示常规高效变频冷机 (特灵) 与 磁悬浮无油冷水机组 (凌擎)！
+  // 2. 锅炉 (boiler) 选型时，全面采用主流超低氮全预混冷凝真空热水机组 (力聚)！
+  const categoryItems = allItems.filter(item => {
+    if (category === 'chiller' || category === 'magnetic_chiller') {
+      return item.category === 'chiller' || item.category === 'magnetic_chiller';
+    }
+    if (category === 'boiler' || category === 'vacuum_boiler') {
+      return item.category === 'vacuum_boiler' || item.category === 'boiler';
+    }
+    return item.category === category;
+  });
 
   // 获取该类别下的所有可选品牌
   const availableBrands = Array.from(new Set(categoryItems.map(item => item.brand)));
@@ -55,7 +66,13 @@ export const EquipmentCatalogModal: React.FC<Props> = ({
             </div>
             <div>
               <h3 className="text-lg font-bold text-white flex items-center space-x-2">
-                <span>市场真实品牌设备参数选型库 — 【{categoryTitle}】</span>
+                <span>
+                  {category === 'chiller' || category === 'magnetic_chiller' 
+                    ? '冷水机组选型库 (含变频离心/螺杆冷机 + 磁悬浮冷机)' 
+                    : category === 'boiler' || category === 'vacuum_boiler'
+                      ? '全预混超低氮冷凝真空热水机组选型库 (力聚 Liju)'
+                      : `市场真实品牌设备参数选型库 — 【${categoryTitle}】`}
+                </span>
               </h3>
               <p className="text-xs text-slate-300 mt-0.5">
                 理论计算折算单台需 <span className="text-emerald-400 font-bold">{targetSingleValue.toFixed(1)}</span> {category === 'pump' || category === 'cooling_tower' ? 'm³/h' : 'kW'}，请选择真实主流品牌规格（电量取自设备真实铭牌电功率）：

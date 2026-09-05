@@ -27,9 +27,9 @@ export interface CatalogEquipmentItem {
 
 export const CATEGORY_BRANDS: Record<EquipmentCategory, string> = {
   magnetic_chiller: '凌擎 (Lingqing)',
-  chiller: '特灵 (Trane)',
+  chiller: '特灵 / 凌擎磁悬浮',
   vacuum_boiler: '力聚 (Liju)',
-  boiler: '方快 (Fangkuai)',
+  boiler: '力聚 (Liju)',
   pump: '威乐 (Wilo)',
   cooling_tower: '金日 (King Sun)',
   achp: '特灵 (Trane)',

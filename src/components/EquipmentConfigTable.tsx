@@ -49,6 +49,9 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
       newCustom.coolingTowerCount = val;
     } else if (key === 'boilerCount') {
       newCustom.hwPumpCount = val;
+    } else if (key === 'achpCount') {
+      newCustom.chwPumpCount = val;
+      newCustom.hwPumpCount = val;
     }
 
     onUpdateSubItem({
@@ -117,15 +120,18 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
 
     const newCustom = { ...custom, [overrideKey]: selectedProd };
 
-    if (catalogModalState.category === 'chiller') {
+    if (catalogModalState.category === 'chiller' || catalogModalState.category === 'magnetic_chiller') {
       const count = custom.chillerCount || calc.chillerCount;
       newCustom.chillerCapacitykW = item.ratedCapacitykW * count;
-    } else if (catalogModalState.category === 'boiler') {
+    } else if (catalogModalState.category === 'boiler' || catalogModalState.category === 'vacuum_boiler') {
       const count = custom.boilerCount || calc.boilerCount;
       newCustom.boilerCapacitykW = item.ratedCapacitykW * count;
     } else if (catalogModalState.category === 'achp') {
       const count = custom.achpCount || calc.achpCount;
+      newCustom.achpCount = count;
       newCustom.achpCoolingkW = item.ratedCapacitykW * count;
+      newCustom.chwPumpCount = count;
+      newCustom.hwPumpCount = count;
     } else if (catalogModalState.category === 'vrf') {
       const count = custom.vrfCount || calc.vrfCount;
       newCustom.vrfCoolingkW = item.ratedCapacitykW * count;
@@ -352,7 +358,7 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                   </td>
                   <td className="py-3 px-3">
                     <button
-                      onClick={() => openCatalogModal('chiller', '冷水机组', configuredCap / count, 'selectedChillerProduct')}
+                      onClick={() => openCatalogModal('chiller', '冷水机组 (含磁悬浮机组)', configuredCap / count, 'selectedChillerProduct')}
                       className="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 font-bold rounded-lg border border-blue-500/40 transition-all flex items-center space-x-1.5"
                     >
                       <span>{custom.selectedChillerProduct ? custom.selectedChillerProduct.name : `从品牌库选型 (${CATEGORY_BRANDS.chiller}...)`}</span>
@@ -407,14 +413,14 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                 <tr className="hover:bg-slate-800/40">
                   <td className="py-3 px-3 font-bold text-white flex items-center space-x-2">
                     <Flame className="w-4 h-4 text-rose-400" />
-                    <span>燃气热水锅炉</span>
+                    <span>超低氮冷凝真空热水机组 (锅炉)</span>
                   </td>
                   <td className="py-3 px-3">
                     <button
-                      onClick={() => openCatalogModal('boiler', '燃气热水锅炉', configuredCap / count, 'selectedBoilerProduct')}
+                      onClick={() => openCatalogModal('boiler', '全预混冷凝真空热水机组', configuredCap / count, 'selectedBoilerProduct')}
                       className="px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 font-bold rounded-lg border border-rose-500/40 transition-all flex items-center space-x-1.5"
                     >
-                      <span>{custom.selectedBoilerProduct ? custom.selectedBoilerProduct.name : `从品牌库选型 (${CATEGORY_BRANDS.boiler}...)`}</span>
+                      <span>{custom.selectedBoilerProduct ? custom.selectedBoilerProduct.name : `从品牌库选真空机组 (${CATEGORY_BRANDS.boiler}...)`}</span>
                     </button>
                   </td>
                   <td className="py-3 px-3 font-bold text-blue-300">{calc.boilerCapacitykW.toFixed(1)} kW</td>

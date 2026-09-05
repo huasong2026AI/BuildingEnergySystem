@@ -3,7 +3,7 @@ import ReactECharts from 'echarts-for-react';
 import type { ProjectEnergySummary, BuildingSubItem, EnergyTariffConfig, SystemType } from '../types/hvac';
 import { SYSTEM_TYPES_META, BUILDING_TYPES_META } from '../hvacEngine/constants';
 import { 
-  Zap, PieChart, TrendingUp, FileSpreadsheet, SlidersHorizontal, 
+  Zap, Flame, PieChart, TrendingUp, FileSpreadsheet, SlidersHorizontal, 
   Award, BarChart2, ShieldCheck, Building2, Hotel, ShoppingBag, Layers, ArrowRight, CornerDownLeft, Sparkles
 } from 'lucide-react';
 
@@ -47,29 +47,53 @@ export const EnergyAnalysisDashboard: React.FC<Props> = ({
     }
   };
 
-  // 1. 月度图表配置
+  // 1. 月度图表配置（包含电耗堆叠柱状图、天然气耗量独立柱状图、月度能耗总费用折线）
+  const hasGas = currentSummary.annualGasm3 > 0;
+
   const monthlyChartOption = {
     backgroundColor: 'transparent',
     tooltip: {
       trigger: 'axis',
       axisPointer: { type: 'shadow' },
       formatter: (params: any) => {
-        let res = `<div style="font-weight:bold;margin-bottom:4px;">${params[0]?.name}</div>`;
+        const monthName = params[0]?.name;
+        const monthItem = currentSummary.monthlyData.find(d => d.monthName === monthName);
+        let res = `<div style="font-weight:bold;margin-bottom:6px;padding-bottom:3px;border-bottom:1px solid #334155;color:#38bdf8;">${monthName} 综合能耗与费用核算</div>`;
         params.forEach((item: any) => {
-          res += `<div style="display:flex;justify-content:space-between;gap:12px;font-size:12px;">
+          res += `<div style="display:flex;justify-content:space-between;gap:12px;font-size:12px;margin:2px 0;">
             <span>${item.marker} ${item.seriesName}:</span>
-            <span style="font-weight:bold;">${item.value?.toLocaleString()}</span>
+            <span style="font-weight:bold;color:#f8fafc;">${item.value?.toLocaleString()}</span>
           </div>`;
         });
+        if (monthItem && monthItem.gasm3 > 0) {
+          const gasCost = Math.round(monthItem.gasm3 * tariffConfig.gasPrice);
+          const elecCost = Math.round(monthItem.totalCostRmb - gasCost);
+          res += `<div style="margin-top:6px;padding-top:4px;border-top:1px dashed #334155;font-size:11px;color:#fbbf24;line-height:1.4;">
+            💡 费用明细拆解：分时电费约 ¥${elecCost.toLocaleString()} 元 + 锅炉天然气费约 ¥${gasCost.toLocaleString()} 元 (气价 ${tariffConfig.gasPrice} 元/m³)<br/>
+            ⭐ 橙色折线【月度能耗费用】已精确合并【分时电费 + 燃气费】
+          </div>`;
+        } else {
+          res += `<div style="margin-top:6px;padding-top:4px;border-top:1px dashed #334155;font-size:11px;color:#94a3b8;">
+            ⭐ 橙色折线【月度能耗费用】为当月分时电价综合运行电费
+          </div>`;
+        }
         return res;
       }
     },
     legend: {
-      data: ['空调主机电耗 (kWh)', '水泵电耗 (kWh)', '冷却塔电耗 (kWh)', '末端风机盘管 (kWh)', '月度能耗费用 (元)'],
+      data: hasGas 
+        ? ['空调主机电耗 (kWh)', '水泵电耗 (kWh)', '冷却塔电耗 (kWh)', '末端风机盘管 (kWh)', '天然气耗量 (m³)', '月度能耗费用 (元)']
+        : ['空调主机电耗 (kWh)', '水泵电耗 (kWh)', '冷却塔电耗 (kWh)', '末端风机盘管 (kWh)', '月度能耗费用 (元)'],
       textStyle: { color: '#94a3b8', fontSize: 11 },
       top: 0
     },
-    grid: { left: '3%', right: '4%', bottom: '3%', top: '15%', containLabel: true },
+    grid: { 
+      left: '3%', 
+      right: hasGas ? '10%' : '4%', 
+      bottom: '3%', 
+      top: '16%', 
+      containLabel: true 
+    },
     xAxis: {
       type: 'category',
       data: currentSummary.monthlyData.map(d => d.monthName),
@@ -86,11 +110,20 @@ export const EnergyAnalysisDashboard: React.FC<Props> = ({
       },
       {
         type: 'value',
-        name: '费用 (元)',
-        axisLine: { lineStyle: { color: '#10b981' } },
+        name: '总费用 (元)',
+        axisLine: { lineStyle: { color: '#f59e0b' } },
         splitLine: { show: false },
-        axisLabel: { color: '#34d399' }
-      }
+        axisLabel: { color: '#fbbf24' }
+      },
+      ...(hasGas ? [{
+        type: 'value' as const,
+        name: '天然气 (m³)',
+        position: 'right' as const,
+        offset: 72,
+        axisLine: { lineStyle: { color: '#fb923c' } },
+        splitLine: { show: false },
+        axisLabel: { color: '#fb923c' }
+      }] : [])
     ],
     series: [
       {
@@ -121,6 +154,14 @@ export const EnergyAnalysisDashboard: React.FC<Props> = ({
         data: currentSummary.monthlyData.map(d => Math.round(d.terminalsAndOtherkWh)),
         itemStyle: { color: '#8b5cf6' }
       },
+      ...(hasGas ? [{
+        name: '天然气耗量 (m³)',
+        type: 'bar',
+        yAxisIndex: 2,
+        data: currentSummary.monthlyData.map(d => Math.round(d.gasm3)),
+        itemStyle: { color: '#fb923c', borderRadius: [3, 3, 0, 0] as any },
+        barMaxWidth: 20
+      }] : []),
       {
         name: '月度能耗费用 (元)',
         type: 'line',
@@ -418,11 +459,19 @@ export const EnergyAnalysisDashboard: React.FC<Props> = ({
             </div>
             <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800 space-y-0.5">
               <span className="text-slate-400 block text-[10px]">③ 冷却水泵电耗</span>
-              <span className="font-bold text-teal-400 text-sm">{(scopInfo.cwPumpEleckWh / 10000).toFixed(2)} <span className="text-xs font-normal">万kWh</span></span>
+              <span className="font-bold text-teal-400 text-sm">
+                {activeSubItem?.systemType === 'air_heat_pump' || activeSubItem?.systemType === 'vrf'
+                  ? <span className="text-xs text-slate-500 font-normal">0 (风冷无水泵)</span>
+                  : `${(scopInfo.cwPumpEleckWh / 10000).toFixed(2)} 万kWh`}
+              </span>
             </div>
             <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800 space-y-0.5">
               <span className="text-slate-400 block text-[10px]">④ 冷却塔风机电耗</span>
-              <span className="font-bold text-emerald-400 text-sm">{(scopInfo.towerEleckWh / 10000).toFixed(2)} <span className="text-xs font-normal">万kWh</span></span>
+              <span className="font-bold text-emerald-400 text-sm">
+                {activeSubItem?.systemType === 'air_heat_pump' || activeSubItem?.systemType === 'vrf'
+                  ? <span className="text-xs text-slate-500 font-normal">0 (风冷无水塔)</span>
+                  : `${(scopInfo.towerEleckWh / 10000).toFixed(2)} 万kWh`}
+              </span>
             </div>
           </div>
         </div>
@@ -439,7 +488,9 @@ export const EnergyAnalysisDashboard: React.FC<Props> = ({
         </div>
 
         <div className="space-y-1">
-          <span className="text-[11px] text-slate-400 font-semibold block">冷站全局寻优年节电率</span>
+          <span className="text-[11px] text-slate-400 font-semibold block">
+            {activeSubItem?.systemType === 'air_heat_pump' ? '风冷热泵变频寻优年节电率' : activeSubItem?.systemType === 'vrf' ? 'VRV 变频寻优年节电率' : '冷站全局寻优年节电率'}
+          </span>
           <div className="text-lg font-bold text-emerald-400">
             {(currentSummary.savingsRatePercent || 0).toFixed(1)}%
           </div>
@@ -449,7 +500,11 @@ export const EnergyAnalysisDashboard: React.FC<Props> = ({
         <div className="space-y-1">
           <span className="text-[11px] text-slate-400 font-semibold block">👑 推荐节能路线 (最低20年LCC)</span>
           <div className="text-sm font-bold text-blue-400">
-            {currentSummary.lccaResults?.A ? currentSummary.lccaResults.A.name.split(' (')[0] : '磁悬浮离心冷机 + 大温差群控'}
+            {activeSubItem?.systemType === 'air_heat_pump' 
+              ? '特灵双一级能效模块热泵 + Wilo水泵温差调速' 
+              : activeSubItem?.systemType === 'vrf' 
+                ? '大金智能变频多联群控 + 分区温控' 
+                : (currentSummary.lccaResults?.A ? currentSummary.lccaResults.A.name.split(' (')[0] : '磁悬浮离心冷机 + 大温差群控')}
           </div>
           <span className="text-[10px] text-slate-400">
             20年LCC: {currentSummary.lccaResults?.A ? (currentSummary.lccaResults.A.lcc / 10000).toFixed(1) : 0} 万元
@@ -627,16 +682,30 @@ export const EnergyAnalysisDashboard: React.FC<Props> = ({
 
         {/* 12 Months Energy & Cost */}
         <div className="bg-slate-850 border border-slate-800 rounded-xl p-5 space-y-3">
-          <h3 className="text-xs font-bold text-slate-200 flex items-center space-x-2">
-            <Zap className="w-4 h-4 text-blue-400" />
-            <span>
-              {isAllView 
-                ? '全项目逐月用电量、天然气量与费用分布趋势 (12 Months Trend)' 
-                : `【${activeSubItem?.name}】逐月用电量、天然气量与费用分布趋势`}
-            </span>
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold text-slate-200 flex items-center space-x-2">
+              <Zap className="w-4 h-4 text-blue-400" />
+              <span>
+                {isAllView 
+                  ? '全项目逐月用电量、天然气量与综合费用分布趋势' 
+                  : `【${activeSubItem?.name}】逐月用电量、天然气量与综合费用分布趋势`}
+              </span>
+            </h3>
+            {hasGas ? (
+              <span className="text-[10px] text-amber-300 font-bold bg-amber-500/15 px-2.5 py-1 rounded-lg border border-amber-500/30 flex items-center space-x-1">
+                <Flame className="w-3 h-3 text-amber-400" />
+                <span>橙柱为月天然气量 · 橙线已计气费</span>
+              </span>
+            ) : (
+              <span className="text-[10px] text-blue-300 font-bold bg-blue-500/15 px-2.5 py-1 rounded-lg border border-blue-500/30">
+                ⚡ 全电系统 · 燃气为 0 m³
+              </span>
+            )}
+          </div>
           <p className="text-[11px] text-slate-400">
-            包含夏季主机与输配电耗峰值、冬季供热能耗与分时电价精确核算
+            {hasGas 
+              ? '橙色柱为每月天然气消耗量 (m³)，橙色折线【月度能耗费用】已精确包含【分时电费 + 锅炉天然气费】' 
+              : '展示各月主机与循环水泵分时电耗，橙色折线为各月综合运行电费'}
           </p>
           <ReactECharts option={monthlyChartOption} style={{ height: '300px', width: '100%' }} />
         </div>

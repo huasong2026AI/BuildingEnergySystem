@@ -2,7 +2,6 @@ import type { EquipmentCategory, CatalogEquipmentItem } from './types';
 import { MAGNETIC_CHILLERS } from './magneticChillers';
 import { WATER_COOLED_CHILLERS } from './chillers';
 import { VACUUM_BOILERS } from './vacuumBoilers';
-import { ATMOSPHERIC_BOILERS } from './boilers';
 import { WATER_PUMPS } from './pumps';
 import { COOLING_TOWERS } from './coolingTowers';
 import { AIR_COOLED_HEAT_PUMPS } from './heatPumps';
@@ -12,7 +11,6 @@ export * from './types';
 export * from './magneticChillers';
 export * from './chillers';
 export * from './vacuumBoilers';
-export * from './boilers';
 export * from './pumps';
 export * from './coolingTowers';
 export * from './heatPumps';
@@ -22,14 +20,13 @@ export const DEFAULT_EQUIPMENT_CATALOG: CatalogEquipmentItem[] = [
   ...MAGNETIC_CHILLERS,
   ...WATER_COOLED_CHILLERS,
   ...VACUUM_BOILERS,
-  ...ATMOSPHERIC_BOILERS,
   ...WATER_PUMPS,
   ...COOLING_TOWERS,
   ...AIR_COOLED_HEAT_PUMPS,
   ...VRF_OUTDOOR_UNITS
 ];
 
-const STORAGE_KEY = 'hvac_active_equipment_catalog_v9';
+const STORAGE_KEY = 'hvac_active_equipment_catalog_v10';
 
 /**
  * 获取全局生效的设备品牌库（支持用户自由增删改查）
@@ -105,7 +102,15 @@ export function autoMatchCatalogEquipment(
   targetSingleCapacityOrFlow: number
 ): CatalogEquipmentItem | null {
   const allItems = getMergedEquipmentCatalog();
-  const categoryItems = allItems.filter(item => item.category === category);
+  const categoryItems = allItems.filter(item => {
+    if (category === 'chiller' || category === 'magnetic_chiller') {
+      return item.category === 'chiller' || item.category === 'magnetic_chiller';
+    }
+    if (category === 'boiler' || category === 'vacuum_boiler') {
+      return item.category === 'vacuum_boiler' || item.category === 'boiler';
+    }
+    return item.category === category;
+  });
   if (categoryItems.length === 0) return null;
 
   const sorted = [...categoryItems].sort((a, b) => a.ratedCapacitykW - b.ratedCapacitykW);

@@ -16,10 +16,9 @@ interface Props {
 
 const CATEGORY_TABS: Array<{ id: EquipmentCategory | 'all'; name: string; icon: any }> = [
   { id: 'all', name: '全部设备库', icon: Layers },
-  { id: 'magnetic_chiller', name: '磁悬浮冷水机组', icon: Sparkles },
-  { id: 'chiller', name: '变频水冷螺杆/离心冷机', icon: Cpu },
-  { id: 'vacuum_boiler', name: '全预混冷凝真空热水锅炉', icon: Flame },
-  { id: 'boiler', name: '常压燃气热水锅炉', icon: Flame },
+  { id: 'magnetic_chiller', name: '水冷磁悬浮冷水机组 (凌擎)', icon: Sparkles },
+  { id: 'chiller', name: '变频水冷螺杆/离心冷机 (特灵)', icon: Cpu },
+  { id: 'vacuum_boiler', name: '超低氮冷凝真空热水机组 (力聚)', icon: Flame },
   { id: 'pump', name: '循环水泵 (冷水/热水/冷却)', icon: Droplet },
   { id: 'cooling_tower', name: '冷却塔 (冷却水散热)', icon: Wind },
   { id: 'achp', name: '风冷螺杆/模块热泵 (ACHP)', icon: Wind },
@@ -265,7 +264,7 @@ export const EquipmentBrandManagerModal: React.FC<Props> = ({ isOpen, onClose })
                   <option value="magnetic_chiller">磁悬浮冷水机组</option>
                   <option value="chiller">变频水冷螺杆/离心冷机</option>
                   <option value="vacuum_boiler">全预混冷凝真空热水锅炉</option>
-                  <option value="boiler">常压燃气热水锅炉</option>
+
                   <option value="pump">循环水泵 (冷水/热水/冷却)</option>
                   <option value="cooling_tower">冷却塔 (冷却水散热)</option>
                   <option value="achp">风冷螺杆/模块热泵 (ACHP)</option>
