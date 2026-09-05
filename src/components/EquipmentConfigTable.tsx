@@ -115,6 +115,7 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
       name: item.name,
       ratedCapacitykW: item.ratedCapacitykW,
       actualPowerkW: item.ratedPowerkW,
+      copOrEff: item.copOrEff,
       gasFlowm3h: item.gasFlowm3h
     };
 
@@ -333,11 +334,15 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
             <tr className="bg-slate-800/90 text-slate-300 font-bold border-b border-slate-700">
               <th className="py-3 px-3">主要空调设备名称</th>
               <th className="py-3 px-3">实际市场品牌与型号选型库</th>
-              <th className="py-3 px-3 text-blue-300">推荐标准联动总值</th>
+              <th className="py-3 px-3 text-blue-300" title="主机为客观设计负荷计算值(不随选型改变)，配件为主机实际选型联动标准值">
+                负荷计算值 / 标准联动值
+              </th>
               <th className="py-3 px-3">配置台数 (台)</th>
               <th className="py-3 px-3 text-emerald-300">折算单台容量/流量</th>
               <th className="py-3 px-3">配置总值 (用户微调)</th>
-              <th className="py-3 px-3 text-cyan-300">实际配比率</th>
+              <th className="py-3 px-3 text-cyan-300" title="实际配比率 = 主机配置总值 ÷ 负荷计算值 (仅主机核算)">
+                实际配比率 (仅主机)
+              </th>
               <th className="py-3 px-3 text-amber-300">单台铭牌真实电量/气耗</th>
               <th className="py-3 px-3">可行性状态与恢复</th>
             </tr>
@@ -364,7 +369,7 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                       <span>{custom.selectedChillerProduct ? custom.selectedChillerProduct.name : `从品牌库选型 (${CATEGORY_BRANDS.chiller}...)`}</span>
                     </button>
                   </td>
-                  <td className="py-3 px-3 font-bold text-blue-300">{calc.chillerCapacitykW.toFixed(1)} kW</td>
+                  <td className="py-3 px-3 font-bold text-blue-300">{calc.coolingLoadkW.toFixed(1)} kW</td>
                   <td className="py-3 px-3">
                     <input
                       type="number"
@@ -381,7 +386,7 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                     {configuredCap.toFixed(1)} kW
                   </td>
                   <td className="py-3 px-3">
-                    {renderRatioBadge(configuredCap, calc.chillerCapacitykW)}
+                    {renderRatioBadge(configuredCap, calc.coolingLoadkW)}
                   </td>
                   <td className="py-3 px-3 font-bold text-amber-300">
                     {custom.selectedChillerProduct ? `${custom.selectedChillerProduct.actualPowerkW} kW (铭牌)` : `${(calc.chillerPowerkW / count).toFixed(1)} kW (理论)`}
@@ -423,7 +428,7 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                       <span>{custom.selectedBoilerProduct ? custom.selectedBoilerProduct.name : `从品牌库选真空机组 (${CATEGORY_BRANDS.boiler}...)`}</span>
                     </button>
                   </td>
-                  <td className="py-3 px-3 font-bold text-blue-300">{calc.boilerCapacitykW.toFixed(1)} kW</td>
+                  <td className="py-3 px-3 font-bold text-blue-300">{calc.heatingLoadkW.toFixed(1)} kW</td>
                   <td className="py-3 px-3">
                     <input
                       type="number"
@@ -440,7 +445,7 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                     {configuredCap.toFixed(1)} kW
                   </td>
                   <td className="py-3 px-3">
-                    {renderRatioBadge(configuredCap, calc.boilerCapacitykW)}
+                    {renderRatioBadge(configuredCap, calc.heatingLoadkW)}
                   </td>
                   <td className="py-3 px-3 font-bold text-amber-300">
                     {custom.selectedBoilerProduct ? `${custom.selectedBoilerProduct.gasFlowm3h || '-'} m³/h` : `${(calc.boilerGasFlow / count).toFixed(1)} m³/h (理论)`}
@@ -475,7 +480,7 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                       <span>{custom.selectedVrfProduct ? custom.selectedVrfProduct.name : `从品牌库选多联机 (${CATEGORY_BRANDS.vrf}...)`}</span>
                     </button>
                   </td>
-                  <td className="py-3 px-3 font-bold text-blue-300">{calc.vrfCoolingkW.toFixed(1)} kW</td>
+                  <td className="py-3 px-3 font-bold text-blue-300">{calc.coolingLoadkW.toFixed(1)} kW</td>
                   <td className="py-3 px-3">
                     <input
                       type="number"
@@ -492,7 +497,7 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                     {configuredCap.toFixed(1)} kW
                   </td>
                   <td className="py-3 px-3">
-                    {renderRatioBadge(configuredCap, calc.vrfCoolingkW)}
+                    {renderRatioBadge(configuredCap, calc.coolingLoadkW)}
                   </td>
                   <td className="py-3 px-3 font-bold text-amber-300">
                     {custom.selectedVrfProduct ? `${custom.selectedVrfProduct.actualPowerkW} kW (铭牌)` : `${(calc.vrfPowerkW / Math.max(1, count)).toFixed(1)} kW (理论)`}
@@ -527,7 +532,7 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                       <span>{custom.selectedAchpProduct ? custom.selectedAchpProduct.name : `从品牌库选风冷热泵 (${CATEGORY_BRANDS.achp}...)`}</span>
                     </button>
                   </td>
-                  <td className="py-3 px-3 font-bold text-blue-300">{calc.achpCoolingkW.toFixed(1)} kW</td>
+                  <td className="py-3 px-3 font-bold text-blue-300">{calc.coolingLoadkW.toFixed(1)} kW</td>
                   <td className="py-3 px-3">
                     <input
                       type="number"
@@ -544,7 +549,7 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                     {configuredCap.toFixed(1)} kW
                   </td>
                   <td className="py-3 px-3">
-                    {renderRatioBadge(configuredCap, calc.achpCoolingkW)}
+                    {renderRatioBadge(configuredCap, calc.coolingLoadkW)}
                   </td>
                   <td className="py-3 px-3 font-bold text-amber-300">
                     {custom.selectedAchpProduct ? `${custom.selectedAchpProduct.actualPowerkW} kW (铭牌)` : `${(calc.achpPowerkW / Math.max(1, count)).toFixed(1)} kW (理论)`}
@@ -591,7 +596,7 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                     {configuredFlow.toFixed(1)} m³/h
                   </td>
                   <td className="py-3 px-3">
-                    {renderRatioBadge(configuredFlow, calc.achpChwPumpFlow)}
+                    <span className="text-slate-500 font-mono text-center block">-</span>
                   </td>
                   <td className="py-3 px-3 font-bold text-amber-300">
                     {custom.selectedChwPumpProduct ? `${custom.selectedChwPumpProduct.actualPowerkW} kW (铭牌)` : `${(calc.achpSummerPumpPowerkW / pumpCount).toFixed(1)} kW (理论)`}
@@ -638,7 +643,7 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                     {configuredFlow.toFixed(1)} m³/h
                   </td>
                   <td className="py-3 px-3">
-                    {renderRatioBadge(configuredFlow, calc.achpHwPumpFlow)}
+                    <span className="text-slate-500 font-mono text-center block">-</span>
                   </td>
                   <td className="py-3 px-3 font-bold text-amber-300">
                     {custom.selectedHwPumpProduct ? `${custom.selectedHwPumpProduct.actualPowerkW} kW (铭牌)` : `${(calc.achpWinterPumpPowerkW / pumpCount).toFixed(1)} kW (理论)`}
@@ -690,7 +695,7 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                     {configuredFlow.toFixed(1)} m³/h
                   </td>
                   <td className="py-3 px-3">
-                    {renderRatioBadge(configuredFlow, calc.chwPumpFlow)}
+                    <span className="text-slate-500 font-mono text-center block">-</span>
                   </td>
                   <td className="py-3 px-3 font-bold text-amber-300">
                     {custom.selectedChwPumpProduct ? `${custom.selectedChwPumpProduct.actualPowerkW} kW (铭牌)` : `${(calc.chwPumpPowerkW / count).toFixed(1)} kW (理论)`}
@@ -742,7 +747,7 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                     {configuredFlow.toFixed(1)} m³/h
                   </td>
                   <td className="py-3 px-3">
-                    {renderRatioBadge(configuredFlow, calc.hwPumpFlow)}
+                    <span className="text-slate-500 font-mono text-center block">-</span>
                   </td>
                   <td className="py-3 px-3 font-bold text-amber-300">
                     {custom.selectedHwPumpProduct ? `${custom.selectedHwPumpProduct.actualPowerkW} kW (铭牌)` : `${(calc.hwPumpPowerkW / count).toFixed(1)} kW (理论)`}
@@ -794,7 +799,7 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                     {configuredFlow.toFixed(1)} m³/h
                   </td>
                   <td className="py-3 px-3">
-                    {renderRatioBadge(configuredFlow, calc.cwPumpFlow)}
+                    <span className="text-slate-500 font-mono text-center block">-</span>
                   </td>
                   <td className="py-3 px-3 font-bold text-amber-300">
                     {custom.selectedCwPumpProduct ? `${custom.selectedCwPumpProduct.actualPowerkW} kW (铭牌)` : `${(calc.cwPumpPowerkW / count).toFixed(1)} kW (理论)`}
@@ -846,7 +851,7 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                     {configuredFlow.toFixed(1)} m³/h
                   </td>
                   <td className="py-3 px-3">
-                    {renderRatioBadge(configuredFlow, calc.coolingTowerFlow)}
+                    <span className="text-slate-500 font-mono text-center block">-</span>
                   </td>
                   <td className="py-3 px-3 font-bold text-amber-300">
                     {custom.selectedTowerProduct ? `${custom.selectedTowerProduct.actualPowerkW} kW (铭牌)` : `${(calc.coolingTowerFanPowerkW / count).toFixed(1)} kW (理论)`}

@@ -792,12 +792,6 @@ export function calculateEquipmentForSubItem(
 
   // 覆盖自定义与真实选型品牌设备物理铭牌电量及气耗（真实继承用户在第2项中的配置）
   const custom = item.customEquipment || {};
-  const recChwPumpCount = chwPumpCount;
-  const recCwPumpCount = cwPumpCount;
-  const recCoolingTowerCount = coolingTowerCount;
-  const recHwPumpCount = hwPumpCount;
-  const recAchpCoolingkW = achpCoolingkW;
-  const recAchpHeatingkW = achpHeatingkW;
 
   // 主机台数与容量覆盖
   if (custom.chillerCount) chillerCount = custom.chillerCount;
@@ -836,38 +830,78 @@ export function calculateEquipmentForSubItem(
     vrfPowerkW = custom.vrfCoolingkW / 5.30;
   }
 
-  // 水泵与冷却塔台数及功率覆盖
+  // 核心工程法则：配件（冷水泵/热水泵/冷却泵/冷却塔）的推荐标准容量严格根据【主机实际选型总容量】动态联动精算！
+  const activeChillerCap = custom.selectedChillerProduct 
+    ? (custom.selectedChillerProduct.ratedCapacitykW * chillerCount)
+    : (custom.chillerCapacitykW || chillerCapacitykW);
+  const activeChillerCOP = custom.selectedChillerProduct?.copOrEff || chillerCOP;
+
+  const activeBoilerCap = custom.selectedBoilerProduct
+    ? (custom.selectedBoilerProduct.ratedCapacitykW * boilerCount)
+    : (custom.boilerCapacitykW || boilerCapacitykW);
+
+  const activeAchpCoolCap = custom.selectedAchpProduct
+    ? (custom.selectedAchpProduct.ratedCapacitykW * achpCount)
+    : (custom.achpCoolingkW || achpCoolingkW);
+  const activeAchpHeatCap = (coolingLoadkW > 0) ? (activeAchpCoolCap / coolingLoadkW) * heatingLoadkW : heatingLoadkW;
+
+  if (item.systemType === 'chiller_boiler' || item.systemType === 'hybrid') {
+    chwPumpFlow = (activeChillerCap * 3.6) / (4.186 * deltaTchw);
+    chwPumpCount = chillerCount;
+    const qCond = activeChillerCap * (1 + 1 / activeChillerCOP);
+    cwPumpFlow = (qCond * 3.6) / (4.186 * deltaTcw);
+    cwPumpCount = chillerCount;
+    coolingTowerFlow = cwPumpFlow * 1.15;
+    coolingTowerCount = chillerCount;
+    hwPumpFlow = (activeBoilerCap * 3.6) / (4.186 * deltaThw);
+    hwPumpCount = boilerCount;
+  } else if (item.systemType === 'air_heat_pump') {
+    chwPumpFlow = (activeAchpCoolCap * 3.6) / (4.186 * deltaTchw);
+    chwPumpCount = achpCount;
+    hwPumpFlow = (activeAchpHeatCap * 3.6) / (4.186 * deltaThw);
+    hwPumpCount = achpCount;
+  }
+
+  // 水泵与冷却塔台数及功率覆盖（若用户进一步选定了具体水泵型号）
   if (custom.chwPumpCount) chwPumpCount = custom.chwPumpCount;
   if (custom.selectedChwPumpProduct) {
-    chwPumpPowerkW = custom.selectedChwPumpProduct.actualPowerkW * (custom.chwPumpCount || (item.systemType === 'air_heat_pump' ? achpCount : recChwPumpCount));
+    chwPumpPowerkW = custom.selectedChwPumpProduct.actualPowerkW * (custom.chwPumpCount || (item.systemType === 'air_heat_pump' ? achpCount : chwPumpCount));
   } else if (custom.chwPumpFlow) {
     chwPumpPowerkW = (custom.chwPumpFlow * chwPumpHead) / 247.7;
+  } else {
+    chwPumpPowerkW = (chwPumpFlow * chwPumpHead) / 247.7;
   }
 
   if (custom.cwPumpCount) cwPumpCount = custom.cwPumpCount;
   if (custom.selectedCwPumpProduct) {
-    cwPumpPowerkW = custom.selectedCwPumpProduct.actualPowerkW * (custom.cwPumpCount || recCwPumpCount);
+    cwPumpPowerkW = custom.selectedCwPumpProduct.actualPowerkW * (custom.cwPumpCount || cwPumpCount);
   } else if (custom.cwPumpFlow) {
     cwPumpPowerkW = (custom.cwPumpFlow * cwPumpHead) / 247.7;
+  } else {
+    cwPumpPowerkW = (cwPumpFlow * cwPumpHead) / 247.7;
   }
 
   if (custom.coolingTowerCount) coolingTowerCount = custom.coolingTowerCount;
   if (custom.selectedTowerProduct) {
-    coolingTowerFanPowerkW = custom.selectedTowerProduct.actualPowerkW * (custom.coolingTowerCount || recCoolingTowerCount);
+    coolingTowerFanPowerkW = custom.selectedTowerProduct.actualPowerkW * (custom.coolingTowerCount || coolingTowerCount);
   } else if (custom.coolingTowerFlow) {
     coolingTowerFanPowerkW = custom.coolingTowerFlow * 0.18;
+  } else {
+    coolingTowerFanPowerkW = coolingTowerFlow * 0.18;
   }
 
   if (custom.hwPumpCount) hwPumpCount = custom.hwPumpCount;
   if (custom.selectedHwPumpProduct) {
-    hwPumpPowerkW = custom.selectedHwPumpProduct.actualPowerkW * (custom.hwPumpCount || (item.systemType === 'air_heat_pump' ? achpCount : recHwPumpCount));
+    hwPumpPowerkW = custom.selectedHwPumpProduct.actualPowerkW * (custom.hwPumpCount || (item.systemType === 'air_heat_pump' ? achpCount : hwPumpCount));
   } else if (custom.hwPumpFlow) {
     hwPumpPowerkW = (custom.hwPumpFlow * hwPumpHead) / 247.7;
+  } else {
+    hwPumpPowerkW = (hwPumpFlow * hwPumpHead) / 247.7;
   }
 
   // 风冷热泵专属冷温水泵参数继承
-  const achpChwPumpFlow = custom.chwPumpFlow || (recAchpCoolingkW > 0 ? (recAchpCoolingkW * 3.6) / (4.186 * deltaTchw) : 0);
-  const achpHwPumpFlow = custom.hwPumpFlow || (recAchpHeatingkW > 0 ? (recAchpHeatingkW * 3.6) / (4.186 * deltaThw) : 0);
+  const achpChwPumpFlow = custom.chwPumpFlow || chwPumpFlow;
+  const achpHwPumpFlow = custom.hwPumpFlow || hwPumpFlow;
   const achpChwPumpCount = custom.chwPumpCount || achpCount;
   const achpHwPumpCount = custom.hwPumpCount || achpCount;
   achpSummerPumpPowerkW = chwPumpPowerkW;

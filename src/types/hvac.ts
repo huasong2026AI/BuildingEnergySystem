@@ -171,6 +171,7 @@ export interface SelectedBrandProduct {
   name: string;
   ratedCapacitykW: number;
   actualPowerkW: number; // 实际选型电量参数 (非计算公式算得)
+  copOrEff?: number;
   gasFlowm3h?: number;
 }
 
