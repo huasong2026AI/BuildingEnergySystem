@@ -6,6 +6,8 @@ import { WATER_PUMPS } from './pumps';
 import { COOLING_TOWERS } from './coolingTowers';
 import { AIR_COOLED_HEAT_PUMPS } from './heatPumps';
 import { VRF_OUTDOOR_UNITS } from './vrf';
+import { PLATE_HEXS } from './plateHex';
+import { SPLIT_ACS } from './splitAc';
 
 export * from './types';
 export * from './magneticChillers';
@@ -15,6 +17,8 @@ export * from './pumps';
 export * from './coolingTowers';
 export * from './heatPumps';
 export * from './vrf';
+export * from './plateHex';
+export * from './splitAc';
 
 export const DEFAULT_EQUIPMENT_CATALOG: CatalogEquipmentItem[] = [
   ...MAGNETIC_CHILLERS,
@@ -23,10 +27,12 @@ export const DEFAULT_EQUIPMENT_CATALOG: CatalogEquipmentItem[] = [
   ...WATER_PUMPS,
   ...COOLING_TOWERS,
   ...AIR_COOLED_HEAT_PUMPS,
-  ...VRF_OUTDOOR_UNITS
+  ...VRF_OUTDOOR_UNITS,
+  ...PLATE_HEXS,
+  ...SPLIT_ACS
 ];
 
-const STORAGE_KEY = 'hvac_active_equipment_catalog_v10';
+const STORAGE_KEY = 'hvac_active_equipment_catalog_v11';
 
 /**
  * 获取全局生效的设备品牌库（支持用户自由增删改查）

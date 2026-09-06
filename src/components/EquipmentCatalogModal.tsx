@@ -71,7 +71,11 @@ export const EquipmentCatalogModal: React.FC<Props> = ({
                     ? '冷水机组选型库 (含变频离心/螺杆冷机 + 磁悬浮冷机)' 
                     : category === 'boiler' || category === 'vacuum_boiler'
                       ? '全预混超低氮冷凝真空热水机组选型库 (力聚 Liju)'
-                      : `市场真实品牌设备参数选型库 — 【${categoryTitle}】`}
+                      : category === 'plate_hex'
+                        ? '高效板式换热机组选型库 (阿法拉伐 Alfa Laval)'
+                        : category === 'split_ac'
+                          ? '商用新一级能效变频分体空调选型库 (格力 Gree)'
+                          : `市场真实品牌设备参数选型库 — 【${categoryTitle}】`}
                 </span>
               </h3>
               <p className="text-xs text-slate-300 mt-0.5">

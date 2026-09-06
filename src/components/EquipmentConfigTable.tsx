@@ -42,7 +42,7 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
   const handleCustomChange = (key: keyof UserEquipmentOverrides, val: any) => {
     const newCustom = { ...custom, [key]: val };
 
-    // 一机对一泵，一泵对一塔，一锅炉对一热水泵：手动修改主机/锅炉台数时自动同步联动
+    // 一机对一泵，一泵对一塔，一锅炉对一热水泵：手动修改主机/锅炉/换热器台数时自动同步联动
     if (key === 'chillerCount') {
       newCustom.chwPumpCount = val;
       newCustom.cwPumpCount = val;
@@ -50,6 +50,9 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
     } else if (key === 'boilerCount') {
       newCustom.hwPumpCount = val;
     } else if (key === 'achpCount') {
+      newCustom.chwPumpCount = val;
+      newCustom.hwPumpCount = val;
+    } else if (key === 'districtHexCount') {
       newCustom.chwPumpCount = val;
       newCustom.hwPumpCount = val;
     }
@@ -136,6 +139,14 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
     } else if (catalogModalState.category === 'vrf') {
       const count = custom.vrfCount || calc.vrfCount;
       newCustom.vrfCoolingkW = item.ratedCapacitykW * count;
+    } else if (catalogModalState.category === 'plate_hex') {
+      const count = custom.districtHexCount || calc.districtHexCount || 2;
+      newCustom.districtHexCapacitykW = item.ratedCapacitykW * count;
+      newCustom.chwPumpCount = count;
+      newCustom.hwPumpCount = count;
+    } else if (catalogModalState.category === 'split_ac') {
+      const count = custom.splitCount || calc.splitCount || 10;
+      newCustom.splitTotalCapacitykW = item.ratedCapacitykW * count;
     } else if (overrideKey === 'selectedChwPumpProduct') {
       const count = custom.chwPumpCount || calc.chwPumpCount;
       newCustom.chwPumpFlow = item.ratedCapacitykW * count;
@@ -230,6 +241,28 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
           )}
         </div>
       </div>
+
+      {/* Hybrid System Allocation Indicator */}
+      {subItem.systemType === 'hybrid' && (
+        <div className="bg-slate-850 border border-purple-500/30 rounded-xl p-4 space-y-2">
+          <div className="flex items-center justify-between text-xs text-purple-300 font-bold">
+            <span className="flex items-center space-x-1">
+              <Layers2 className="w-4 h-4" />
+              <span>复合系统子项负荷分流比例</span>
+            </span>
+            <span>
+              冷水机组+锅炉系统 60% | VRF多联机系统 40%
+            </span>
+          </div>
+          <div className="w-full bg-slate-900 rounded-full h-2.5 overflow-hidden flex">
+            <div className="bg-blue-500 h-full" style={{ width: '60%' }} title="冷水机组+锅炉 60%" />
+            <div className="bg-purple-500 h-full" style={{ width: '40%' }} title="VRF多联机 40%" />
+          </div>
+          <p className="text-xs text-slate-400">
+            根据建筑复合分区（裙房/公区采用水系统冷机，塔楼/办公采用氟系统VRF），负荷分别进入对应机型计算，下表展示各子系统配置。
+          </p>
+        </div>
+      )}
 
       {/* Water Temperature & Condition Form Inputs (Only for Water-based Systems) */}
       {(sysMeta.hasChilledWaterPump || sysMeta.hasHotWaterPump || sysMeta.hasCoolingWaterPump) && (
@@ -658,6 +691,110 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
               );
             })()}
 
+            {/* 4.3 板式换热器 (HEX - 仅区域能源站系统或复合系统) */}
+            {(subItem.systemType === 'district_energy' || (subItem.systemType === 'hybrid' && calc.districtHexCapacitykW > 0)) && (() => {
+              const count = custom.districtHexCount || calc.districtHexCount || 2;
+              const configuredCap = custom.selectedDistrictHexProduct 
+                ? custom.selectedDistrictHexProduct.ratedCapacitykW * count 
+                : (custom.districtHexCapacitykW || calc.districtHexCapacitykW);
+              return (
+                <tr className="hover:bg-slate-800/40">
+                  <td className="py-3 px-3 font-bold text-white flex items-center space-x-2">
+                    <Layers2 className="w-4 h-4 text-cyan-400" />
+                    <span>板式换热机组 (HEX - 区域供冷/供热)</span>
+                  </td>
+                  <td className="py-3 px-3">
+                    <button
+                      onClick={() => openCatalogModal('plate_hex', '高效板式换热器', configuredCap / count, 'selectedDistrictHexProduct')}
+                      className="px-3 py-1.5 bg-cyan-600/20 hover:bg-cyan-600/40 text-cyan-300 font-bold rounded-lg border border-cyan-500/40 transition-all flex items-center space-x-1.5"
+                    >
+                      <span>{custom.selectedDistrictHexProduct ? custom.selectedDistrictHexProduct.name : `从品牌库选板换 (${CATEGORY_BRANDS.plate_hex}...)`}</span>
+                    </button>
+                  </td>
+                  <td className="py-3 px-3 font-bold text-blue-300">{calc.coolingLoadkW.toFixed(1)} kW</td>
+                  <td className="py-3 px-3">
+                    <input
+                      type="number"
+                      min={1} max={9999}
+                      value={count}
+                      onChange={e => handleCustomChange('districtHexCount', Math.max(1, Number(e.target.value)))}
+                      className="w-20 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-center font-bold text-white focus:outline-none"
+                    />
+                  </td>
+                  <td className="py-3 px-3 font-bold text-emerald-400">
+                    {(configuredCap / count).toFixed(1)} kW/台
+                  </td>
+                  <td className="py-3 px-3 font-bold text-white">
+                    {configuredCap.toFixed(1)} kW
+                  </td>
+                  <td className="py-3 px-3">
+                    {renderRatioBadge(configuredCap, calc.coolingLoadkW)}
+                  </td>
+                  <td className="py-3 px-3 font-bold text-slate-400">
+                    0 kW (无源热网换热)
+                  </td>
+                  <td className="py-3 px-3">
+                    <span className="text-emerald-400 font-medium flex items-center space-x-1">
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      <span>匹配推荐</span>
+                    </span>
+                  </td>
+                </tr>
+              );
+            })()}
+
+            {/* 4.4 商用分体空调机组群 (Split AC) */}
+            {(subItem.systemType === 'split_ac' || (subItem.systemType === 'hybrid' && calc.splitTotalCapacitykW > 0)) && (() => {
+              const count = custom.splitCount || calc.splitCount || 10;
+              const configuredCap = custom.selectedSplitProduct 
+                ? custom.selectedSplitProduct.ratedCapacitykW * count 
+                : (custom.splitTotalCapacitykW || calc.splitTotalCapacitykW);
+              return (
+                <tr className="hover:bg-slate-800/40">
+                  <td className="py-3 px-3 font-bold text-white flex items-center space-x-2">
+                    <Wind className="w-4 h-4 text-emerald-400" />
+                    <span>商用分体空调 (新一级能效)</span>
+                  </td>
+                  <td className="py-3 px-3">
+                    <button
+                      onClick={() => openCatalogModal('split_ac', '商用分体空调', configuredCap / count, 'selectedSplitProduct')}
+                      className="px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 font-bold rounded-lg border border-emerald-500/40 transition-all flex items-center space-x-1.5"
+                    >
+                      <span>{custom.selectedSplitProduct ? custom.selectedSplitProduct.name : `从品牌库选分体机 (${CATEGORY_BRANDS.split_ac}...)`}</span>
+                    </button>
+                  </td>
+                  <td className="py-3 px-3 font-bold text-blue-300">{calc.coolingLoadkW.toFixed(1)} kW</td>
+                  <td className="py-3 px-3">
+                    <input
+                      type="number"
+                      min={1} max={9999}
+                      value={count}
+                      onChange={e => handleCustomChange('splitCount', Math.max(1, Number(e.target.value)))}
+                      className="w-20 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-center font-bold text-white focus:outline-none"
+                    />
+                  </td>
+                  <td className="py-3 px-3 font-bold text-emerald-400">
+                    {(configuredCap / count).toFixed(1)} kW/套
+                  </td>
+                  <td className="py-3 px-3 font-bold text-white">
+                    {configuredCap.toFixed(1)} kW
+                  </td>
+                  <td className="py-3 px-3">
+                    {renderRatioBadge(configuredCap, calc.coolingLoadkW)}
+                  </td>
+                  <td className="py-3 px-3 font-bold text-amber-300">
+                    {custom.selectedSplitProduct ? `${custom.selectedSplitProduct.actualPowerkW} kW/套 (铭牌)` : `${(calc.splitPowerkW / Math.max(1, count)).toFixed(2)} kW (理论)`}
+                  </td>
+                  <td className="py-3 px-3">
+                    <span className="text-emerald-400 font-medium flex items-center space-x-1">
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      <span>匹配推荐</span>
+                    </span>
+                  </td>
+                </tr>
+              );
+            })()}
+
             {/* 5. 冷水泵 (CHWP - 仅非风冷热泵系统) */}
             {sysMeta.hasChilledWaterPump && subItem.systemType !== 'air_heat_pump' && (() => {
               const count = custom.chwPumpCount || calc.chwPumpCount;
@@ -668,14 +805,14 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                 <tr className="hover:bg-slate-800/40">
                   <td className="py-3 px-3 font-bold text-white flex items-center space-x-2">
                     <Wind className="w-4 h-4 text-cyan-400" />
-                    <span>冷水泵</span>
+                    <span>{subItem.systemType === 'district_energy' ? '二次冷水循环泵 (区域供冷)' : '冷水泵'}</span>
                   </td>
                   <td className="py-3 px-3">
                     <button
-                      onClick={() => openCatalogModal('pump', '冷水泵', configuredFlow / count, 'selectedChwPumpProduct')}
+                      onClick={() => openCatalogModal('pump', subItem.systemType === 'district_energy' ? '二次冷水循环泵' : '冷水泵', configuredFlow / count, 'selectedChwPumpProduct')}
                       className="px-3 py-1.5 bg-cyan-600/20 hover:bg-cyan-600/40 text-cyan-300 font-bold rounded-lg border border-cyan-500/40 transition-all flex items-center space-x-1.5"
                     >
-                      <span>{custom.selectedChwPumpProduct ? custom.selectedChwPumpProduct.name : `从品牌库选冷水泵 (${CATEGORY_BRANDS.pump}...)`}</span>
+                      <span>{custom.selectedChwPumpProduct ? custom.selectedChwPumpProduct.name : `从品牌库选水泵 (${CATEGORY_BRANDS.pump}...)`}</span>
                     </button>
                   </td>
                   <td className="py-3 px-3 font-bold text-blue-300">{calc.chwPumpFlow.toFixed(1)} m³/h</td>
@@ -720,14 +857,14 @@ export const EquipmentConfigTable: React.FC<Props> = ({ subItem, allSubItems = [
                 <tr className="hover:bg-slate-800/40">
                   <td className="py-3 px-3 font-bold text-white flex items-center space-x-2">
                     <Wind className="w-4 h-4 text-rose-400" />
-                    <span>热水泵</span>
+                    <span>{subItem.systemType === 'district_energy' ? '二次热水循环泵 (区域供热)' : '热水泵'}</span>
                   </td>
                   <td className="py-3 px-3">
                     <button
-                      onClick={() => openCatalogModal('pump', '热水泵', configuredFlow / count, 'selectedHwPumpProduct')}
+                      onClick={() => openCatalogModal('pump', subItem.systemType === 'district_energy' ? '二次热水循环泵' : '热水泵', configuredFlow / count, 'selectedHwPumpProduct')}
                       className="px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 font-bold rounded-lg border border-rose-500/40 transition-all flex items-center space-x-1.5"
                     >
-                      <span>{custom.selectedHwPumpProduct ? custom.selectedHwPumpProduct.name : `从品牌库选热水泵 (${CATEGORY_BRANDS.pump}...)`}</span>
+                      <span>{custom.selectedHwPumpProduct ? custom.selectedHwPumpProduct.name : `从品牌库选水泵 (${CATEGORY_BRANDS.pump}...)`}</span>
                     </button>
                   </td>
                   <td className="py-3 px-3 font-bold text-blue-300">{calc.hwPumpFlow.toFixed(1)} m³/h</td>

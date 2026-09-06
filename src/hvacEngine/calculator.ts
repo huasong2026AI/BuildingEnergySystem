@@ -26,6 +26,8 @@ export function calculateSubItemEnergySummary(
   // 系统类型识别
   const isVrf = item.systemType === 'vrf';
   const isAchp = item.systemType === 'air_heat_pump';
+  const isDistrict = item.systemType === 'district_energy';
+  const isSplit = item.systemType === 'split_ac';
   const isHybrid = item.systemType === 'hybrid';
   const custom = item.customEquipment || {};
 
@@ -91,6 +93,20 @@ export function calculateSubItemEnergySummary(
       }
       return `${vrfCount}套 × 60kW 大金 VRV 智能变频多联机系统 (APF 5.30)`;
     }
+    if (isDistrict) {
+      const hexCount = custom.districtHexCount || calc.districtHexCount || 2;
+      if (custom.selectedDistrictHexProduct) {
+        return `${hexCount}台 × ${custom.selectedDistrictHexProduct.ratedCapacitykW.toFixed(1)}kW ${custom.selectedDistrictHexProduct.name} (板式换热系统)`;
+      }
+      return `${hexCount}台 × ${(calc.coolingLoadkW / Math.max(1, hexCount)).toFixed(0)}kW 阿法拉伐板式换热器机组 (区域能源一次管网直供)`;
+    }
+    if (isSplit) {
+      const splitCount = custom.splitCount || calc.splitCount || 10;
+      if (custom.selectedSplitProduct) {
+        return `${splitCount}套 × ${custom.selectedSplitProduct.ratedCapacitykW.toFixed(1)}kW ${custom.selectedSplitProduct.name} (商用新一级能效分体空调)`;
+      }
+      return `${splitCount}套 × 格力商用变频冷暖分体空调 (APF 4.65)`;
+    }
     return activePlantConfig.config_name;
   })();
 
@@ -134,6 +150,20 @@ export function calculateSubItemEnergySummary(
   const achpHwPumpRated = custom.selectedHwPumpProduct
     ? custom.selectedHwPumpProduct.actualPowerkW * (custom.hwPumpCount || achpCount)
     : (calc.achpWinterPumpPowerkW || 25);
+
+  // 5. 区域能源站二次水泵功率打通
+  const districtHexCount = custom.districtHexCount || calc.districtHexCount || 2;
+  const districtChwPumpRated = custom.selectedChwPumpProduct
+    ? custom.selectedChwPumpProduct.actualPowerkW * (custom.chwPumpCount || districtHexCount)
+    : (calc.districtChwPumpPowerkW || 22);
+  const districtHwPumpRated = custom.selectedHwPumpProduct
+    ? custom.selectedHwPumpProduct.actualPowerkW * (custom.hwPumpCount || districtHexCount)
+    : (calc.districtHwPumpPowerkW || 18.5);
+
+  // 6. 商用分体空调 APF 与真实铭牌打通
+  const splitProduct = custom.selectedSplitProduct;
+  const splitAPF = splitProduct?.copOrEff || 4.65;
+  const splitHeatCOP = splitProduct ? (splitAPF * 0.75) : 3.50;
 
   // 8760h 分时电价数组
   const hoursOfDay = optRecords.map(r => r.hourOfDay);
@@ -272,6 +302,30 @@ export function calculateSubItemEnergySummary(
         pTower = 0; // 风冷无冷却塔
         pTerm = item.area * 0.006 * (rec.Q_cool > 0 || rec.Q_heat > 0 ? 1 : 0.1);
         gas = 0; // 风冷热泵冬季为电制热，天然气消耗为 0
+      } else if (isDistrict) {
+        // 区域能源站系统：建筑内部无主机与冷却塔，由市政冷网与热网直供
+        // 建筑内部电耗仅为二次水泵变频输送电耗与末端AHU/FCU风机电耗
+        pCool = 0;
+        pHeatElec = 0;
+        if (rec.Q_cool > 0) {
+          pPump = districtChwPumpRated * (0.35 + 0.65 * Math.min(1.0, rec.Q_cool / Math.max(1, calc.coolingLoadkW)));
+        } else if (rec.Q_heat > 0) {
+          pPump = districtHwPumpRated * (0.35 + 0.65 * Math.min(1.0, rec.Q_heat / Math.max(1, calc.heatingLoadkW)));
+        } else {
+          pPump = 0;
+        }
+        pTower = 0;
+        pTerm = item.area * 0.006 * (rec.Q_cool > 0 || rec.Q_heat > 0 ? 1 : 0.1);
+        gas = 0;
+      } else if (isSplit) {
+        // 商用分体空调系统：独立变频直膨，无循环水泵水塔与天然气
+        const partLoadFactor = 0.90 + 0.20 * Math.sin(loadRatio * Math.PI);
+        pCool = rec.Q_cool > 0 ? rec.Q_cool / (splitAPF * partLoadFactor) : 0;
+        pHeatElec = rec.Q_heat > 0 ? rec.Q_heat / splitHeatCOP : 0;
+        pPump = 0;
+        pTower = 0;
+        pTerm = 0; // 分体室内风机电耗已包含在整机 APF 标称电耗中
+        gas = 0;
       } else if (isHybrid) {
         // 混合多联+冷站系统
         const subSystems = item.hybridSubSystems && item.hybridSubSystems.length > 0
@@ -322,8 +376,8 @@ export function calculateSubItemEnergySummary(
       // 仅记录供冷季冷源系统电耗 (用于 SCOP 计算，严禁混入冬季供暖耗电)
       if (rec.Q_cool > 0) {
         totPlantChillerkWh += pCool;
-        totPlantChwPumpkWh += isAchp ? pPump : (isVrf ? 0 : rec.opt_P_CHWP);
-        totPlantCwPumpkWh += (isAchp || isVrf) ? 0 : rec.opt_P_CWP;
+        totPlantChwPumpkWh += (isAchp || isDistrict) ? pPump : (isVrf || isSplit ? 0 : rec.opt_P_CHWP);
+        totPlantCwPumpkWh += (isAchp || isVrf || isDistrict || isSplit) ? 0 : rec.opt_P_CWP;
         totPlantTowerkWh += pTower;
         totCoolingDemandkWh += rec.Q_cool;
       }
@@ -343,6 +397,14 @@ export function calculateSubItemEnergySummary(
         const baseCool = rec.Q_cool > 0 ? rec.Q_cool / 3.80 : 0;
         const baseHeat = rec.Q_heat > 0 ? rec.Q_heat / 3.00 : 0;
         baseElec = baseCool + baseHeat + pTerm;
+      } else if (isDistrict) {
+        // 区域能源站基准：常规水冷冷机+锅炉输配基准
+        baseElec = rec.base_P_Total + pTerm;
+      } else if (isSplit) {
+        // 分体空调基准：定频三级能效标准
+        const baseCool = rec.Q_cool > 0 ? rec.Q_cool / 3.20 : 0;
+        const baseHeat = rec.Q_heat > 0 ? rec.Q_heat / 2.80 : 0;
+        baseElec = baseCool + baseHeat;
       } else {
         baseElec = rec.base_P_Total + pTerm;
       }
@@ -351,7 +413,13 @@ export function calculateSubItemEnergySummary(
       totOptEleckWh += (pCool + pHeatElec + pPump + pTower + pTerm);
 
       const hourElec = pCool + pHeatElec + pPump + pTower + pTerm;
-      const hourCost = (hourElec * price) + (gas * tariff.gasPrice);
+      let hourCost = (hourElec * price) + (gas * tariff.gasPrice);
+      if (isDistrict) {
+        // 区域能源站外购冷热计量费 (冷量 0.28 元/kWh, 热量 0.25 元/kWh)
+        const districtCoolCost = rec.Q_cool > 0 ? rec.Q_cool * 0.28 : 0;
+        const districtHeatCost = rec.Q_heat > 0 ? rec.Q_heat * 0.25 : 0;
+        hourCost += (districtCoolCost + districtHeatCost);
+      }
       mCostRmb += hourCost;
     }
 
@@ -380,11 +448,29 @@ export function calculateSubItemEnergySummary(
 
   // SCOP / 能效评定 (供冷季制冷综合性能系数)
   const totalPlantEleckWh = totPlantChillerkWh + totPlantChwPumpkWh + totPlantCwPumpkWh + totPlantTowerkWh;
-  const rawSCOP = totalPlantEleckWh > 0 ? totCoolingDemandkWh / totalPlantEleckWh : (isVrf ? 5.30 : (isAchp ? 3.20 : 4.85));
+  const rawSCOP = totalPlantEleckWh > 0 
+    ? (totCoolingDemandkWh / totalPlantEleckWh) 
+    : (isDistrict ? 28.5 : (isSplit ? splitAPF : (isVrf ? 5.30 : (isAchp ? 3.20 : 4.85))));
   const scop = Number(rawSCOP.toFixed(2));
 
   let ratingLevel: '卓越 (五星级高效冷站)' | '优秀 (四星级高效冷站)' | '良好 (三星级高效冷站)' | '达标 (节能标准合格)' | '待提升' = '达标 (节能标准合格)';
-  const stdLimit = isVrf ? 4.80 : (isAchp ? 2.80 : 3.50);
+  let stdLimit = 3.50;
+  let standardCode = 'GB 50189 第4.2.12条';
+
+  if (isVrf) {
+    stdLimit = 4.80;
+    standardCode = 'GB 21454 APF 能效标准';
+  } else if (isAchp) {
+    stdLimit = 2.80;
+    standardCode = 'GB 50189 / GB 55015 热泵标准';
+  } else if (isDistrict) {
+    stdLimit = 25.0;
+    standardCode = 'GB 50189 输配能效比 (WTCC)';
+  } else if (isSplit) {
+    stdLimit = 4.50;
+    standardCode = 'GB 21455-2019 新1级能效标准';
+  }
+
   if (scop >= (stdLimit + 0.8)) {
     ratingLevel = '卓越 (五星级高效冷站)';
   } else if (scop >= (stdLimit + 0.5)) {
@@ -408,7 +494,7 @@ export function calculateSubItemEnergySummary(
     standardLimit: stdLimit,
     ratingLevel,
     isCompliant: scop >= stdLimit,
-    standardCode: isVrf ? 'GB 21454 APF 能效标准' : (isAchp ? 'GB 50189 / GB 55015 热泵标准' : 'GB 50189 第4.2.12条')
+    standardCode
   };
 
   const annualCarbonTons = ((annualElectricitykWh * tariff.electricityCarbon) + (annualGasm3 * tariff.gasCarbon)) / 1000;
@@ -734,10 +820,12 @@ export function calculateEquipmentForSubItem(
   let vrfCount = 0;
 
   let districtHexCapacitykW = 0;
+  let districtHexCount = 0;
   let districtPumpPowerkW = 0;
 
   let splitTotalCapacitykW = 0;
   let splitPowerkW = 0;
+  let splitCount = 0;
 
   if (item.systemType === 'hybrid') {
     const subSystems = item.hybridSubSystems && item.hybridSubSystems.length > 0 
@@ -805,6 +893,23 @@ export function calculateEquipmentForSubItem(
         hwPumpFlow += subHwFlow;
         hwPumpPowerkW += (subHwFlow * 22) / 247.7;
         achpWinterPumpPowerkW += (subHwFlow * 22) / 247.7;
+      } else if (sub.systemType === 'district_energy') {
+        districtHexCapacitykW += subCoolLoad;
+        const subHexCount = subCoolLoad <= 2500 ? 2 : 3;
+        districtHexCount += subHexCount;
+        const subChwFlow = (subCoolLoad * 3.6) / (4.186 * deltaTchw);
+        chwPumpFlow += subChwFlow;
+        chwPumpPowerkW += (subChwFlow * 28) / 247.7;
+        chwPumpCount += subHexCount;
+        const subHwFlow = (subHeatLoad * 3.6) / (4.186 * deltaThw);
+        hwPumpFlow += subHwFlow;
+        hwPumpPowerkW += (subHwFlow * 22) / 247.7;
+        hwPumpCount += subHexCount;
+        districtPumpPowerkW += (subChwFlow * 28 + subHwFlow * 22) / 247.7;
+      } else if (sub.systemType === 'split_ac') {
+        splitTotalCapacitykW += subCoolLoad;
+        splitCount += Math.ceil(subCoolLoad / 7.2);
+        splitPowerkW += subCoolLoad / 4.60;
       }
     });
 
@@ -874,24 +979,27 @@ export function calculateEquipmentForSubItem(
       }
 
       case 'district_energy': {
-        districtHexCapacitykW = coolingLoadkW;
-        chwPumpFlow = (coolingLoadkW * 3.6) / (4.186 * deltaTchw);
-        chwPumpHead = 26;
+        districtHexCapacitykW = coolingLoadkW * simFactor;
+        districtHexCount = districtHexCapacitykW <= 2500 ? 2 : 3;
+
+        chwPumpFlow = (districtHexCapacitykW * 3.6) / (4.186 * deltaTchw);
+        chwPumpHead = 28;
         chwPumpPowerkW = (chwPumpFlow * chwPumpHead) / 247.7;
-        chwPumpCount = 3;
+        chwPumpCount = districtHexCount;
 
         hwPumpFlow = (heatingLoadkW * 3.6) / (4.186 * deltaThw);
         hwPumpHead = 22;
         hwPumpPowerkW = (hwPumpFlow * hwPumpHead) / 247.7;
-        hwPumpCount = 3;
+        hwPumpCount = districtHexCount;
 
-        districtPumpPowerkW = chwPumpPowerkW;
+        districtPumpPowerkW = chwPumpPowerkW + hwPumpPowerkW;
         break;
       }
 
       case 'split_ac': {
-        splitTotalCapacitykW = coolingLoadkW;
-        const splitAPF = 4.2;
+        splitTotalCapacitykW = coolingLoadkW * simFactor;
+        splitCount = Math.ceil(splitTotalCapacitykW / 7.2);
+        const splitAPF = 4.60;
         splitPowerkW = splitTotalCapacitykW / splitAPF;
         break;
       }
@@ -938,6 +1046,22 @@ export function calculateEquipmentForSubItem(
     vrfPowerkW = custom.vrfCoolingkW / 5.30;
   }
 
+  if (custom.districtHexCount) districtHexCount = custom.districtHexCount;
+  if (custom.selectedDistrictHexProduct) {
+    districtHexCapacitykW = custom.selectedDistrictHexProduct.ratedCapacitykW * districtHexCount;
+  } else if (custom.districtHexCapacitykW) {
+    districtHexCapacitykW = custom.districtHexCapacitykW;
+  }
+
+  if (custom.splitCount) splitCount = custom.splitCount;
+  if (custom.selectedSplitProduct) {
+    splitTotalCapacitykW = custom.selectedSplitProduct.ratedCapacitykW * splitCount;
+    splitPowerkW = custom.selectedSplitProduct.actualPowerkW * splitCount;
+  } else if (custom.splitTotalCapacitykW) {
+    splitTotalCapacitykW = custom.splitTotalCapacitykW;
+    splitPowerkW = custom.splitTotalCapacitykW / 4.60;
+  }
+
   // 核心工程法则：配件（冷水泵/热水泵/冷却泵/冷却塔）的推荐标准容量严格根据【主机实际选型总容量】动态联动精算！
   const activeChillerCap = custom.selectedChillerProduct 
     ? (custom.selectedChillerProduct.ratedCapacitykW * chillerCount)
@@ -952,6 +1076,10 @@ export function calculateEquipmentForSubItem(
     ? (custom.selectedAchpProduct.ratedCapacitykW * achpCount)
     : (custom.achpCoolingkW || achpCoolingkW);
   const activeAchpHeatCap = (coolingLoadkW > 0) ? (activeAchpCoolCap / coolingLoadkW) * heatingLoadkW : heatingLoadkW;
+
+  const activeDistrictHexCap = custom.selectedDistrictHexProduct
+    ? (custom.selectedDistrictHexProduct.ratedCapacitykW * districtHexCount)
+    : (custom.districtHexCapacitykW || districtHexCapacitykW);
 
   if (item.systemType === 'chiller_boiler' || item.systemType === 'hybrid') {
     chwPumpFlow = (activeChillerCap * 3.6) / (4.186 * deltaTchw);
@@ -968,12 +1096,18 @@ export function calculateEquipmentForSubItem(
     chwPumpCount = achpCount;
     hwPumpFlow = (activeAchpHeatCap * 3.6) / (4.186 * deltaThw);
     hwPumpCount = achpCount;
+  } else if (item.systemType === 'district_energy') {
+    chwPumpFlow = (activeDistrictHexCap * 3.6) / (4.186 * deltaTchw);
+    chwPumpCount = districtHexCount;
+    const heatCap = (coolingLoadkW > 0) ? (activeDistrictHexCap / coolingLoadkW) * heatingLoadkW : heatingLoadkW;
+    hwPumpFlow = (heatCap * 3.6) / (4.186 * deltaThw);
+    hwPumpCount = districtHexCount;
   }
 
   // 水泵与冷却塔台数及功率覆盖（若用户进一步选定了具体水泵型号）
   if (custom.chwPumpCount) chwPumpCount = custom.chwPumpCount;
   if (custom.selectedChwPumpProduct) {
-    chwPumpPowerkW = custom.selectedChwPumpProduct.actualPowerkW * (custom.chwPumpCount || (item.systemType === 'air_heat_pump' ? achpCount : chwPumpCount));
+    chwPumpPowerkW = custom.selectedChwPumpProduct.actualPowerkW * (custom.chwPumpCount || (item.systemType === 'air_heat_pump' ? achpCount : (item.systemType === 'district_energy' ? districtHexCount : chwPumpCount)));
   } else if (custom.chwPumpFlow) {
     chwPumpPowerkW = (custom.chwPumpFlow * chwPumpHead) / 247.7;
   } else {
@@ -1000,7 +1134,7 @@ export function calculateEquipmentForSubItem(
 
   if (custom.hwPumpCount) hwPumpCount = custom.hwPumpCount;
   if (custom.selectedHwPumpProduct) {
-    hwPumpPowerkW = custom.selectedHwPumpProduct.actualPowerkW * (custom.hwPumpCount || (item.systemType === 'air_heat_pump' ? achpCount : hwPumpCount));
+    hwPumpPowerkW = custom.selectedHwPumpProduct.actualPowerkW * (custom.hwPumpCount || (item.systemType === 'air_heat_pump' ? achpCount : (item.systemType === 'district_energy' ? districtHexCount : hwPumpCount)));
   } else if (custom.hwPumpFlow) {
     hwPumpPowerkW = (custom.hwPumpFlow * hwPumpHead) / 247.7;
   } else {
@@ -1014,6 +1148,15 @@ export function calculateEquipmentForSubItem(
   const achpHwPumpCount = custom.hwPumpCount || achpCount;
   achpSummerPumpPowerkW = chwPumpPowerkW;
   achpWinterPumpPowerkW = hwPumpPowerkW;
+
+  // 区域能源站专属参数
+  const districtChwPumpFlow = custom.chwPumpFlow || chwPumpFlow;
+  const districtHwPumpFlow = custom.hwPumpFlow || hwPumpFlow;
+  const districtChwPumpPowerkW = chwPumpPowerkW;
+  const districtHwPumpPowerkW = hwPumpPowerkW;
+  if (item.systemType === 'district_energy') {
+    districtPumpPowerkW = chwPumpPowerkW + hwPumpPowerkW;
+  }
 
   const sysMeta = SYSTEM_TYPES_META[item.systemType];
 
@@ -1071,9 +1214,15 @@ export function calculateEquipmentForSubItem(
     vrfPowerkW,
     vrfCount,
     districtHexCapacitykW,
+    districtHexCount,
     districtPumpPowerkW,
+    districtChwPumpFlow,
+    districtChwPumpPowerkW,
+    districtHwPumpFlow,
+    districtHwPumpPowerkW,
     splitTotalCapacitykW,
     splitPowerkW,
+    splitCount,
     totalInstalledElectricPowerkW
   };
 }
@@ -1176,6 +1325,8 @@ export function checkDiscrepancies(
 
   evaluateField('风冷热泵', '制冷量', calc.achpCoolingkW, custom.achpCoolingkW, 'kW', 1 / 3.2);
   evaluateField('VRF多联机', '制冷容量 (APF计算)', calc.vrfCoolingkW, custom.vrfCoolingkW, 'kW', 1 / 5.30);
+  evaluateField('板式换热器', '换热容量', calc.districtHexCapacitykW, custom.districtHexCapacitykW, 'kW');
+  evaluateField('商用分体空调', '总制冷容量', calc.splitTotalCapacitykW, custom.splitTotalCapacitykW, 'kW', 1 / 4.60);
 
   return list;
 }

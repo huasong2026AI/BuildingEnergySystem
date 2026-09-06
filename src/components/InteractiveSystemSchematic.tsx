@@ -104,7 +104,7 @@ export const InteractiveSystemSchematic: React.FC<Props> = ({ subItem }) => {
           </div>
         </div>
 
-        {subItem.systemType === 'vrf' ? (
+        {subItem.systemType === 'vrf' || subItem.systemType === 'split_ac' ? (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-900/90 p-3 rounded-lg border border-slate-750">
             <div>
               <span className="text-xs text-slate-300 block">设计总制冷量</span>
@@ -115,13 +115,15 @@ export const InteractiveSystemSchematic: React.FC<Props> = ({ subItem }) => {
             <div>
               <span className="text-xs text-slate-300 block">系统换热形式</span>
               <span className="font-bold text-purple-400 text-sm">
-                变频直接蒸发 (DX直膨)
+                {subItem.systemType === 'vrf' ? '变频直接蒸发 (DX多联)' : '独立全直流变频 (DX分体)'}
               </span>
             </div>
             <div>
-              <span className="text-xs text-slate-300 block">室外主机配置</span>
+              <span className="text-xs text-slate-300 block">主机设备配置</span>
               <span className="font-bold text-blue-400 text-sm">
-                {subItem.customEquipment?.vrfCount || calc.vrfCount} 台 (单台 {((subItem.customEquipment?.vrfCoolingkW || calc.vrfCoolingkW) / Math.max(1, subItem.customEquipment?.vrfCount || calc.vrfCount)).toFixed(1)} kW)
+                {subItem.systemType === 'vrf' 
+                  ? `${subItem.customEquipment?.vrfCount || calc.vrfCount} 套 (单套 ${((subItem.customEquipment?.vrfCoolingkW || calc.vrfCoolingkW) / Math.max(1, subItem.customEquipment?.vrfCount || calc.vrfCount)).toFixed(1)} kW)`
+                  : `${subItem.customEquipment?.splitCount || calc.splitCount} 套 (新一级 APF 4.65)`}
               </span>
             </div>
             <div>
@@ -175,8 +177,9 @@ function renderSystemSVG(
   data: any
 ) {
   const isCooling = season === 'cooling';
+  const calc = data.calc;
 
-  if (systemType === 'chiller_boiler' || systemType === 'hybrid') {
+  if (systemType === 'chiller_boiler') {
     return (
       <svg viewBox="0 0 980 460" className="w-full h-auto">
         <defs>
@@ -406,21 +409,255 @@ function renderSystemSVG(
 
   if (systemType === 'district_energy') {
     return (
-      <svg viewBox="0 0 960 360" className="w-full h-auto">
-        <rect x="180" y="110" width="160" height="120" rx="14" fill="#0891b2" stroke="#22d3ee" strokeWidth="3" />
-        <text x="260" y="155" fill="#ffffff" fontSize="15" fontWeight="bold" textAnchor="middle">板式换热器 (HEX)</text>
-        <text x="260" y="180" fill="#cff4fc" fontSize="12" textAnchor="middle">区域集中冷/热源换热</text>
+      <svg viewBox="0 0 980 440" className="w-full h-auto">
+        <defs>
+          <linearGradient id="hexGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#0284c7" />
+            <stop offset="100%" stopColor="#06b6d4" />
+          </linearGradient>
+          <linearGradient id="meterGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#1e293b" />
+            <stop offset="100%" stopColor="#334155" />
+          </linearGradient>
+          <marker id="arrowBlueDist" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#06b6d4" />
+          </marker>
+          <marker id="arrowRedDist" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#f43f5e" />
+          </marker>
+        </defs>
 
-        <path d="M 340 140 L 840 140 L 840 240" fill="none" stroke="#06b6d4" strokeWidth="4" />
-        <path d="M 780 240 L 780 280 L 260 280 L 260 230" fill="none" stroke="#0891b2" strokeWidth="3" strokeDasharray="8 4" />
+        {/* 区域市政一次侧管网 (市政能源站直供) */}
+        <rect x="30" y="70" width="160" height="300" rx="16" fill="#0f172a" stroke="#334155" strokeWidth="2" strokeDasharray="6 4" />
+        <text x="110" y="105" fill="#94a3b8" fontSize="14" fontWeight="bold" textAnchor="middle">市政区域能源站</text>
+        <text x="110" y="128" fill="#64748b" fontSize="12" textAnchor="middle">一次集中管网直供</text>
 
-        <circle cx="520" cy="140" r="22" fill="#1e293b" stroke="#22d3ee" strokeWidth="3" />
-        <text x="520" y="144" fill="#22d3ee" fontSize="11" fontWeight="bold" textAnchor="middle">二次泵</text>
+        {/* 一次供回水管路 */}
+        {isCooling ? (
+          <g>
+            {/* 一次供冷水 (3℃) */}
+            <path d="M 190 160 L 360 160" fill="none" stroke="#06b6d4" strokeWidth="4" markerEnd="url(#arrowBlueDist)" />
+            <text x="275" y="150" fill="#38bdf8" fontSize="12" fontWeight="bold" textAnchor="middle">3℃ 市政供冷水</text>
 
-        <rect x="740" y="120" width="150" height="120" rx="14" fill="#334155" stroke="#94a3b8" strokeWidth="3" />
-        <text x="815" y="170" fill="#ffffff" fontSize="15" fontWeight="bold" textAnchor="middle">建筑空调末端</text>
-        <circle cx="840" cy="240" r="4" fill="#ef4444" />
-        <circle cx="780" cy="240" r="4" fill="#60a5fa" />
+            {/* 一次回冷水 (13℃) */}
+            <path d="M 360 280 L 190 280" fill="none" stroke="#0284c7" strokeWidth="3" strokeDasharray="8 4" markerEnd="url(#arrowBlueDist)" />
+            <text x="275" y="270" fill="#7dd3fc" fontSize="12" fontWeight="bold" textAnchor="middle">13℃ 市政回水</text>
+          </g>
+        ) : (
+          <g>
+            {/* 一次供热水 (90℃) */}
+            <path d="M 190 160 L 360 160" fill="none" stroke="#f43f5e" strokeWidth="4" markerEnd="url(#arrowRedDist)" />
+            <text x="275" y="150" fill="#f87171" fontSize="12" fontWeight="bold" textAnchor="middle">90℃ 市政供热水</text>
+
+            {/* 一次回热水 (65℃) */}
+            <path d="M 360 280 L 190 280" fill="none" stroke="#ef4444" strokeWidth="3" strokeDasharray="8 4" markerEnd="url(#arrowRedDist)" />
+            <text x="275" y="270" fill="#fca5a5" fontSize="12" fontWeight="bold" textAnchor="middle">65℃ 市政回水</text>
+          </g>
+        )}
+
+        {/* 市政冷热计量表 */}
+        <g onClick={() => setSelectedNode('districtMeter')} className="cursor-pointer">
+          <circle cx="275" cy="160" r="18" fill="url(#meterGrad)" stroke={selectedNode === 'districtMeter' ? '#38bdf8' : '#64748b'} strokeWidth="2.5" />
+          <text x="275" y="164" fill="#ffffff" fontSize="10" fontWeight="bold" textAnchor="middle">计量表</text>
+        </g>
+
+        {/* 板式换热机组 (HEX) */}
+        <g onClick={() => setSelectedNode('plateHex')} className="cursor-pointer">
+          <rect x="360" y="110" width="180" height="220" rx="16" fill="url(#hexGrad)" stroke={selectedNode === 'plateHex' ? '#ffffff' : '#0891b2'} strokeWidth="3.5" />
+          <text x="450" y="155" fill="#ffffff" fontSize="17" fontWeight="bold" textAnchor="middle">板式换热器机组</text>
+          <text x="450" y="180" fill="#cff4fc" fontSize="13" textAnchor="middle">阿法拉伐 (Alfa Laval)</text>
+          <text x="450" y="210" fill="#ffffff" fontSize="15" fontWeight="bold" textAnchor="middle">
+            {calc.coolingLoadkW.toFixed(0)} kW
+          </text>
+          <text x="450" y="235" fill="#e0f2fe" fontSize="11" textAnchor="middle">高效湍流金属波纹板</text>
+          <text x="450" y="255" fill="#e0f2fe" fontSize="11" textAnchor="middle">对流温差仅 1.0~1.5℃</text>
+        </g>
+
+        {/* 二次侧水系统管路 */}
+        {isCooling ? (
+          <g>
+            {/* 二次供冷水 (7℃) */}
+            <path d="M 540 160 L 780 160 L 780 200" fill="none" stroke="#3b82f6" strokeWidth="4" markerEnd="url(#arrowBlueDist)" />
+            <text x="650" y="150" fill="#60a5fa" fontSize="13" fontWeight="bold" textAnchor="middle">7℃ 建筑二次冷水供水</text>
+
+            {/* 二次冷水泵 */}
+            <g onClick={() => setSelectedNode('secondaryPump')} className="cursor-pointer">
+              <circle cx="650" cy="160" r="24" fill="#1e293b" stroke={selectedNode === 'secondaryPump' ? '#60a5fa' : '#3b82f6'} strokeWidth="3" />
+              <text x="650" y="164" fill="#93c5fd" fontSize="11" fontWeight="bold" textAnchor="middle">二次冷水泵</text>
+            </g>
+
+            {/* 二次冷水回水 (12℃) */}
+            <path d="M 780 260 L 780 300 L 540 300" fill="none" stroke="#60a5fa" strokeWidth="3" strokeDasharray="8 4" markerEnd="url(#arrowBlueDist)" />
+            <text x="660" y="292" fill="#93c5fd" fontSize="13" fontWeight="bold" textAnchor="middle">12℃ 建筑二次冷水回水</text>
+          </g>
+        ) : (
+          <g>
+            {/* 二次供热水 (60℃) */}
+            <path d="M 540 160 L 780 160 L 780 200" fill="none" stroke="#ef4444" strokeWidth="4" markerEnd="url(#arrowRedDist)" />
+            <text x="650" y="150" fill="#f87171" fontSize="13" fontWeight="bold" textAnchor="middle">60℃ 建筑二次热水供水</text>
+
+            {/* 二次热水泵 */}
+            <g onClick={() => setSelectedNode('secondaryPump')} className="cursor-pointer">
+              <circle cx="650" cy="160" r="24" fill="#1e293b" stroke={selectedNode === 'secondaryPump' ? '#f87171' : '#ef4444'} strokeWidth="3" />
+              <text x="650" y="164" fill="#fca5a5" fontSize="11" fontWeight="bold" textAnchor="middle">二次热水泵</text>
+            </g>
+
+            {/* 二次热水回水 (50℃) */}
+            <path d="M 780 260 L 780 300 L 540 300" fill="none" stroke="#f87171" strokeWidth="3" strokeDasharray="8 4" markerEnd="url(#arrowRedDist)" />
+            <text x="660" y="292" fill="#fca5a5" fontSize="13" fontWeight="bold" textAnchor="middle">50℃ 建筑二次热水回水</text>
+          </g>
+        )}
+
+        {/* 建筑空调末端 (AHU/FCU) */}
+        <g onClick={() => setSelectedNode('terminal')} className="cursor-pointer">
+          <rect x="740" y="170" width="190" height="130" rx="16" fill="#334155" stroke={selectedNode === 'terminal' ? '#38bdf8' : '#94a3b8'} strokeWidth="3" />
+          <text x="835" y="215" fill="#ffffff" fontSize="16" fontWeight="bold" textAnchor="middle">建筑空调末端 (AHU/FCU)</text>
+          <text x="835" y="242" fill="#cbd5e1" fontSize="13" textAnchor="middle">室内维持 {isCooling ? '26℃ 供冷' : '20℃ 供热'}</text>
+          <text x="835" y="268" fill="#94a3b8" fontSize="12" textAnchor="middle">水力平衡与两通调节阀控</text>
+        </g>
+      </svg>
+    );
+  }
+
+  if (systemType === 'split_ac') {
+    return (
+      <svg viewBox="0 0 980 440" className="w-full h-auto">
+        <defs>
+          <linearGradient id="splitOutGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#047857" />
+            <stop offset="100%" stopColor="#10b981" />
+          </linearGradient>
+          <marker id="arrowCopper" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#f59e0b" />
+          </marker>
+        </defs>
+
+        {/* 室外机组群 (Outdoor Units Group) */}
+        <g onClick={() => setSelectedNode('splitOutdoor')} className="cursor-pointer">
+          <rect x="80" y="80" width="220" height="280" rx="16" fill="url(#splitOutGrad)" stroke={selectedNode === 'splitOutdoor' ? '#ffffff' : '#059669'} strokeWidth="3.5" />
+          <text x="190" y="125" fill="#ffffff" fontSize="17" fontWeight="bold" textAnchor="middle">商用分体室外机群</text>
+          <text x="190" y="150" fill="#a7f3d0" fontSize="13" textAnchor="middle">格力 (Gree) 新一级变频</text>
+          <circle cx="190" cy="220" r="45" fill="#064e3b" stroke="#34d399" strokeWidth="2.5" />
+          <text x="190" y="226" fill="#34d399" fontSize="13" fontWeight="bold" textAnchor="middle">轴流风机</text>
+          <text x="190" y="295" fill="#ffffff" fontSize="14" fontWeight="bold" textAnchor="middle">
+            {calc.splitCount} 套配置 (总 {calc.coolingLoadkW.toFixed(0)} kW)
+          </text>
+          <text x="190" y="325" fill="#d1fae5" fontSize="12" textAnchor="middle">全直流变频压缩机 / APF 4.65</text>
+        </g>
+
+        {/* 冷媒管道 (铜管气管 / 液管) */}
+        <g>
+          {/* 气管 (粗管) */}
+          <path d="M 300 160 L 520 160" fill="none" stroke="#f59e0b" strokeWidth="6" markerEnd="url(#arrowCopper)" />
+          <text x="410" y="148" fill="#fbbf24" fontSize="13" fontWeight="bold" textAnchor="middle">冷媒气管 (低压气体)</text>
+
+          {/* 液管 (细管) */}
+          <path d="M 300 240 L 520 240" fill="none" stroke="#d97706" strokeWidth="3" strokeDasharray="8 4" markerEnd="url(#arrowCopper)" />
+          <text x="410" y="230" fill="#fcd34d" fontSize="13" fontWeight="bold" textAnchor="middle">冷媒液管 (高压液体)</text>
+        </g>
+
+        {/* 四通换向阀 */}
+        <g onClick={() => setSelectedNode('fourWayValve')} className="cursor-pointer">
+          <circle cx="520" cy="200" r="28" fill="#1e293b" stroke={selectedNode === 'fourWayValve' ? '#fbbf24' : '#f59e0b'} strokeWidth="3" />
+          <text x="520" y="196" fill="#f59e0b" fontSize="11" fontWeight="bold" textAnchor="middle">四通换向阀</text>
+          <text x="520" y="214" fill="#94a3b8" fontSize="9" textAnchor="middle">{isCooling ? '夏季制冷' : '冬季制热'}</text>
+        </g>
+
+        {/* 分室铜管分支 */}
+        <path d="M 548 180 L 620 180 L 620 100 L 720 100" fill="none" stroke="#f59e0b" strokeWidth="3" />
+        <path d="M 548 200 L 720 200" fill="none" stroke="#f59e0b" strokeWidth="3" />
+        <path d="M 548 220 L 620 220 L 620 300 L 720 300" fill="none" stroke="#f59e0b" strokeWidth="3" />
+
+        {/* 独立房间室内机 A */}
+        <g onClick={() => setSelectedNode('splitIndoor')} className="cursor-pointer">
+          <rect x="720" y="70" width="200" height="65" rx="12" fill="#334155" stroke={selectedNode === 'splitIndoor' ? '#34d399' : '#64748b'} strokeWidth="2.5" />
+          <text x="820" y="100" fill="#ffffff" fontSize="14" fontWeight="bold" textAnchor="middle">房间A 室内机 (独立天花机)</text>
+          <text x="820" y="122" fill="#94a3b8" fontSize="11" textAnchor="middle">独立温控 26℃ / 独立启停</text>
+        </g>
+
+        {/* 独立房间室内机 B */}
+        <g onClick={() => setSelectedNode('splitIndoor')} className="cursor-pointer">
+          <rect x="720" y="170" width="200" height="65" rx="12" fill="#334155" stroke={selectedNode === 'splitIndoor' ? '#34d399' : '#64748b'} strokeWidth="2.5" />
+          <text x="820" y="200" fill="#ffffff" fontSize="14" fontWeight="bold" textAnchor="middle">房间B 室内机 (静音风管机)</text>
+          <text x="820" y="222" fill="#94a3b8" fontSize="11" textAnchor="middle">独立温控 26℃ / 独立启停</text>
+        </g>
+
+        {/* 独立房间室内机 C */}
+        <g onClick={() => setSelectedNode('splitIndoor')} className="cursor-pointer">
+          <rect x="720" y="270" width="200" height="65" rx="12" fill="#334155" stroke={selectedNode === 'splitIndoor' ? '#34d399' : '#64748b'} strokeWidth="2.5" />
+          <text x="820" y="300" fill="#ffffff" fontSize="14" fontWeight="bold" textAnchor="middle">房间C 室内机 (挂式室内机)</text>
+          <text x="820" y="322" fill="#94a3b8" fontSize="11" textAnchor="middle">独立温控 26℃ / 独立启停</text>
+        </g>
+      </svg>
+    );
+  }
+
+  if (systemType === 'hybrid') {
+    return (
+      <svg viewBox="0 0 980 460" className="w-full h-auto">
+        {/* Top: Central Chiller + Boiler loop (60% load) */}
+        <rect x="30" y="30" width="920" height="190" rx="16" fill="#1e293b" stroke="#3b82f6" strokeWidth="2" strokeDasharray="6 4" />
+        <text x="55" y="60" fill="#60a5fa" fontSize="14" fontWeight="bold">系统分支 1：中央水系统冷水机房 + 锅炉 (担负 60% 负荷 — 公共大堂/商业裙房)</text>
+
+        {/* Chiller & Boiler */}
+        <g onClick={() => setSelectedNode('chiller')} className="cursor-pointer">
+          <rect x="80" y="80" width="150" height="65" rx="10" fill="#1d4ed8" stroke="#60a5fa" strokeWidth="2" />
+          <text x="155" y="110" fill="#ffffff" fontSize="13" fontWeight="bold" textAnchor="middle">冷水机组</text>
+          <text x="155" y="130" fill="#bfdbfe" fontSize="11" textAnchor="middle">{(calc.chillerCapacitykW).toFixed(0)} kW</text>
+        </g>
+
+        <g onClick={() => setSelectedNode('boiler')} className="cursor-pointer">
+          <rect x="80" y="150" width="150" height="55" rx="10" fill="#b91c1c" stroke="#f87171" strokeWidth="2" />
+          <text x="155" y="175" fill="#ffffff" fontSize="13" fontWeight="bold" textAnchor="middle">真空热水机组</text>
+          <text x="155" y="195" fill="#fca5a5" fontSize="11" textAnchor="middle">{(calc.boilerCapacitykW).toFixed(0)} kW</text>
+        </g>
+
+        {/* Piping & Pump */}
+        <path d="M 230 110 L 400 110 L 680 110" fill="none" stroke="#3b82f6" strokeWidth="3" />
+        <g onClick={() => setSelectedNode('chwPump')} className="cursor-pointer">
+          <circle cx="350" cy="110" r="18" fill="#0f172a" stroke="#3b82f6" strokeWidth="2.5" />
+          <text x="350" y="114" fill="#60a5fa" fontSize="10" fontWeight="bold" textAnchor="middle">冷水泵</text>
+        </g>
+
+        {/* Cooling Tower */}
+        <g onClick={() => setSelectedNode('coolingTower')} className="cursor-pointer">
+          <rect x="440" y="75" width="120" height="50" rx="8" fill="#047857" stroke="#34d399" strokeWidth="2" />
+          <text x="500" y="100" fill="#ffffff" fontSize="12" fontWeight="bold" textAnchor="middle">冷却塔</text>
+          <text x="500" y="118" fill="#a7f3d0" fontSize="10" textAnchor="middle">{calc.coolingTowerFlow.toFixed(0)} m³/h</text>
+        </g>
+
+        {/* AHU Terminal */}
+        <g onClick={() => setSelectedNode('terminal')} className="cursor-pointer">
+          <rect x="680" y="75" width="230" height="125" rx="12" fill="#334155" stroke="#94a3b8" strokeWidth="2" />
+          <text x="795" y="115" fill="#ffffff" fontSize="14" fontWeight="bold" textAnchor="middle">公区大温差末端 (AHU)</text>
+          <text x="795" y="140" fill="#cbd5e1" fontSize="12" textAnchor="middle">大空间舒适性集中温湿控制</text>
+          <text x="795" y="165" fill="#93c5fd" fontSize="11" textAnchor="middle">供冷 7℃ / 供热 60℃</text>
+        </g>
+
+        {/* Bottom: VRF Direct Expansion loop (40% load) */}
+        <rect x="30" y="240" width="920" height="190" rx="16" fill="#1e293b" stroke="#a855f7" strokeWidth="2" strokeDasharray="6 4" />
+        <text x="55" y="270" fill="#c084fc" fontSize="14" fontWeight="bold">系统分支 2：VRF 变频多联机氟系统 (担负 40% 负荷 — 高层办公/独立包间)</text>
+
+        {/* VRF Outdoor */}
+        <g onClick={() => setSelectedNode('vrf')} className="cursor-pointer">
+          <rect x="80" y="295" width="180" height="110" rx="12" fill="#6d28d9" stroke="#a855f7" strokeWidth="2" />
+          <text x="170" y="335" fill="#ffffff" fontSize="14" fontWeight="bold" textAnchor="middle">VRF 变频室外机群</text>
+          <text x="170" y="360" fill="#ddd6fe" fontSize="12" textAnchor="middle">{calc.vrfCount} 套 (APF 5.30)</text>
+          <text x="170" y="385" fill="#ffffff" fontSize="13" fontWeight="bold" textAnchor="middle">{(calc.vrfCoolingkW).toFixed(0)} kW</text>
+        </g>
+
+        {/* Refrigerant Lines */}
+        <path d="M 260 335 L 680 335" fill="none" stroke="#c084fc" strokeWidth="4" />
+        <path d="M 260 365 L 680 365" fill="none" stroke="#e9d5ff" strokeWidth="2.5" strokeDasharray="6 4" />
+        <text x="440" y="325" fill="#e9d5ff" fontSize="12" fontWeight="bold" textAnchor="middle">气液双管冷媒干管 (DX 直膨系统)</text>
+
+        {/* VRF Indoor Terminals */}
+        <g onClick={() => setSelectedNode('terminal')} className="cursor-pointer">
+          <rect x="680" y="285" width="230" height="125" rx="12" fill="#334155" stroke="#c084fc" strokeWidth="2" />
+          <text x="795" y="325" fill="#ffffff" fontSize="14" fontWeight="bold" textAnchor="middle">分区分室室内机 (VRF)</text>
+          <text x="795" y="350" fill="#cbd5e1" fontSize="12" textAnchor="middle">独立开关 / 按需计量计费</text>
+          <text x="795" y="375" fill="#e9d5ff" fontSize="11" textAnchor="middle">极佳部分负荷能效 (IPLV 7.5+)</text>
+        </g>
       </svg>
     );
   }
@@ -436,12 +673,19 @@ function renderSystemSVG(
 function getNodeTitle(nodeId: string | null) {
   switch (nodeId) {
     case 'chiller': return '冷水机组 (Chiller)';
-    case 'boiler': return '燃气锅炉 (Boiler)';
+    case 'boiler': return '全预混真空热水机组 (Boiler)';
     case 'coolingTower': return '冷却塔 (Cooling Tower)';
-    case 'chwPump': return '冷水水泵 (夏季冷水泵)';
-    case 'hwPump': return '热水水泵 (独立热水泵)';
-    case 'cwPump': return '冷却水水泵 (Cooling Water Pump)';
+    case 'chwPump': return '冷水循环水泵 (CHWP)';
+    case 'hwPump': return '热水循环水泵 (HWP)';
+    case 'cwPump': return '冷却水水泵 (CWP)';
     case 'terminal': return '末端空调设备 (AHU/FCU Terminals)';
+    case 'plateHex': return '板式换热机组 (Plate Heat Exchanger)';
+    case 'districtMeter': return '市政冷/热超声波计量总表';
+    case 'secondaryPump': return '二次循环水泵 (变频加压泵)';
+    case 'splitOutdoor': return '商用分体空调室外机群 (新一级能效)';
+    case 'splitIndoor': return '独立房间分体室内机 (天花机/挂机)';
+    case 'fourWayValve': return '四通电磁换向阀 (冷热模式切换)';
+    case 'vrf': return 'VRF 变频多联机室外主机';
     default: return '中央空调主设备';
   }
 }
@@ -458,23 +702,42 @@ function getNodeValue(
 ) {
   switch (nodeId) {
     case 'chiller': return `${chillerCap.toFixed(1)} kW (COP: ${calc.chillerCOP})`;
-    case 'boiler': return `${boilerCap.toFixed(1)} kW (效率: 92%)`;
+    case 'boiler': return `${boilerCap.toFixed(1)} kW (效率: 104.5%)`;
     case 'coolingTower': return `${towerFlow.toFixed(1)} m³/h`;
     case 'chwPump': return `${chwFlow.toFixed(1)} m³/h (扬程: 28m)`;
     case 'hwPump': return `${hwFlow.toFixed(1)} m³/h (扬程: 22m)`;
     case 'cwPump': return `${cwFlow.toFixed(1)} m³/h (扬程: 24m)`;
     case 'terminal': return `设计总冷量: ${calc.coolingLoadkW.toFixed(1)} kW`;
+    case 'plateHex': return `${calc.coolingLoadkW.toFixed(1)} kW (换热效率 > 98%)`;
+    case 'districtMeter': return `瞬时流量: ${chwFlow.toFixed(1)} m³/h`;
+    case 'secondaryPump': return `${chwFlow.toFixed(1)} m³/h (二次扬程 28m)`;
+    case 'splitOutdoor': return `${calc.splitCount} 套 × ${(calc.coolingLoadkW / Math.max(1, calc.splitCount)).toFixed(1)} kW (APF 4.65)`;
+    case 'splitIndoor': return `单室额定制冷 3.5~7.2 kW`;
+    case 'fourWayValve': return `高精密封换向 / 压降 < 0.02MPa`;
+    case 'vrf': return `${calc.vrfCount} 套 (总 ${calc.vrfCoolingkW.toFixed(1)} kW)`;
     default: return '100% 正常运行';
   }
 }
 
 function getNodeSupplyTemp(nodeId: string | null, subItem: BuildingSubItem, season: 'cooling' | 'heating') {
+  if (nodeId === 'splitOutdoor' || nodeId === 'splitIndoor' || nodeId === 'fourWayValve') {
+    return season === 'heating' ? '高压排气 70~80 °C' : '蒸发供液 5~7 °C';
+  }
+  if (nodeId === 'districtMeter') {
+    return season === 'heating' ? '市政一次供水 90 °C' : '市政一次供水 3 °C';
+  }
   if (season === 'heating') return `${subItem.hwSupplyTemp ?? 60} °C`;
   if (nodeId === 'cwPump' || nodeId === 'coolingTower') return `${subItem.cwSupplyTemp ?? 32} °C`;
   return `${subItem.chwSupplyTemp ?? 7} °C`;
 }
 
 function getNodeReturnTemp(nodeId: string | null, subItem: BuildingSubItem, season: 'cooling' | 'heating') {
+  if (nodeId === 'splitOutdoor' || nodeId === 'splitIndoor' || nodeId === 'fourWayValve') {
+    return season === 'heating' ? '冷凝回液 40~45 °C' : '回气过热 12~15 °C';
+  }
+  if (nodeId === 'districtMeter') {
+    return season === 'heating' ? '市政一次回水 65 °C' : '市政一次回水 13 °C';
+  }
   if (season === 'heating') return `${subItem.hwReturnTemp ?? 50} °C`;
   if (nodeId === 'cwPump' || nodeId === 'coolingTower') return `${subItem.cwReturnTemp ?? 37} °C`;
   return `${subItem.chwReturnTemp ?? 12} °C`;

@@ -147,11 +147,17 @@ export interface EquipmentCalcResult {
 
   // 区域能源站
   districtHexCapacitykW: number;
+  districtHexCount: number;
   districtPumpPowerkW: number;
+  districtChwPumpFlow: number;
+  districtChwPumpPowerkW: number;
+  districtHwPumpFlow: number;
+  districtHwPumpPowerkW: number;
 
   // 分体空调
   splitTotalCapacitykW: number;
   splitPowerkW: number;
+  splitCount: number;
 
   // 总装机功率
   totalInstalledElectricPowerkW: number;
@@ -203,6 +209,14 @@ export interface UserEquipmentOverrides {
   vrfCoolingkW?: number;
   vrfCount?: number;
   selectedVrfProduct?: SelectedBrandProduct;
+
+  districtHexCapacitykW?: number;
+  districtHexCount?: number;
+  selectedDistrictHexProduct?: SelectedBrandProduct;
+
+  splitTotalCapacitykW?: number;
+  splitCount?: number;
+  selectedSplitProduct?: SelectedBrandProduct;
 }
 
 export interface EquipmentDiscrepancy {
