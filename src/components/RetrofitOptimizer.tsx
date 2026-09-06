@@ -1,10 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import ReactECharts from 'echarts-for-react';
 import { 
-  Sparkles, Wrench, TrendingDown, Building, ShieldAlert, Cpu, Plus, Trash2, ShoppingBag, Check, Flame, Wind, Zap 
+  Sparkles, Wrench, TrendingDown, Building, ShieldAlert, Cpu, Plus, Trash2, ShoppingBag, Check, Flame, Wind, Zap, Layers 
 } from 'lucide-react';
 import { SYSTEM_TYPES_META } from '../hvacEngine/constants';
-import { calculateEquipmentForSubItem } from '../hvacEngine/calculator';
+import { calculateEquipmentForSubItem, calculateSubItemEnergySummary } from '../hvacEngine/calculator';
 import { EquipmentCatalogModal } from './EquipmentCatalogModal';
 import { AiRetrofitAdvisorModal } from './AiRetrofitAdvisorModal';
 import type { EquipmentCategory, CatalogEquipmentItem } from '../data/equipmentCatalog';
@@ -162,6 +162,12 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
     } else if (catalogModalState.category === 'vrf') {
       const count = targetCustomEquipment.vrfCount || targetCalc.vrfCount;
       newCustom.vrfCoolingkW = item.ratedCapacitykW * count;
+    } else if (catalogModalState.category === 'plate_hex' || overrideKey === 'selectedDistrictHexProduct') {
+      const count = targetCustomEquipment.districtHexCount || targetCalc.districtHexCount || 2;
+      newCustom.districtHexCapacitykW = item.ratedCapacitykW * count;
+    } else if (catalogModalState.category === 'split_ac' || overrideKey === 'selectedSplitProduct') {
+      const count = targetCustomEquipment.splitCount || targetCalc.splitCount || 10;
+      newCustom.splitTotalCapacitykW = item.ratedCapacitykW * count;
     } else if (overrideKey === 'selectedChwPumpProduct') {
       const count = targetCustomEquipment.chwPumpCount || targetCalc.chwPumpCount;
       newCustom.chwPumpFlow = item.ratedCapacitykW * count;
@@ -225,9 +231,14 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
     const totalElectricitykWh = annualCoolingkWh + annualPumpskWh + annualTowerskWh;
     const totalGasm3 = totalBoilerGasFlow * operatingHours * 0.55;
 
+    // 区域能源站外购冷热计量费基准 (按标准负荷电量与热量折算)
+    const districtEnergyCost = existingSystemType === 'district_energy' 
+      ? (totalChillerCapkW * operatingHours * 0.45 * 0.28) 
+      : 0;
+
     const electricityCost = totalElectricitykWh * electricityRate;
     const gasCost = totalGasm3 * gasRate;
-    const totalCost = electricityCost + gasCost;
+    const totalCost = electricityCost + gasCost + districtEnergyCost;
     const carbonTons = (totalElectricitykWh * 0.581 + totalGasm3 * 2.162) / 1000;
 
     return {
@@ -241,6 +252,7 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
       totalGasm3,
       electricityCost,
       gasCost,
+      districtEnergyCost,
       totalCost,
       carbonTons
     };
@@ -406,19 +418,26 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
     };
   }, [baseline, operatingHours, electricityRate, gasRate]);
 
-  // 步骤 2：更换系统形式 (完全依据目标选定品牌设备的真实输入电功率和耗气量计算)
+  // 步骤 2 动态仿真计算 (与新建建筑 8760h 逐时逐月仿真引擎 100% 同源同质)
+  const targetSimSummary = useMemo(() => {
+    return calculateSubItemEnergySummary(targetSubItem, [], tariffConfig);
+  }, [targetSubItem, tariffConfig]);
+
+  // 步骤 2：更换系统形式 (完全依据目标选定品牌设备的真实输入电功率、8760h仿真能效和耗气量计算)
   const step2Result = useMemo(() => {
-    const targetElectricPowerkW = targetCalc.totalInstalledElectricPowerkW;
-    const targetGasm3h = targetCalc.boilerGasFlow;
+    // 采用与新建建筑完全一致的 8760h 仿真总电耗、天然气消耗与总运行费用
+    const newEleckWh = targetSimSummary.annualElectricitykWh;
+    const newGasm3 = targetSimSummary.annualGasm3;
+    const newTotalCost = targetSimSummary.annualCostRmb;
 
-    const newEleckWh = targetElectricPowerkW * operatingHours * 0.65;
-    const newGasm3 = targetGasm3h * operatingHours * 0.55;
-
-    const newElecCost = newEleckWh * electricityRate;
+    // 拆分电费与气费 (若为区域能源站则包含外购计量费)
     const newGasCost = newGasm3 * gasRate;
-    const newTotalCost = newElecCost + newGasCost;
+    const newElecCost = targetSystemType === 'district_energy'
+      ? Math.max(0, newTotalCost - (targetCalc.coolingLoadkW * operatingHours * 0.45 * 0.28))
+      : Math.max(0, newTotalCost - newGasCost);
+
     const costSaved = baseline.totalCost - newTotalCost;
-    const carbonTons = (newEleckWh * 0.581 + newGasm3 * 2.162) / 1000;
+    const carbonTons = targetSimSummary.annualCarbonTons;
 
     return {
       title: `步骤二：更换系统形式为【${SYSTEM_TYPES_META[targetSystemType].name}】`,
@@ -431,9 +450,10 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
       carbonTons,
       carbonSavedTons: baseline.carbonTons - carbonTons,
       capExRmbTenThousand: targetCapEx,
-      paybackYears: costSaved > 0 ? targetCapEx / (costSaved / 10000) : 0
+      paybackYears: costSaved > 0 ? targetCapEx / (costSaved / 10000) : 0,
+      targetSimSummary
     };
-  }, [baseline, targetSystemType, targetCalc, targetCapEx, operatingHours, electricityRate, gasRate]);
+  }, [baseline, targetSystemType, targetCalc, targetSimSummary, targetCapEx, operatingHours, gasRate]);
 
   // 步骤 3：AI 边缘计算智能群控与寻优
   const step3Result = useMemo(() => {
@@ -1986,6 +2006,125 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
                         </tr>
                       )}
 
+                      {/* 板式换热器 (HEX - 区域能源站或复合系统) */}
+                      {(targetSystemType === 'district_energy' || (targetSystemType === 'hybrid' && targetCalc.districtHexCapacitykW > 0)) && (
+                        <tr className="hover:bg-slate-800/60 transition-colors">
+                          <td className="py-3 px-3 font-bold text-white flex items-center space-x-2">
+                            <Layers className="w-4 h-4 text-cyan-400" />
+                            <span>板式换热机组 (HEX - 区域供冷/供热)</span>
+                          </td>
+                          <td className="py-3 px-3">
+                            {targetCustomEquipment.selectedDistrictHexProduct ? (
+                              <div className="space-y-1">
+                                <span className="px-2 py-0.5 bg-cyan-500/20 text-cyan-300 font-bold text-xs rounded border border-cyan-500/30 inline-flex items-center space-x-1">
+                                  <Check className="w-3.5 h-3.5 text-cyan-400" />
+                                  <span>{targetCustomEquipment.selectedDistrictHexProduct.brand} {targetCustomEquipment.selectedDistrictHexProduct.model}</span>
+                                </span>
+                                <button
+                                  onClick={() => openCatalogModal('plate_hex', '高效板式换热器', (targetCustomEquipment.districtHexCapacitykW || targetCalc.districtHexCapacitykW) / (targetCustomEquipment.districtHexCount || targetCalc.districtHexCount || 2), 'selectedDistrictHexProduct')}
+                                  className="text-xs text-cyan-400 hover:text-white underline block"
+                                >
+                                  更换品牌型号
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => openCatalogModal('plate_hex', '高效板式换热器', (targetCustomEquipment.districtHexCapacitykW || targetCalc.districtHexCapacitykW) / (targetCustomEquipment.districtHexCount || targetCalc.districtHexCount || 2), 'selectedDistrictHexProduct')}
+                                className="px-2.5 py-1 bg-cyan-600/30 hover:bg-cyan-600 text-cyan-200 hover:text-white rounded text-xs font-bold border border-cyan-500/40 flex items-center space-x-1 transition-all"
+                              >
+                                <ShoppingBag className="w-3.5 h-3.5" />
+                                <span>从品牌库选板换 (阿法拉伐...)</span>
+                              </button>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 font-semibold text-slate-400">{targetCalc.districtHexCapacitykW.toFixed(1)} kW</td>
+                          <td className="py-3 px-3">
+                            <input
+                              type="number"
+                              min={1}
+                              max={20}
+                              value={targetCustomEquipment.districtHexCount ?? targetCalc.districtHexCount ?? 2}
+                              onChange={(e) => handleTargetCustomChange('districtHexCount', Number(e.target.value))}
+                              className="w-16 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-center font-bold text-cyan-300 text-sm"
+                            />
+                          </td>
+                          <td className="py-3 px-3 font-bold text-emerald-400">
+                            {((targetCustomEquipment.districtHexCapacitykW || targetCalc.districtHexCapacitykW) / (targetCustomEquipment.districtHexCount || targetCalc.districtHexCount || 2)).toFixed(1)} kW/台
+                          </td>
+                          <td className="py-3 px-3">
+                            <input
+                              type="number"
+                              value={targetCustomEquipment.districtHexCapacitykW ?? ''}
+                              placeholder={targetCalc.districtHexCapacitykW.toFixed(1)}
+                              onChange={(e) => handleTargetCustomChange('districtHexCapacitykW', e.target.value ? Number(e.target.value) : undefined)}
+                              className="w-28 bg-slate-950 border border-slate-700 rounded px-2.5 py-1 text-white font-bold text-sm"
+                            />
+                          </td>
+                          <td className="py-3 px-3 font-bold text-slate-400">
+                            0 kW (无源热网换热)
+                          </td>
+                        </tr>
+                      )}
+
+                      {/* 商用分体空调 */}
+                      {(targetSystemType === 'split_ac' || (targetSystemType === 'hybrid' && targetCalc.splitTotalCapacitykW > 0)) && (
+                        <tr className="hover:bg-slate-800/60 transition-colors">
+                          <td className="py-3 px-3 font-bold text-white flex items-center space-x-2">
+                            <Wind className="w-4 h-4 text-emerald-400" />
+                            <span>商用分体空调 (新一级能效)</span>
+                          </td>
+                          <td className="py-3 px-3">
+                            {targetCustomEquipment.selectedSplitProduct ? (
+                              <div className="space-y-1">
+                                <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 font-bold text-xs rounded border border-emerald-500/30 inline-flex items-center space-x-1">
+                                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                  <span>{targetCustomEquipment.selectedSplitProduct.brand} {targetCustomEquipment.selectedSplitProduct.model}</span>
+                                </span>
+                                <button
+                                  onClick={() => openCatalogModal('split_ac', '商用分体空调', (targetCustomEquipment.splitTotalCapacitykW || targetCalc.splitTotalCapacitykW) / (targetCustomEquipment.splitCount || targetCalc.splitCount || 10), 'selectedSplitProduct')}
+                                  className="text-xs text-emerald-400 hover:text-white underline block"
+                                >
+                                  更换品牌型号
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => openCatalogModal('split_ac', '商用分体空调', (targetCustomEquipment.splitTotalCapacitykW || targetCalc.splitTotalCapacitykW) / (targetCustomEquipment.splitCount || targetCalc.splitCount || 10), 'selectedSplitProduct')}
+                                className="px-2.5 py-1 bg-emerald-600/30 hover:bg-emerald-600 text-emerald-200 hover:text-white rounded text-xs font-bold border border-emerald-500/40 flex items-center space-x-1 transition-all"
+                              >
+                                <ShoppingBag className="w-3.5 h-3.5" />
+                                <span>从品牌库选分体机 (格力...)</span>
+                              </button>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 font-semibold text-slate-400">{targetCalc.splitTotalCapacitykW.toFixed(1)} kW</td>
+                          <td className="py-3 px-3">
+                            <input
+                              type="number"
+                              min={1}
+                              max={2000}
+                              value={targetCustomEquipment.splitCount ?? targetCalc.splitCount ?? 10}
+                              onChange={(e) => handleTargetCustomChange('splitCount', Number(e.target.value))}
+                              className="w-16 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-center font-bold text-emerald-300 text-sm"
+                            />
+                          </td>
+                          <td className="py-3 px-3 font-bold text-emerald-400">
+                            {((targetCustomEquipment.splitTotalCapacitykW || targetCalc.splitTotalCapacitykW) / (targetCustomEquipment.splitCount || targetCalc.splitCount || 10)).toFixed(1)} kW/套
+                          </td>
+                          <td className="py-3 px-3">
+                            <input
+                              type="number"
+                              value={targetCustomEquipment.splitTotalCapacitykW ?? ''}
+                              placeholder={targetCalc.splitTotalCapacitykW.toFixed(1)}
+                              onChange={(e) => handleTargetCustomChange('splitTotalCapacitykW', e.target.value ? Number(e.target.value) : undefined)}
+                              className="w-28 bg-slate-950 border border-slate-700 rounded px-2.5 py-1 text-white font-bold text-sm"
+                            />
+                          </td>
+                          <td className="py-3 px-3 font-bold text-amber-300">
+                            {targetCustomEquipment.selectedSplitProduct ? `${targetCustomEquipment.selectedSplitProduct.actualPowerkW} kW/套` : `${(targetCalc.splitPowerkW / (targetCustomEquipment.splitCount || targetCalc.splitCount || 10)).toFixed(2)} kW (理论)`}
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>

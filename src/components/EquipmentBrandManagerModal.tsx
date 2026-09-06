@@ -22,7 +22,9 @@ const CATEGORY_TABS: Array<{ id: EquipmentCategory | 'all'; name: string; icon: 
   { id: 'pump', name: '循环水泵 (冷水/热水/冷却)', icon: Droplet },
   { id: 'cooling_tower', name: '冷却塔 (冷却水散热)', icon: Wind },
   { id: 'achp', name: '风冷螺杆/模块热泵 (ACHP)', icon: Wind },
-  { id: 'vrf', name: 'VRF 变频多联机组', icon: Cpu },
+  { id: 'vrf', name: 'VRF 变频多联机组 (大金)', icon: Cpu },
+  { id: 'plate_hex', name: '高效板式换热器 (阿法拉伐)', icon: Layers },
+  { id: 'split_ac', name: '商用分体空调 (格力)', icon: Wind },
 ];
 
 export const EquipmentBrandManagerModal: React.FC<Props> = ({ isOpen, onClose }) => {
@@ -264,11 +266,12 @@ export const EquipmentBrandManagerModal: React.FC<Props> = ({ isOpen, onClose })
                   <option value="magnetic_chiller">磁悬浮冷水机组</option>
                   <option value="chiller">变频水冷螺杆/离心冷机</option>
                   <option value="vacuum_boiler">全预混冷凝真空热水锅炉</option>
-
                   <option value="pump">循环水泵 (冷水/热水/冷却)</option>
                   <option value="cooling_tower">冷却塔 (冷却水散热)</option>
                   <option value="achp">风冷螺杆/模块热泵 (ACHP)</option>
                   <option value="vrf">VRF 变频多联机组</option>
+                  <option value="plate_hex">高效板式换热器 (阿法拉伐)</option>
+                  <option value="split_ac">商用分体空调 (格力)</option>
                 </select>
               </div>
 
@@ -451,7 +454,7 @@ export const EquipmentBrandManagerModal: React.FC<Props> = ({ isOpen, onClose })
                       <tr key={item.id} className="hover:bg-slate-800/50 transition-colors">
                         <td className="py-3 px-4">
                           <span className="px-2.5 py-1 bg-slate-800 text-slate-200 border border-slate-700 rounded-lg text-xs font-bold whitespace-nowrap">
-                            {CATEGORY_TABS.find(t => t.id === item.category)?.name.split(' (')[0] || item.category}
+                            {item.category === 'plate_hex' ? '高效板式换热器' : (item.category === 'split_ac' ? '商用分体空调' : (CATEGORY_TABS.find(t => t.id === item.category)?.name.split(' (')[0] || item.category))}
                           </span>
                         </td>
                         <td className="py-3 px-4 font-bold text-white whitespace-nowrap text-sm">
@@ -477,11 +480,13 @@ export const EquipmentBrandManagerModal: React.FC<Props> = ({ isOpen, onClose })
                           {item.ratedPowerkW} <span className="text-xs font-normal text-slate-400">kW</span>
                         </td>
                         <td className="py-3 px-4 font-black text-blue-300 whitespace-nowrap text-base">
-                          {item.category === 'vrf' ? (
+                          {item.category === 'vrf' || item.category === 'split_ac' ? (
                             <span className="inline-flex items-center space-x-1.5">
                               <span className="text-emerald-400 font-bold">{item.copOrEff.toFixed(2)}</span>
                               <span className="text-[10px] px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded font-semibold">APF</span>
                             </span>
+                          ) : item.category === 'plate_hex' ? (
+                            <span className="text-cyan-400 font-bold">{item.copOrEff}%</span>
                           ) : item.copOrEff > 20 ? (
                             `${item.copOrEff}%`
                           ) : (
@@ -492,6 +497,14 @@ export const EquipmentBrandManagerModal: React.FC<Props> = ({ isOpen, onClose })
                           {item.category === 'vrf' ? (
                             <span className="px-2 py-0.5 bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded text-xs font-bold">
                               GB 21454 1级能效
+                            </span>
+                          ) : item.category === 'split_ac' ? (
+                            <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded text-xs font-bold">
+                              GB 21455 新1级能效
+                            </span>
+                          ) : item.category === 'plate_hex' ? (
+                            <span className="px-2 py-0.5 bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 rounded text-xs font-bold">
+                              板式换热效率 &ge; 98%
                             </span>
                           ) : item.iplvOrPartLoadCop ? (
                             item.iplvOrPartLoadCop.toFixed(2)
