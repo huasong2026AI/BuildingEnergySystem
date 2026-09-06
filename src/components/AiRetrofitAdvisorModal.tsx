@@ -3,7 +3,7 @@ import {
   Sparkles, AlertTriangle, TrendingUp, Cpu, Printer, X, Send, Bot, Award,
   Key
 } from 'lucide-react';
-import type { SystemType, ExistingChillerDetail, ExistingBoilerDetail, ExistingPumpDetail, ExistingTowerDetail, EnergyTariffConfig } from '../types/hvac';
+import type { SystemType, ExistingChillerDetail, ExistingBoilerDetail, ExistingPumpDetail, ExistingTowerDetail, EnergyTariffConfig, BuildingSubItem } from '../types/hvac';
 import { 
   getStoredLlmConfig, saveLlmConfig, sendHvacChatMessage,
   type LlmConfig
@@ -24,6 +24,7 @@ interface Props {
   towers: ExistingTowerDetail[];
   baselineCost: number;
   tariffConfig?: EnergyTariffConfig;
+  targetSubItem?: BuildingSubItem;
 }
 
 export const AiRetrofitAdvisorModal: React.FC<Props> = ({
@@ -40,13 +41,14 @@ export const AiRetrofitAdvisorModal: React.FC<Props> = ({
   pumps,
   towers,
   baselineCost,
-  tariffConfig: _tariffConfig
+  tariffConfig: _tariffConfig,
+  targetSubItem: _targetSubItem
 }) => {
   const [activeReportTab, setActiveReportTab] = useState<'diagnosis' | 'schemes' | 'measures' | 'case_study' | 'ai_chat'>('diagnosis');
   const [chatMessages, setChatMessages] = useState<Array<{ sender: 'user' | 'ai'; text: string }>>([
     {
       sender: 'ai',
-      text: `您好！我是您的 AI 暖通既有建筑改造高级专家顾问。已根据您输入的【${buildingName}】（面积 ${buildingArea.toLocaleString()} m²）设备工况与能源参数完成全生命周期深度诊断。\n\n您可以查看左侧比选报告，或直接在此向我咨询任何具体工程技术细节（例如：系统该选一级泵还是二级泵？磁悬浮与变频螺杆如何比选？大温差输配改造注意事项等）！`
+      text: `您好！我是您的注册公用设备工程师（暖通空调专业）AI 专业顾问。已根据您输入的【${buildingName}】（面积 ${buildingArea.toLocaleString()} m²）设备工况与能源参数完成全生命周期深度诊断。\n\n您可以查看左侧比选报告，或直接在此向我咨询任何具体工程技术细节（例如：系统该选一级泵还是二级泵？磁悬浮与变频螺杆如何比选？大温差输配改造注意事项等）！`
     }
   ]);
   const [inputQuery, setInputQuery] = useState('');
@@ -129,7 +131,7 @@ export const AiRetrofitAdvisorModal: React.FC<Props> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/85 backdrop-blur-md overflow-hidden animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-5 bg-slate-950/85 backdrop-blur-md overflow-hidden animate-in fade-in duration-150">
       <div className="bg-slate-900 border border-emerald-500/40 rounded-2xl w-[98vw] max-w-6xl h-[90vh] max-h-[90vh] overflow-hidden shadow-2xl flex flex-col my-auto">
         
         {/* Header */}
@@ -141,7 +143,7 @@ export const AiRetrofitAdvisorModal: React.FC<Props> = ({
             <div>
               <div className="flex items-center space-x-2">
                 <h3 className="text-lg font-bold text-white">
-                  AI 既有建筑节能改造专家级诊断与方案比选报告
+                  注册公用设备工程师·既有建筑节能改造诊断与方案比选报告
                 </h3>
                 <span className="px-2 py-0.5 text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded">
                   GB 55015 规范标准
@@ -335,7 +337,7 @@ export const AiRetrofitAdvisorModal: React.FC<Props> = ({
                 {/* 方案 B (推荐) */}
                 <div className="bg-emerald-950/40 border-2 border-emerald-500/60 rounded-xl p-4 flex flex-col justify-between space-y-3 relative shadow-lg shadow-emerald-950/50">
                   <div className="absolute -top-3 right-4 px-2 py-0.5 bg-emerald-500 text-slate-950 text-[10px] font-black rounded-full shadow">
-                    AI 专家首选推荐
+                    注册工程师推荐
                   </div>
                   <div>
                     <div className="flex items-center justify-between">

@@ -2564,6 +2564,7 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
         towers={towers}
         baselineCost={baseline.totalCost}
         tariffConfig={tariffConfig}
+        targetSubItem={targetSubItem}
       />
 
     </div>

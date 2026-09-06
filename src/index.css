@@ -238,6 +238,80 @@
     display: none !important;
   }
 
+  /* ==========================================================================
+     AI 分析与决策报告专业流式打印专属规则 (彻底解决 PDF 打印多页重复第一页问题)
+     ========================================================================== */
+  body.ai-report-modal-open > #root > div > header,
+  body.ai-report-modal-open > #root > div > div.w-full,
+  body.ai-report-modal-open > #root > div > main,
+  body.ai-report-modal-open .ai-report-modal-tabs,
+  body.ai-report-modal-open .ai-report-modal-actions,
+  body.ai-report-modal-open .ai-report-modal-footer,
+  body.ai-report-modal-open .ai-report-api-drawer,
+  body.ai-report-modal-open .no-print {
+    display: none !important;
+  }
+
+  body.ai-report-modal-open {
+    background-color: #ffffff !important;
+    color: #11281c !important;
+    overflow: visible !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body.ai-report-modal-open .ai-report-backdrop {
+    position: static !important;
+    inset: auto !important;
+    background: transparent !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    display: block !important;
+  }
+
+  body.ai-report-modal-open .ai-report-dialog {
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    color: #11281c !important;
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body.ai-report-modal-open .ai-report-scroll-body {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    padding: 0 !important;
+    display: block !important;
+  }
+
+  body.ai-report-modal-open .ai-report-section {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    margin-bottom: 16pt !important;
+  }
+
+  body.ai-report-modal-open table {
+    width: 100% !important;
+    page-break-inside: auto !important;
+  }
+
+  body.ai-report-modal-open tr {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
   /* PPT 汇报全量 13 页打印专属规则 */
   body.ppt-modal-open > #root > div > header,
   body.ppt-modal-open > #root > div > div.w-full,

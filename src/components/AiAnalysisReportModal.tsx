@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Sparkles, Printer, X, Bot, Key, Building2, Wrench, 
-  TrendingUp, ShieldCheck, RefreshCw 
+  TrendingUp, ShieldCheck, RefreshCw, Layers
 } from 'lucide-react';
 import type { 
   BuildingSubItem, ProjectEnergySummary, EnergyTariffConfig, SystemType,
   ExistingChillerDetail, ExistingBoilerDetail, ExistingPumpDetail, ExistingTowerDetail
 } from '../types/hvac';
-import { SYSTEM_TYPES_META } from '../hvacEngine/constants';
+import { SYSTEM_TYPES_META, BUILDING_TYPES_META } from '../hvacEngine/constants';
 import { calculateEquipmentForSubItem } from '../hvacEngine/calculator';
 import { 
   getStoredLlmConfig, saveLlmConfig, generateComprehensiveAiReport,
@@ -56,6 +56,18 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [generationTimestamp, setGenerationTimestamp] = useState<string>('');
 
+  // 绑定与解绑打印专用 class，彻底解决多页打印重复第一页的问题
+  useEffect(() => {
+    if (isOpen) {
+      document.body.classList.add('ai-report-modal-open');
+    } else {
+      document.body.classList.remove('ai-report-modal-open');
+    }
+    return () => {
+      document.body.classList.remove('ai-report-modal-open');
+    };
+  }, [isOpen]);
+
   useEffect(() => {
     if (initialTab) {
       setReportMode(initialTab);
@@ -67,13 +79,13 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
   }, [llmConfig]);
 
   // =========================================================================
-  // 1. 新建建筑模式：计算 1、2、4 步汇总与 1~3 种备选冷热源形式横向比选
+  // 1. 新建建筑模式：聚合各子项设备选型清单明细与 1~3 种备选冷热源形式横向比选
   // =========================================================================
   const newBuildingMetrics = useMemo(() => {
     const totalArea = subItems.reduce((sum, item) => sum + item.area, 0);
     const subItemsCount = subItems.length;
 
-    // 汇总各子项设备计算
+    // 汇总各子项设备计算与明细
     const calcs = subItems.map(item => ({
       item,
       calc: calculateEquipmentForSubItem(item, subItems)
@@ -86,7 +98,75 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
     const primarySystemType = subItems[0]?.systemType || 'chiller_boiler';
     const currentSystemName = SYSTEM_TYPES_META[primarySystemType]?.name || '冷水机组 + 燃气锅炉系统';
 
-    // 设备配置摘要
+    // 构造各建筑子项的详细设备选型清单数据
+    const subItemDetails = calcs.map(({ item, calc }) => {
+      const custom = item.customEquipment || {};
+      const chCount = custom.chillerCount || calc.chillerCount || 1;
+      const bCount = custom.boilerCount || calc.boilerCount || 1;
+
+      // 主机型号名称
+      const chillerDesc = custom.selectedChillerProduct 
+        ? `${chCount}台 × ${custom.selectedChillerProduct.ratedCapacitykW.toFixed(0)}kW (${custom.selectedChillerProduct.brand} ${custom.selectedChillerProduct.model}, COP ${custom.selectedChillerProduct.copOrEff || 6.2})`
+        : `${chCount}台 × ${(calc.chillerCapacitykW / Math.max(1, chCount)).toFixed(0)}kW (变频离心机/高效螺杆机, COP ${calc.chillerCOP.toFixed(2)})`;
+
+      // 锅炉/热源描述
+      const isAchp = item.systemType === 'air_heat_pump';
+      const isVrf = item.systemType === 'vrf';
+      let boilerDesc = '-';
+      if (isAchp) {
+        const achpCount = custom.achpCount || calc.achpCount || 1;
+        boilerDesc = `${achpCount}台 × ${(calc.achpHeatingkW / Math.max(1, achpCount)).toFixed(0)}kW (风冷热泵冬季制热, COP ${calc.achpPowerkW > 0 ? (calc.achpHeatingkW / calc.achpPowerkW).toFixed(2) : '3.20'})`;
+      } else if (isVrf) {
+        boilerDesc = '多联机室外机自带热泵制热 (APF 5.30)';
+      } else {
+        boilerDesc = custom.selectedBoilerProduct
+          ? `${bCount}台 × ${custom.selectedBoilerProduct.ratedCapacitykW.toFixed(0)}kW (${custom.selectedBoilerProduct.brand} 真空锅炉, 效率 ${custom.selectedBoilerProduct.copOrEff || 95}%)`
+          : `${bCount}台 × ${(calc.boilerCapacitykW / Math.max(1, bCount)).toFixed(0)}kW (全预混冷凝热水锅炉, 效率 ${calc.boilerEfficiency}%)`;
+      }
+
+      // 水泵配置
+      const chwPumpDesc = `${calc.chwPumpCount || chCount}台 (流量 ${calc.chwPumpFlow.toFixed(0)}m³/h, 扬程 ${calc.chwPumpHead}m, 功率 ${calc.chwPumpPowerkW.toFixed(1)}kW)`;
+      const cwPumpDesc = calc.cwPumpCount > 0 
+        ? `${calc.cwPumpCount}台 (流量 ${calc.cwPumpFlow.toFixed(0)}m³/h, 扬程 ${calc.cwPumpHead}m, 功率 ${calc.cwPumpPowerkW.toFixed(1)}kW)`
+        : '-';
+      const hwPumpDesc = calc.hwPumpCount > 0 
+        ? `${calc.hwPumpCount}台 (流量 ${calc.hwPumpFlow.toFixed(0)}m³/h, 扬程 ${calc.hwPumpHead}m, 功率 ${calc.hwPumpPowerkW.toFixed(1)}kW)`
+        : '-';
+
+      // 冷却塔
+      const towerDesc = calc.coolingTowerCount > 0
+        ? `${calc.coolingTowerCount}台 (流量 ${calc.coolingTowerFlow.toFixed(0)}m³/h, 风机 ${calc.coolingTowerFanPowerkW.toFixed(1)}kW)`
+        : '-';
+
+      return {
+        id: item.id,
+        name: item.name,
+        typeName: BUILDING_TYPES_META[item.type]?.name || item.type,
+        area: item.area,
+        city: item.city || '上海',
+        systemName: SYSTEM_TYPES_META[item.systemType]?.name || item.systemType,
+        coolingLoadkW: calc.coolingLoadkW,
+        heatingLoadkW: calc.heatingLoadkW,
+        chillerDesc,
+        boilerDesc,
+        chwPumpDesc,
+        cwPumpDesc,
+        hwPumpDesc,
+        towerDesc
+      };
+    });
+
+    // 格式化各子项文本用于 Prompt 提交与 AI 分析
+    const detailedSubItemsText = subItemDetails.map((s, idx) => 
+      `子项${idx + 1}【${s.name}】(${s.typeName}, 面积 ${s.area.toLocaleString()} m², 气候区: ${s.city})：\n` +
+      `  • 设计冷负荷: ${s.coolingLoadkW.toLocaleString()} kW | 设计热负荷: ${s.heatingLoadkW.toLocaleString()} kW | 暖通系统: ${s.systemName}\n` +
+      `  • 冷水主机配置: ${s.chillerDesc}\n` +
+      `  • 供热设备配置: ${s.boilerDesc}\n` +
+      `  • 循环水泵组: 冷水泵 ${s.chwPumpDesc}; 冷却水泵 ${s.cwPumpDesc}; 热水泵 ${s.hwPumpDesc}\n` +
+      `  • 冷却塔配置: ${s.towerDesc}`
+    ).join('\n\n');
+
+    // 设备配置简要摘要
     const equipmentSummary = calcs.map(c => {
       const custom = c.item.customEquipment || {};
       const chCount = custom.chillerCount || c.calc.chillerCount || 1;
@@ -157,6 +237,8 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
       totalCoolingkW,
       totalHeatingkW,
       currentSystemName,
+      subItemDetails,
+      detailedSubItemsText,
       equipmentSummary,
       annualCost,
       annualElecCost,
@@ -169,20 +251,24 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
   }, [subItems, projectSummary, tariffConfig]);
 
   // =========================================================================
-  // 2. 既有建筑模式：汇总现有设备、基准能耗与三大改造方案
+  // 2. 既有建筑模式：汇总原有冷热源配置与现改造目标冷热源配置对照、三大改造方案
   // =========================================================================
   const retrofitMetrics = useMemo(() => {
     const d = retrofitData || {
-      buildingName: '某既有商业综合体',
+      buildingName: '某既有公共建筑及商业酒店综合体',
       buildingArea: 55000,
       existingSystemType: 'chiller_boiler' as SystemType,
       operatingHours: 3200,
       electricityRate: tariffConfig.averageElectricityPrice,
       gasRate: tariffConfig.gasPrice,
-      chillers: [{ id: 'c1', modelName: '老旧离心/螺杆机组', capacitykW: 3000, powerkW: 769, cop: 3.9, count: 2 }],
-      boilers: [{ id: 'b1', modelName: '老旧燃气常压热水锅炉', capacitykW: 2400, powerkW: 18, gasFlowm3h: 293, efficiencyPercent: 82, count: 2 }],
-      pumps: [{ id: 'p1', modelName: '冷水水泵', type: 'chw', flowm3h: 516, headm: 35, powerkW: 73, efficiencyPercent: 58, count: 3 }],
-      towers: [{ id: 't1', modelName: '冷却塔', flowm3h: 700, fanPowerkW: 18.5, count: 3 }],
+      chillers: [{ id: 'c1', modelName: '老旧螺杆/离心机组 A组', capacitykW: 3000, powerkW: 769, cop: 3.9, count: 2 }],
+      boilers: [{ id: 'b1', modelName: '老旧大气式燃气常压热水锅炉', capacitykW: 2400, powerkW: 18, gasFlowm3h: 293, efficiencyPercent: 82, count: 2 }],
+      pumps: [
+        { id: 'p1', modelName: '冷水水泵 (夏季冷水泵)', type: 'chw' as const, flowm3h: 516, headm: 35, powerkW: 73, efficiencyPercent: 58, count: 3 },
+        { id: 'p2', modelName: '冷却水水泵', type: 'cw' as const, flowm3h: 620, headm: 28, powerkW: 74, efficiencyPercent: 58, count: 3 },
+        { id: 'p3', modelName: '锅炉独立热水泵 (冬季供热循环)', type: 'hw' as const, flowm3h: 206, headm: 25, powerkW: 24, efficiencyPercent: 58, count: 2 }
+      ],
+      towers: [{ id: 't1', modelName: '开式冷却塔 (散热冷却水)', flowm3h: 700, fanPowerkW: 18.5, count: 3 }],
       baselineCost: 2985000
     };
 
@@ -190,10 +276,20 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
     const totalPower = d.chillers.reduce((a, b) => a + b.powerkW * b.count, 0);
     const avgChillerCop = totalPower > 0 ? totalChillerCap / totalPower : 3.9;
 
-    const existingEquipmentText = `冷水主机${d.chillers.map(c => `${c.count}台 ${c.modelName}(${c.capacitykW}kW, COP ${c.cop})`).join('; ')}; ` +
-      `循环水泵${d.pumps.map(p => `${p.count}台(${p.flowm3h}m³/h, ${p.powerkW}kW)`).join('; ')}; ` +
-      `供热锅炉${d.boilers.map(b => `${b.count}台(${b.capacitykW}kW, 效率${b.efficiencyPercent}%)`).join('; ')}; ` +
-      `冷却塔${d.towers.map(t => `${t.count}台(${t.flowm3h}m³/h)`).join('; ')}`;
+    // 原有设备明细文本
+    const existingEquipmentText = 
+      `冷水主机: ${d.chillers.map(c => `${c.count}台 ${c.modelName}(单台${c.capacitykW}kW, 功率${c.powerkW}kW, 实测COP ${c.cop})`).join('; ')}; ` +
+      `循环水泵: ${d.pumps.map(p => `${p.count}台 ${p.modelName}(流量${p.flowm3h}m³/h, 扬程${p.headm}m, 功率${p.powerkW}kW, 效率${p.efficiencyPercent}%)`).join('; ')}; ` +
+      `供热锅炉: ${d.boilers.map(b => `${b.count}台 ${b.modelName}(额定${b.capacitykW}kW, 耗气${b.gasFlowm3h}m³/h, 热效率${b.efficiencyPercent}%)`).join('; ')}; ` +
+      `冷却塔: ${d.towers.map(t => `${t.count}台 ${t.modelName}(循环流量${t.flowm3h}m³/h, 风机${t.fanPowerkW}kW)`).join('; ')}`;
+
+    // 改造后目标设备配置描述 (方案二 推荐配置)
+    const targetSystemName = '高效无油磁悬浮离心冷机 + 大温差输配 + 全预混冷凝真空锅炉 + AI 边缘群控系统';
+    const targetEquipmentText = 
+      `冷水主机换装为 2台 × 3000kW 变频无油磁悬浮离心机组 (额定满载 COP 6.85, IPLV 10.92, 部分负荷 COP 最高达 11.5, 终身无润滑油传热衰减); ` +
+      `水泵系统重构为 7℃/14℃ (ΔT=7℃) 大温差小流量变频泵组 (循环水流量减少28.57%, 扬程优化降至 24m, 配备 IE5 永磁同步电机与变频器, 输配节电 45%+); ` +
+      `供热设备更换为 2台 × 2400kW 全预混低氮冷凝真空热水锅炉 (排烟温度<50℃, 热效率提升至 98.5%, 节气 16.5%); ` +
+      `部署 AI 边缘冷站智控系统 (冷冻水供水温度自适应重置 7~10.5℃, 冷却水逼近度自动寻优).`;
 
     // 方案一：原系统更换高效机组
     const schemeA_SavingsRate = 22.5;
@@ -216,10 +312,16 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
     return {
       buildingName: d.buildingName,
       buildingArea: d.buildingArea,
-      existingSystemType: SYSTEM_TYPES_META[d.existingSystemType]?.name || '冷水机组 + 锅炉系统',
+      existingSystemType: SYSTEM_TYPES_META[d.existingSystemType]?.name || '冷水机组 + 燃气锅炉系统',
       baselineCost: d.baselineCost,
       avgChillerCop: avgChillerCop.toFixed(2),
       existingEquipmentText,
+      targetSystemName,
+      targetEquipmentText,
+      chillersList: d.chillers,
+      boilersList: d.boilers,
+      pumpsList: d.pumps,
+      towersList: d.towers,
       schemeA_SavingsRate,
       schemeA_AnnualSavings,
       schemeA_Capex,
@@ -262,45 +364,46 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-hidden animate-in fade-in duration-200">
-      <div className="bg-slate-900 border border-emerald-500/40 rounded-2xl w-[98vw] max-w-6xl h-[92vh] max-h-[92vh] overflow-hidden shadow-2xl flex flex-col my-auto text-slate-100">
+    <div className="ai-report-backdrop fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-hidden animate-in fade-in duration-200">
+      <div className="ai-report-dialog bg-slate-900 border border-emerald-500/40 rounded-2xl w-[98vw] max-w-6xl h-[92vh] max-h-[92vh] overflow-hidden shadow-2xl flex flex-col my-auto text-slate-100">
         
         {/* Top Header */}
-        <div className="flex-shrink-0 px-6 py-3.5 bg-gradient-to-r from-emerald-950 via-slate-900 to-teal-950 border-b border-emerald-500/30 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="p-2.5 bg-gradient-to-tr from-emerald-500 to-cyan-400 text-slate-950 rounded-xl shadow-md shadow-emerald-500/20 font-black">
+        <div className="ai-report-modal-header flex-shrink-0 px-5 sm:px-6 py-3.5 bg-gradient-to-r from-emerald-950 via-slate-900 to-teal-950 border-b border-emerald-500/30 flex items-center justify-between gap-3">
+          <div className="flex items-center space-x-3 min-w-0">
+            <div className="p-2.5 bg-gradient-to-tr from-emerald-500 to-cyan-400 text-slate-950 rounded-xl shadow-md shadow-emerald-500/20 font-black flex-shrink-0">
               <Sparkles className="w-5 h-5 text-slate-950" />
             </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <h3 className="text-lg font-bold text-white tracking-tight">
+            <div className="min-w-0">
+              <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                <h3 className="text-base sm:text-lg font-bold text-white tracking-tight truncate">
                   AI 暖通工程分析与决策报告
                 </h3>
-                <span className="px-2 py-0.5 text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-full flex items-center space-x-1">
+                <span className="px-2 py-0.5 text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-full flex items-center space-x-1 flex-shrink-0">
                   <Bot className="w-3 h-3 text-emerald-400" />
-                  <span>Google Gemini 3.5 驱动</span>
+                  <span>注册公用设备工程师 · Gemini 3.5</span>
                 </span>
               </div>
-              <p className="text-xs text-slate-300 mt-0.5">
-                基于 GB 50189 / GB 55015 规范 · 8760h 物理机理与专家大模型深度协同
+              <p className="text-xs text-slate-300 mt-0.5 truncate hidden sm:block">
+                基于 GB 50189-2015 / GB 55015-2021 规范 · 8760h 动态物理机理与工程大模型深度协同
               </p>
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="ai-report-modal-actions flex items-center space-x-2 flex-shrink-0">
             <button
               onClick={() => setShowConfigModal(!showConfigModal)}
-              className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 transition-all cursor-pointer"
+              className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 transition-all cursor-pointer flex-shrink-0"
               title="配置 Gemini / DeepSeek API Key"
             >
               <Key className="w-3.5 h-3.5 text-amber-400" />
               <span>{showConfigModal ? '收起配置' : 'API 配置'}</span>
+              {llmConfig.geminiApiKey && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>}
             </button>
 
             <button
               onClick={() => window.print()}
-              className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 transition-all cursor-pointer"
-              title="彩色打印与导出为 PDF"
+              className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 transition-all cursor-pointer flex-shrink-0"
+              title="彩色流式打印与导出为 PDF"
             >
               <Printer className="w-3.5 h-3.5 text-emerald-400" />
               <span>打印/导出 PDF</span>
@@ -308,7 +411,8 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
 
             <button
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer flex-shrink-0"
+              title="关闭"
             >
               <X className="w-5 h-5" />
             </button>
@@ -317,13 +421,13 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
 
         {/* API Drawer (Collapsible) */}
         {showConfigModal && (
-          <div className="bg-slate-950 border-b border-slate-800 px-6 py-3 space-y-2 text-xs">
+          <div className="ai-report-api-drawer bg-slate-950 border-b border-slate-800 px-6 py-3 space-y-2 text-xs">
             <div className="flex items-center justify-between">
               <span className="font-bold text-amber-400 flex items-center space-x-1">
                 <Key className="w-3.5 h-3.5" />
-                <span>大模型接入设置 (优先使用 Gemini 3.5 Flash Lite)</span>
+                <span>大模型接入配置 (默认首选 Gemini 3.5 Flash Lite)</span>
               </span>
-              <span className="text-slate-400 text-[11px]">Key 保存在本地浏览器 LocalStorage，无网络时自动切换本地专家库</span>
+              <span className="text-slate-400 text-[11px]">API Key 仅保存在本地浏览器 LocalStorage，留空时自动启用内置注册工程师知识库</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
@@ -354,7 +458,7 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
         )}
 
         {/* Sub Navigation Bar: Switch between New Building & Retrofit */}
-        <div className="flex-shrink-0 px-6 py-2.5 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between gap-4">
+        <div className="ai-report-modal-tabs flex-shrink-0 px-6 py-2.5 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between gap-4 flex-wrap sm:flex-nowrap">
           <div className="flex items-center space-x-2">
             <button
               onClick={() => { setReportMode('new_building'); setAiReportMarkdown(''); }}
@@ -365,7 +469,7 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
               }`}
             >
               <Building2 className="w-4 h-4" />
-              <span>新建建筑冷热源系统推荐与比选报告</span>
+              <span>新建建筑冷热源系统推荐与子项选型报告</span>
             </button>
 
             <button
@@ -381,7 +485,7 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
             </button>
           </div>
 
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-3 flex-shrink-0">
             {generationTimestamp && (
               <span className="text-[11px] text-slate-400 hidden sm:inline">
                 生成时间: {generationTimestamp}
@@ -393,18 +497,39 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
               className="flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-lg text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isGenerating ? 'animate-spin' : ''}`} />
-              <span>{isGenerating ? 'Gemini 专家生成中...' : '重新生成报告'}</span>
+              <span>{isGenerating ? '注册工程师 AI 生成中...' : '重新生成报告'}</span>
             </button>
           </div>
         </div>
 
-        {/* Scrollable Report Content Area */}
-        <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6 custom-scroll">
+        {/* Scrollable Report Content Area (Prints naturally without duplication) */}
+        <div className="ai-report-scroll-body flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-6 custom-scroll">
           
+          {/* Print-only Banner Header */}
+          <div className="hidden print:block mb-4 pb-3 border-b-2 border-emerald-600 text-slate-900">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-black text-emerald-950">
+                公共建筑暖通空调能效分析与 AI 决策报告
+              </h2>
+              <span className="text-xs font-mono font-bold text-emerald-800">
+                执行标准：GB 50189-2015 / GB 55015-2021
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-xs text-slate-600 mt-1.5">
+              <span>编制人：注册公用设备工程师（暖通空调专业）</span>
+              <span>报告类别：{reportMode === 'new_building' ? '新建建筑冷热源系统推荐与各子项设备配置清单' : '既有建筑暖通节能改造前后配置对比与多方案比选'}</span>
+              <span>导出时间：{generationTimestamp || new Date().toLocaleString()}</span>
+            </div>
+          </div>
+
+          {/* ========================================================================= */}
           {/* Section A: Numerical Summary & Mathematical Engineering Baseline */}
+          {/* ========================================================================= */}
           {reportMode === 'new_building' ? (
-            <div className="space-y-4">
-              <div className="bg-slate-850 border border-slate-800 rounded-2xl p-5 space-y-4">
+            <div className="space-y-6">
+              
+              {/* 1. 顶层工程指标汇总卡片 */}
+              <div className="ai-report-section bg-slate-850 border border-slate-800 rounded-2xl p-5 space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-750 pb-3">
                   <div className="flex items-center space-x-2">
                     <Building2 className="w-5 h-5 text-emerald-400" />
@@ -412,8 +537,8 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
                       新建建筑工程边界与计算闭环汇总（第 1、2、4 步数据聚合）
                     </h4>
                   </div>
-                  <span className="text-xs text-emerald-400 font-bold">
-                    当前选定系统：{newBuildingMetrics.currentSystemName}
+                  <span className="text-xs text-emerald-400 font-bold bg-emerald-950/60 px-2.5 py-1 rounded-lg border border-emerald-500/30">
+                    当前主导系统：{newBuildingMetrics.currentSystemName}
                   </span>
                 </div>
 
@@ -421,7 +546,7 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
                   <div className="bg-slate-900 p-3.5 rounded-xl border border-slate-800">
                     <span className="text-slate-400 block mb-1">总建筑面积</span>
                     <span className="text-white font-bold text-base font-mono">{newBuildingMetrics.totalArea.toLocaleString()} m²</span>
-                    <span className="text-[11px] text-slate-400 block mt-0.5">{newBuildingMetrics.subItemsCount} 个子项建筑</span>
+                    <span className="text-[11px] text-slate-400 block mt-0.5">{newBuildingMetrics.subItemsCount} 个建筑子项</span>
                   </div>
 
                   <div className="bg-slate-900 p-3.5 rounded-xl border border-slate-800">
@@ -445,86 +570,266 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
                   </div>
 
                   <div className="bg-slate-900 p-3.5 rounded-xl border border-slate-800">
-                    <span className="text-slate-400 block mb-1">年综合碳排放</span>
+                    <span className="text-slate-400 block mb-1">年综合碳排放与能效</span>
                     <span className="text-teal-300 font-bold text-base font-mono">
                       {newBuildingMetrics.annualCarbonTons.toFixed(1)} 吨
                     </span>
                     <span className="text-[11px] text-emerald-400 block mt-0.5">1级能效 SCOP &gt; 5.2</span>
                   </div>
                 </div>
+              </div>
 
-                {/* 多系统横向客观比选表 (1~3 种冷热源形式) */}
-                <div className="space-y-2 pt-2">
-                  <span className="text-xs font-bold text-slate-200 flex items-center space-x-1.5">
-                    <TrendingUp className="w-4 h-4 text-cyan-400" />
-                    <span>冷热源形式多维度横向比选表（与未选择的 1~2 种主流备选系统进行严格对比）</span>
-                  </span>
-
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead>
-                        <tr className="bg-slate-900 border-b border-slate-800 text-slate-300">
-                          <th className="py-2.5 px-3">冷热源系统方案</th>
-                          <th className="py-2.5 px-3 text-right">预估总初投资</th>
-                          <th className="py-2.5 px-3 text-right">年化运行费用</th>
-                          <th className="py-2.5 px-3 text-right">较基准年费差额</th>
-                          <th className="py-2.5 px-3">核心技术优劣势评估</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800 text-slate-200 font-mono">
-                        <tr className="bg-emerald-950/25 border-l-2 border-emerald-500">
-                          <td className="py-2.5 px-3 font-bold text-emerald-300 font-sans">
-                            ★ 【当前选定】{newBuildingMetrics.currentSystemName}
-                          </td>
-                          <td className="py-2.5 px-3 text-right text-white">约 ¥{Math.round(newBuildingMetrics.totalCoolingkW * 0.08)} 万</td>
-                          <td className="py-2.5 px-3 text-right text-emerald-400 font-bold">¥{(newBuildingMetrics.annualCost / 10000).toFixed(2)} 万</td>
-                          <td className="py-2.5 px-3 text-right text-slate-400 font-sans">基准对比点</td>
-                          <td className="py-2.5 px-3 font-sans text-[11px] text-slate-300">
-                            大容量满载与部分负荷综合 COP 优异，运行极其稳定可靠，适用于大面积集中空调。
-                          </td>
-                        </tr>
-                        {newBuildingMetrics.comparisons.map((comp, idx) => (
-                          <tr key={idx} className="hover:bg-slate-800/40">
-                            <td className="py-2.5 px-3 text-slate-300 font-sans">{comp.name}</td>
-                            <td className="py-2.5 px-3 text-right text-white">约 ¥{comp.capexWan} 万</td>
-                            <td className="py-2.5 px-3 text-right text-amber-300">¥{comp.annualCostWan} 万</td>
-                            <td className="py-2.5 px-3 text-right font-sans text-[11px]">
-                              <span className={comp.deltaCostWan >= 0 ? 'text-rose-400' : 'text-emerald-400 font-bold'}>
-                                {comp.deltaCostWan >= 0 ? `+¥${comp.deltaCostWan}万` : `-¥${Math.abs(comp.deltaCostWan)}万`}
-                              </span>
-                            </td>
-                            <td className="py-2.5 px-3 font-sans text-[11px] text-slate-400">
-                              {comp.pros}。缺点：{comp.cons}。
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+              {/* 2. 所有建筑子项的冷热源设备选型清单明细表 (用户明确要求的重点) */}
+              <div className="ai-report-section bg-slate-850 border border-slate-800 rounded-2xl p-5 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-750 pb-3">
+                  <div className="flex items-center space-x-2">
+                    <Layers className="w-5 h-5 text-cyan-400" />
+                    <div>
+                      <h4 className="font-bold text-white text-sm">
+                        所有建筑子项冷热源设备选型配置清单明细表 (含主机、水泵、水塔、锅炉)
+                      </h4>
+                      <p className="text-[11px] text-slate-400">
+                        严格依据《民用建筑供暖通风与空气调节设计规范》(GB 50736) 逐项推导选型
+                      </p>
+                    </div>
                   </div>
+                  <span className="text-xs text-slate-400 font-mono">共 {newBuildingMetrics.subItemDetails.length} 项</span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-900 border-b border-slate-800 text-slate-300">
+                        <th className="py-2.5 px-3 whitespace-nowrap">子项建筑名称与业态</th>
+                        <th className="py-2.5 px-2.5 text-right whitespace-nowrap">建筑面积</th>
+                        <th className="py-2.5 px-2.5 text-right whitespace-nowrap">设计冷/热负荷</th>
+                        <th className="py-2.5 px-3">冷水机组/制冷主机配置</th>
+                        <th className="py-2.5 px-3">供热设备/锅炉配置</th>
+                        <th className="py-2.5 px-3">循环水泵组配比</th>
+                        <th className="py-2.5 px-3">冷却塔配置</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800 text-slate-200 text-[11px]">
+                      {newBuildingMetrics.subItemDetails.map((item) => (
+                        <tr key={item.id} className="hover:bg-slate-800/40">
+                          <td className="py-2.5 px-3">
+                            <span className="font-bold text-white block">{item.name}</span>
+                            <span className="text-slate-400 text-[10px]">{item.typeName} · {item.city}</span>
+                          </td>
+                          <td className="py-2.5 px-2.5 text-right font-mono font-bold text-slate-200 whitespace-nowrap">
+                            {item.area.toLocaleString()} m²
+                          </td>
+                          <td className="py-2.5 px-2.5 text-right font-mono whitespace-nowrap">
+                            <span className="text-amber-300 font-bold block">{item.coolingLoadkW.toLocaleString()} kW</span>
+                            <span className="text-rose-300 text-[10px] block">热: {item.heatingLoadkW.toLocaleString()} kW</span>
+                          </td>
+                          <td className="py-2.5 px-3 text-emerald-300 font-sans">
+                            {item.chillerDesc}
+                          </td>
+                          <td className="py-2.5 px-3 text-amber-200 font-sans">
+                            {item.boilerDesc}
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-300 font-sans">
+                            <div><span className="text-cyan-400">冷水泵:</span> {item.chwPumpDesc}</div>
+                            {item.cwPumpDesc !== '-' && (
+                              <div className="mt-0.5"><span className="text-blue-400">冷却泵:</span> {item.cwPumpDesc}</div>
+                            )}
+                            {item.hwPumpDesc !== '-' && (
+                              <div className="mt-0.5"><span className="text-rose-400">热水泵:</span> {item.hwPumpDesc}</div>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-300 font-sans">
+                            {item.towerDesc}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
+
+              {/* 3. 多系统横向客观比选表 (1~3 种冷热源形式) */}
+              <div className="ai-report-section bg-slate-850 border border-slate-800 rounded-2xl p-5 space-y-4">
+                <div className="flex items-center space-x-2 border-b border-slate-750 pb-3">
+                  <TrendingUp className="w-5 h-5 text-emerald-400" />
+                  <h4 className="font-bold text-white text-sm">
+                    冷热源形式多维度横向比选表（与未选择的 1~2 种主流备选系统客观对比）
+                  </h4>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-900 border-b border-slate-800 text-slate-300">
+                        <th className="py-2.5 px-3">冷热源系统方案</th>
+                        <th className="py-2.5 px-3 text-right">预估总初投资</th>
+                        <th className="py-2.5 px-3 text-right">年化运行费用</th>
+                        <th className="py-2.5 px-3 text-right">较基准年费差额</th>
+                        <th className="py-2.5 px-3">核心技术优劣势评估</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800 text-slate-200 font-mono">
+                      <tr className="bg-emerald-950/25 border-l-2 border-emerald-500">
+                        <td className="py-2.5 px-3 font-bold text-emerald-300 font-sans">
+                          ★ 【当前选定】{newBuildingMetrics.currentSystemName}
+                        </td>
+                        <td className="py-2.5 px-3 text-right text-white">约 ¥{Math.round(newBuildingMetrics.totalCoolingkW * 0.08)} 万</td>
+                        <td className="py-2.5 px-3 text-right text-emerald-400 font-bold">¥{(newBuildingMetrics.annualCost / 10000).toFixed(2)} 万</td>
+                        <td className="py-2.5 px-3 text-right text-slate-400 font-sans">基准对比点</td>
+                        <td className="py-2.5 px-3 font-sans text-[11px] text-slate-300">
+                          大容量满载与部分负荷综合 COP 优异，运行极其稳定可靠，适用于大面积集中空调。
+                        </td>
+                      </tr>
+                      {newBuildingMetrics.comparisons.map((comp, idx) => (
+                        <tr key={idx} className="hover:bg-slate-800/40">
+                          <td className="py-2.5 px-3 text-slate-300 font-sans">{comp.name}</td>
+                          <td className="py-2.5 px-3 text-right text-white">约 ¥{comp.capexWan} 万</td>
+                          <td className="py-2.5 px-3 text-right text-amber-300">¥{comp.annualCostWan} 万</td>
+                          <td className="py-2.5 px-3 text-right font-sans text-[11px]">
+                            <span className={comp.deltaCostWan >= 0 ? 'text-rose-400' : 'text-emerald-400 font-bold'}>
+                              {comp.deltaCostWan >= 0 ? `+¥${comp.deltaCostWan}万` : `-¥${Math.abs(comp.deltaCostWan)}万`}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 font-sans text-[11px] text-slate-400">
+                            {comp.pros}。缺点：{comp.cons}。
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
             </div>
           ) : (
-            <div className="space-y-4">
-              <div className="bg-slate-850 border border-slate-800 rounded-2xl p-5 space-y-4">
+            <div className="space-y-6">
+              
+              {/* 1. 既有建筑原有冷热源配置与现改造成冷热源配置 深度对比卡片 (用户明确要求的重点) */}
+              <div className="ai-report-section bg-slate-850 border border-slate-800 rounded-2xl p-5 space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-750 pb-3">
                   <div className="flex items-center space-x-2">
                     <Wrench className="w-5 h-5 text-amber-400" />
-                    <h4 className="font-bold text-white text-sm">
-                      既有建筑改造现状基准与三大改造方案综合汇总
-                    </h4>
+                    <div>
+                      <h4 className="font-bold text-white text-sm">
+                        既有建筑冷热源系统改造前后设备配置对照表 (原有配置 vs 现改造成配置)
+                      </h4>
+                      <p className="text-[11px] text-slate-400">
+                        对象：{retrofitMetrics.buildingName} (建筑面积 {retrofitMetrics.buildingArea.toLocaleString()} m²)
+                      </p>
+                    </div>
                   </div>
-                  <span className="text-xs text-rose-400 font-bold">
+                  <span className="text-xs text-rose-400 font-bold bg-rose-950/60 px-2.5 py-1 rounded-lg border border-rose-500/30">
                     现状基准年能耗费：¥{(retrofitMetrics.baselineCost / 10000).toFixed(2)} 万元
                   </span>
+                </div>
+
+                {/* 左右对照对比卡片 */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                  {/* 左侧：改造前原有冷热源配置 */}
+                  <div className="bg-slate-900/90 border border-rose-500/30 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                      <span className="font-bold text-rose-400 flex items-center space-x-1.5">
+                        <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                        <span>【改造前】原有冷热源配置基准 (Baseline)</span>
+                      </span>
+                      <span className="text-[11px] text-slate-400">高耗能 · 老化衰减</span>
+                    </div>
+
+                    <div className="space-y-2 text-[11px]">
+                      <div>
+                        <span className="text-slate-400 block font-semibold">1. 既有冷水主机：</span>
+                        <p className="text-slate-200 mt-0.5 leading-relaxed">
+                          {retrofitMetrics.chillersList.map(c => `${c.count}台 ${c.modelName} (单台${c.capacitykW}kW, 功率${c.powerkW}kW, COP ${c.cop})`).join('; ')}
+                        </p>
+                        <span className="text-rose-400 text-[10px] block mt-0.5">痛点：管束结垢附着油膜，实际加权 COP 仅约 {retrofitMetrics.avgChillerCop}，低负荷能耗高。</span>
+                      </div>
+
+                      <div>
+                        <span className="text-slate-400 block font-semibold">2. 既有循环水泵：</span>
+                        <p className="text-slate-200 mt-0.5 leading-relaxed">
+                          {retrofitMetrics.pumpsList.map(p => `${p.count}台 ${p.modelName} (流量${p.flowm3h}m³/h, 扬程${p.headm}m, 功率${p.powerkW}kW)`).join('; ')}
+                        </p>
+                        <span className="text-rose-400 text-[10px] block mt-0.5">痛点：设计扬程过高 (35m)，实际水阻仅约 22m，阀门节流损失严重，严重大马拉小车。</span>
+                      </div>
+
+                      <div>
+                        <span className="text-slate-400 block font-semibold">3. 既有供热锅炉：</span>
+                        <p className="text-slate-200 mt-0.5 leading-relaxed">
+                          {retrofitMetrics.boilersList.map(b => `${b.count}台 ${b.modelName} (额定${b.capacitykW}kW, 热效率${b.efficiencyPercent}%)`).join('; ')}
+                        </p>
+                        <span className="text-rose-400 text-[10px] block mt-0.5">痛点：排烟温度高达 160℃，天然气浪费大，氮氧化物排放偏高。</span>
+                      </div>
+
+                      <div className="border-t border-slate-800 pt-2 flex justify-between items-center text-slate-300">
+                        <span>现状年综合运行费:</span>
+                        <span className="font-bold text-rose-400 font-mono text-sm">¥{(retrofitMetrics.baselineCost / 10000).toFixed(2)} 万元/年</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 右侧：现改造成什么冷热源配置 */}
+                  <div className="bg-emerald-950/20 border-2 border-emerald-500/50 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between border-b border-emerald-500/30 pb-2">
+                      <span className="font-bold text-emerald-300 flex items-center space-x-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                        <span>【现改造】目标新冷热源配置方案 (Target)</span>
+                      </span>
+                      <span className="text-[11px] text-emerald-400 font-bold">1级能效 · 绿色智能</span>
+                    </div>
+
+                    <div className="space-y-2 text-[11px]">
+                      <div>
+                        <span className="text-emerald-400 block font-semibold">1. 现改造成高效冷源主机：</span>
+                        <p className="text-slate-200 mt-0.5 leading-relaxed">
+                          换装为 2台 × 3000kW 变频无油磁悬浮离心冷水机组 (满载 COP 6.85, IPLV 10.92, 部分负荷 COP 最高达 11.5)。
+                        </p>
+                        <span className="text-emerald-300 text-[10px] block mt-0.5">优势：无润滑油系统，换热管终身无油膜热阻衰减，启动电流仅 2A。</span>
+                      </div>
+
+                      <div>
+                        <span className="text-emerald-400 block font-semibold">2. 现改造成大温差小流量变频水泵：</span>
+                        <p className="text-slate-200 mt-0.5 leading-relaxed">
+                          优化为 7℃/14℃ (ΔT=7℃) 大温差系统，更换高效水泵，扬程优化为 24m，配置 IE5 永磁变频驱动器。
+                        </p>
+                        <span className="text-emerald-300 text-[10px] block mt-0.5">优势：水系统循环流量削减 28.57%，输配电耗大幅降低 45% 以上。</span>
+                      </div>
+
+                      <div>
+                        <span className="text-emerald-400 block font-semibold">3. 现改造成低氮冷凝真空热水锅炉：</span>
+                        <p className="text-slate-200 mt-0.5 leading-relaxed">
+                          换装为 2台 × 2400kW 全预混冷凝真空热水锅炉 (排烟温度&lt;50℃，热效率 ≥ 98.5%)。
+                        </p>
+                        <span className="text-emerald-300 text-[10px] block mt-0.5">优势：回收水蒸气汽化潜热，节省燃气 16.5%，超低氮排放免年审。</span>
+                      </div>
+
+                      <div className="border-t border-emerald-500/30 pt-2 flex justify-between items-center text-slate-300">
+                        <span>改造后预计年节省费用:</span>
+                        <span className="font-bold text-emerald-400 font-mono text-sm">¥{retrofitMetrics.schemeB_AnnualSavings} 万元/年 (节费率 {retrofitMetrics.schemeB_SavingsRate}%)</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. 三大改造方案综合测算结果汇总 */}
+              <div className="ai-report-section bg-slate-850 border border-slate-800 rounded-2xl p-5 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-750 pb-3">
+                  <div className="flex items-center space-x-2">
+                    <TrendingUp className="w-5 h-5 text-emerald-400" />
+                    <h4 className="font-bold text-white text-sm">
+                      既有建筑三大节能改造方案综合技术经济指标比选
+                    </h4>
+                  </div>
+                  <span className="text-xs text-slate-400">结合初投资与静态回收期综合评价</span>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
                   {/* 方案 A */}
                   <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 space-y-2">
-                    <span className="font-bold text-blue-300 block text-xs">方案一：原系统更换高效机组</span>
-                    <div className="space-y-1 font-mono text-[11px]">
-                      <div className="flex justify-between"><span className="text-slate-400">初投资:</span><span className="text-white font-bold">¥{retrofitMetrics.schemeA_Capex}万</span></div>
+                    <span className="font-bold text-blue-300 block text-xs">方案一：原系统更换常规高效机组</span>
+                    <p className="text-[11px] text-slate-400">保留原有水温工况与管网，仅更换一级能效变频主机并加装水泵变频。</p>
+                    <div className="space-y-1 font-mono text-[11px] pt-1">
+                      <div className="flex justify-between"><span className="text-slate-400">预估初投资:</span><span className="text-white font-bold">¥{retrofitMetrics.schemeA_Capex}万</span></div>
                       <div className="flex justify-between"><span className="text-slate-400">年省运行费:</span><span className="text-emerald-400 font-bold">¥{retrofitMetrics.schemeA_AnnualSavings}万/年</span></div>
                       <div className="flex justify-between"><span className="text-slate-400">节费率:</span><span className="text-emerald-400">{retrofitMetrics.schemeA_SavingsRate}%</span></div>
                       <div className="flex justify-between border-t border-slate-800 pt-1"><span className="text-slate-400">静态回收期:</span><span className="text-cyan-300 font-bold">{retrofitMetrics.schemeA_Payback}年</span></div>
@@ -534,11 +839,12 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
                   {/* 方案 B (推荐) */}
                   <div className="bg-emerald-950/30 p-4 rounded-xl border-2 border-emerald-500/60 space-y-2 relative shadow-md">
                     <div className="absolute -top-2.5 right-3 px-2 py-0.5 bg-emerald-500 text-slate-950 text-[10px] font-black rounded-full shadow">
-                      AI 推荐方案
+                      注册工程师推荐
                     </div>
-                    <span className="font-bold text-emerald-300 block text-xs">方案二：磁悬浮+大温差+AI群控</span>
-                    <div className="space-y-1 font-mono text-[11px]">
-                      <div className="flex justify-between"><span className="text-slate-400">初投资:</span><span className="text-white font-bold">¥{retrofitMetrics.schemeB_Capex}万</span></div>
+                    <span className="font-bold text-emerald-300 block text-xs">方案二：磁悬浮+大温差+AI群控 (推荐)</span>
+                    <p className="text-[11px] text-slate-400">采用无油磁悬浮冷机搭配 7℃/14℃ 大温差与 AI 边缘群控自适应调控。</p>
+                    <div className="space-y-1 font-mono text-[11px] pt-1">
+                      <div className="flex justify-between"><span className="text-slate-400">预估初投资:</span><span className="text-white font-bold">¥{retrofitMetrics.schemeB_Capex}万</span></div>
                       <div className="flex justify-between"><span className="text-slate-400">年省运行费:</span><span className="text-emerald-400 font-bold">¥{retrofitMetrics.schemeB_AnnualSavings}万/年</span></div>
                       <div className="flex justify-between"><span className="text-slate-400">节费率:</span><span className="text-emerald-400 font-bold">{retrofitMetrics.schemeB_SavingsRate}%</span></div>
                       <div className="flex justify-between border-t border-slate-800 pt-1"><span className="text-slate-400">静态回收期:</span><span className="text-emerald-400 font-black">{retrofitMetrics.schemeB_Payback}年</span></div>
@@ -547,9 +853,10 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
 
                   {/* 方案 C */}
                   <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 space-y-2">
-                    <span className="font-bold text-purple-300 block text-xs">方案三：热泵电气化全替代</span>
-                    <div className="space-y-1 font-mono text-[11px]">
-                      <div className="flex justify-between"><span className="text-slate-400">初投资:</span><span className="text-white font-bold">¥{retrofitMetrics.schemeC_Capex}万</span></div>
+                    <span className="font-bold text-purple-300 block text-xs">方案三：热泵电气化全替代锅炉</span>
+                    <p className="text-[11px] text-slate-400">拆除燃气锅炉，改用超低温空气源热泵/水源热泵，实现机房全电气化零燃气。</p>
+                    <div className="space-y-1 font-mono text-[11px] pt-1">
+                      <div className="flex justify-between"><span className="text-slate-400">预估初投资:</span><span className="text-white font-bold">¥{retrofitMetrics.schemeC_Capex}万</span></div>
                       <div className="flex justify-between"><span className="text-slate-400">年省运行费:</span><span className="text-purple-300 font-bold">¥{retrofitMetrics.schemeC_AnnualSavings}万/年</span></div>
                       <div className="flex justify-between"><span className="text-slate-400">节费率:</span><span className="text-purple-300">{retrofitMetrics.schemeC_SavingsRate}%</span></div>
                       <div className="flex justify-between border-t border-slate-800 pt-1"><span className="text-slate-400">静态回收期:</span><span className="text-purple-300 font-bold">{retrofitMetrics.schemeC_Payback}年</span></div>
@@ -557,11 +864,14 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
                   </div>
                 </div>
               </div>
+
             </div>
           )}
 
-          {/* Section B: Gemini LLM Deep Professional Consulting Section */}
-          <div className="bg-slate-850 border border-emerald-500/30 rounded-2xl p-6 space-y-4 shadow-xl">
+          {/* ========================================================================= */}
+          {/* Section B: Registered HVAC Engineer & Gemini LLM Deep Technical Consulting */}
+          {/* ========================================================================= */}
+          <div className="ai-report-section bg-slate-850 border border-emerald-500/30 rounded-2xl p-6 space-y-4 shadow-xl">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center space-x-2.5">
                 <div className="p-1.5 bg-emerald-500 text-slate-950 rounded-lg">
@@ -570,17 +880,17 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
                 <div>
                   <h4 className="font-bold text-white text-base">
                     {reportMode === 'new_building'
-                      ? 'Gemini 大模型专家深度论证：系统选型裁定、土建配合、储能潜力与避坑清单'
-                      : 'Gemini 大模型专家深度论证：不停产施工组织、管网利旧、EMC商务模式与数字化落地'}
+                      ? '注册公用设备工程师·AI 深度论证：系统选型裁定、各子项设备匹配、土建配合与储能避坑'
+                      : '注册公用设备工程师·AI 深度论证：原有配置能耗瓶颈、改造后配置演进、不停产施工与EMC落地'}
                   </h4>
                   <p className="text-[11px] text-slate-400">
-                    大模型赋予传统报告更深层次的土建协同、施工策略与商业模式增量价值
+                    结合 8760h 物理机理计算与大模型工程实践经验输出高水准决策建议
                   </p>
                 </div>
               </div>
 
               <span className="px-3 py-1 bg-emerald-950 text-emerald-300 border border-emerald-500/30 rounded-full text-xs font-mono font-bold">
-                权威工程咨询报告
+                注册工程师审核意见
               </span>
             </div>
 
@@ -589,10 +899,10 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
               <div className="py-16 flex flex-col items-center justify-center space-y-3">
                 <Bot className="w-8 h-8 text-emerald-400 animate-bounce" />
                 <span className="text-sm font-semibold text-emerald-300">
-                  Google Gemini 3.5 专家模型正在结合物理数据全链路撰写报告...
+                  注册公用设备工程师 AI 知识模型正在结合全量数据撰写深度论证报告...
                 </span>
                 <span className="text-xs text-slate-500">
-                  正在严谨推导土建配合要点、施工割接组织与全生命周期经济模型
+                  正在严谨推导各子项设备配比裕度、施工组织割接与全生命周期经济模型
                 </span>
               </div>
             ) : (
@@ -605,10 +915,10 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex-shrink-0 px-6 py-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-xs">
+        <div className="ai-report-modal-footer flex-shrink-0 px-6 py-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-xs">
           <span className="text-slate-400 flex items-center space-x-1.5">
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            <span>符合国家《公共建筑节能设计标准》(GB 50189) 与《建筑节能与可再生能源通用规范》(GB 55015)</span>
+            <span>编制依据：国家《公共建筑节能设计标准》(GB 50189) 与《建筑节能与可再生能源通用规范》(GB 55015) · 注册公用设备工程师审核</span>
           </span>
           <button
             onClick={onClose}
