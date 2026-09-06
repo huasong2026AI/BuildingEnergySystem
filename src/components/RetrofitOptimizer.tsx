@@ -73,6 +73,10 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
   const [targetSystemType, setTargetSystemType] = useState<SystemType>('air_heat_pump');
   const [targetCapEx, setTargetCapEx] = useState<number>(280); // 工程总初投资 CapEx (万元)
   const [targetCustomEquipment, setTargetCustomEquipment] = useState<UserEquipmentOverrides>({});
+  
+  // 目标系统设计冷/热负荷指标（用户可自主修改，双向联动推荐计算总值）
+  const [targetCoolingIndex, setTargetCoolingIndex] = useState<number>(90);
+  const [targetHeatingIndex, setTargetHeatingIndex] = useState<number>(60);
 
   // 品牌选型模态框
   const [catalogModalState, setCatalogModalState] = useState<{
@@ -96,8 +100,8 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
       name: buildingName + ' (目标更换新系统)',
       type: 'office',
       area: buildingArea,
-      coolingIndex: 90,
-      heatingIndex: 60,
+      coolingIndex: targetCoolingIndex,
+      heatingIndex: targetHeatingIndex,
       operatingHours: operatingHours,
       systemType: targetSystemType,
       chwSupplyTemp: 7,
@@ -108,7 +112,7 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
       cwReturnTemp: 37,
       customEquipment: targetCustomEquipment
     };
-  }, [buildingName, buildingArea, operatingHours, targetSystemType, targetCustomEquipment]);
+  }, [buildingName, buildingArea, operatingHours, targetSystemType, targetCustomEquipment, targetCoolingIndex, targetHeatingIndex]);
 
   const targetCalc = useMemo(() => {
     return calculateEquipmentForSubItem(targetSubItem);
@@ -241,6 +245,28 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
     const totalCost = electricityCost + gasCost + districtEnergyCost;
     const carbonTons = (totalElectricitykWh * 0.581 + totalGasm3 * 2.162) / 1000;
 
+    // 动态提取老旧设备的真实加权平均指标 (100% 联动至右侧方案一及对比看板)
+    let weightedChillerCop = 3.9;
+    if (existingSystemType === 'chiller_boiler' || existingSystemType === 'hybrid') {
+      weightedChillerCop = totalChillerPowerkW > 0 ? Number((totalChillerCapkW / totalChillerPowerkW).toFixed(2)) : (chillers[0]?.cop || 3.9);
+    } else if (existingSystemType === 'air_heat_pump') {
+      weightedChillerCop = totalChillerPowerkW > 0 ? Number((totalChillerCapkW / totalChillerPowerkW).toFixed(2)) : (achps[0]?.cop || 3.0);
+    } else if (existingSystemType === 'vrf') {
+      weightedChillerCop = totalChillerPowerkW > 0 ? Number((totalChillerCapkW / totalChillerPowerkW).toFixed(2)) : (vrfs[0]?.eer || 3.5);
+    } else if (existingSystemType === 'split_ac') {
+      weightedChillerCop = totalChillerPowerkW > 0 ? Number((totalChillerCapkW / totalChillerPowerkW).toFixed(2)) : (splits[0]?.apf || 3.0);
+    }
+
+    const totalPumpCnt = pumps.reduce((s, p) => s + p.count, 0);
+    const weightedPumpEff = totalPumpCnt > 0
+      ? Number((pumps.reduce((s, p) => s + (p.efficiencyPercent || 58) * p.count, 0) / totalPumpCnt).toFixed(1))
+      : 58;
+
+    const totalBoilerCnt = boilers.reduce((s, b) => s + b.count, 0);
+    const weightedBoilerEff = totalBoilerCnt > 0
+      ? Number((boilers.reduce((s, b) => s + (b.efficiencyPercent || 82) * b.count, 0) / totalBoilerCnt).toFixed(1))
+      : 82;
+
     return {
       totalChillerCapkW,
       totalChillerPowerkW,
@@ -254,7 +280,10 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
       gasCost,
       districtEnergyCost,
       totalCost,
-      carbonTons
+      carbonTons,
+      weightedChillerCop,
+      weightedPumpEff,
+      weightedBoilerEff
     };
   }, [existingSystemType, chillers, boilers, pumps, towers, achps, vrfs, districts, splits, operatingHours, electricityRate, gasRate]);
 
@@ -385,9 +414,18 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
 
   // 步骤 1：维持原系统，仅更换老旧高效设备方案
   const step1Result = useMemo(() => {
-    const newChillerPowerkW = baseline.totalChillerCapkW / 6.8;
-    const newPumpPowerkW = baseline.totalPumpPowerkW * (0.58 / 0.82) * 0.8;
-    const newBoilerGasFlow = baseline.totalBoilerGasFlow * (0.82 / 0.95);
+    const oldCop = baseline.weightedChillerCop || 3.9;
+    const oldPumpEff = baseline.weightedPumpEff || 58;
+    const oldBoilerEff = baseline.weightedBoilerEff || 82;
+
+    const targetChillerCOP = 6.8;
+    const targetPumpEff = 82;
+    const targetBoilerEff = 95;
+
+    // 采用实际录入的真实参数进行动态提升测算：
+    const newChillerPowerkW = baseline.totalChillerCapkW / targetChillerCOP;
+    const newPumpPowerkW = baseline.totalPumpPowerkW * (oldPumpEff / targetPumpEff) * 0.8;
+    const newBoilerGasFlow = baseline.totalBoilerGasFlow * (oldBoilerEff / targetBoilerEff);
     const newTowerPowerkW = baseline.totalTowerPowerkW * 0.75;
 
     const newEleckWh = (newChillerPowerkW * 0.65 + newPumpPowerkW * 0.7 + newTowerPowerkW * 0.65) * operatingHours;
@@ -400,11 +438,21 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
     const carbonTons = (newEleckWh * 0.581 + newGasm3 * 2.162) / 1000;
     const capEx = 220;
 
+    const chillerGainPercent = Number((((targetChillerCOP - oldCop) / oldCop) * 100).toFixed(0));
+    const pumpGainPercent = Number((((targetPumpEff - oldPumpEff) / oldPumpEff) * 100).toFixed(0));
+    const boilerGainPercent = Number((((targetBoilerEff - oldBoilerEff) / oldBoilerEff) * 100).toFixed(0));
+
     return {
       title: '步骤一：维持原系统架构，仅更换老旧高效设备',
-      newChillerCOP: 6.8,
-      newPumpEff: 82,
-      newBoilerEff: 95,
+      oldChillerCOP: oldCop,
+      newChillerCOP: targetChillerCOP,
+      chillerGainPercent,
+      oldPumpEff: oldPumpEff,
+      newPumpEff: targetPumpEff,
+      pumpGainPercent,
+      oldBoilerEff: oldBoilerEff,
+      newBoilerEff: targetBoilerEff,
+      boilerGainPercent,
       elecCost: newElecCost,
       gasCost: newGasCost,
       totalCost: newTotalCost,
@@ -697,7 +745,7 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
                             const updated = [...chillers];
                             const cap = Number(e.target.value);
                             updated[idx].capacitykW = cap;
-                            updated[idx].powerkW = Number((cap / c.cop).toFixed(1));
+                            updated[idx].powerkW = Number((cap / Math.max(0.5, c.cop)).toFixed(1));
                             setChillers(updated);
                           }}
                           className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white font-bold"
@@ -710,7 +758,11 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
                           value={c.powerkW}
                           onChange={(e) => {
                             const updated = [...chillers];
-                            updated[idx].powerkW = Number(e.target.value);
+                            const pwr = Number(e.target.value);
+                            updated[idx].powerkW = pwr;
+                            if (pwr > 0 && c.capacitykW > 0) {
+                              updated[idx].cop = Number((c.capacitykW / pwr).toFixed(2));
+                            }
                             setChillers(updated);
                           }}
                           className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-amber-400 font-bold"
@@ -726,7 +778,9 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
                             const updated = [...chillers];
                             const cop = Number(e.target.value);
                             updated[idx].cop = cop;
-                            updated[idx].powerkW = Number((c.capacitykW / Math.max(1, cop)).toFixed(1));
+                            if (cop > 0) {
+                              updated[idx].powerkW = Number((c.capacitykW / cop).toFixed(1));
+                            }
                             setChillers(updated);
                           }}
                           className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-blue-300 font-bold"
@@ -776,7 +830,11 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
                         value={b.gasFlowm3h}
                         onChange={(e) => {
                           const updated = [...boilers];
-                          updated[idx].gasFlowm3h = Number(e.target.value);
+                          const gas = Number(e.target.value);
+                          updated[idx].gasFlowm3h = gas;
+                          if (gas > 0 && b.capacitykW > 0) {
+                            updated[idx].efficiencyPercent = Number(((b.capacitykW / (9.967 * gas)) * 100).toFixed(1));
+                          }
                           setBoilers(updated);
                         }}
                         className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-rose-400 font-bold"
@@ -789,7 +847,11 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
                         value={b.efficiencyPercent}
                         onChange={(e) => {
                           const updated = [...boilers];
-                          updated[idx].efficiencyPercent = Number(e.target.value);
+                          const eff = Number(e.target.value);
+                          updated[idx].efficiencyPercent = eff;
+                          if (eff > 0) {
+                            updated[idx].gasFlowm3h = Number((b.capacitykW / (9.967 * (eff / 100))).toFixed(1));
+                          }
                           setBoilers(updated);
                         }}
                         className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white font-bold"
@@ -836,7 +898,26 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
                   <div key={p.id} className="bg-slate-900 p-3 rounded-lg border border-slate-800 space-y-2">
                     <div className="flex justify-between items-center text-xs">
                       <span className="font-bold text-slate-200">{p.modelName}</span>
-                      <span className="text-xs text-slate-400">效率 {p.efficiencyPercent}%</span>
+                      <div className="flex items-center space-x-1">
+                        <span className="text-xs text-slate-400">效率:</span>
+                        <input
+                          type="number"
+                          min={20}
+                          max={95}
+                          value={p.efficiencyPercent}
+                          onChange={(e) => {
+                            const updated = [...pumps];
+                            const eff = Number(e.target.value);
+                            updated[idx].efficiencyPercent = eff;
+                            if (eff > 0) {
+                              updated[idx].powerkW = Number(((p.flowm3h * p.headm) / (4.2707 * eff)).toFixed(1));
+                            }
+                            setPumps(updated);
+                          }}
+                          className="w-14 bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-emerald-400 font-bold text-xs text-center"
+                        />
+                        <span className="text-xs text-slate-400">%</span>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-4 gap-2 text-xs">
@@ -849,7 +930,8 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
                             const updated = [...pumps];
                             const fl = Number(e.target.value);
                             updated[idx].flowm3h = fl;
-                            updated[idx].powerkW = Number(((fl * p.headm) / 247.7).toFixed(1));
+                            const eff = updated[idx].efficiencyPercent || 58;
+                            updated[idx].powerkW = Number(((fl * p.headm) / (4.2707 * eff)).toFixed(1));
                             setPumps(updated);
                           }}
                           className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white font-bold"
@@ -864,7 +946,8 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
                             const updated = [...pumps];
                             const hd = Number(e.target.value);
                             updated[idx].headm = hd;
-                            updated[idx].powerkW = Number(((p.flowm3h * hd) / 247.7).toFixed(1));
+                            const eff = updated[idx].efficiencyPercent || 58;
+                            updated[idx].powerkW = Number(((p.flowm3h * hd) / (4.2707 * eff)).toFixed(1));
                             setPumps(updated);
                           }}
                           className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white font-bold"
@@ -877,7 +960,12 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
                           value={p.powerkW}
                           onChange={(e) => {
                             const updated = [...pumps];
-                            updated[idx].powerkW = Number(e.target.value);
+                            const pwr = Number(e.target.value);
+                            updated[idx].powerkW = pwr;
+                            if (pwr > 0 && p.flowm3h > 0 && p.headm > 0) {
+                              const eff = Math.min(95, Math.max(10, Number(((p.flowm3h * p.headm) / (4.2707 * pwr)).toFixed(1))));
+                              updated[idx].efficiencyPercent = eff;
+                            }
                             setPumps(updated);
                           }}
                           className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-amber-300 font-bold"
@@ -1003,7 +1091,11 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
                             value={a.powerkW}
                             onChange={(e) => {
                               const updated = [...achps];
-                              updated[idx].powerkW = Number(e.target.value);
+                              const pwr = Number(e.target.value);
+                              updated[idx].powerkW = pwr;
+                              if (pwr > 0 && a.coolingkW > 0) {
+                                updated[idx].cop = Number((a.coolingkW / pwr).toFixed(2));
+                              }
                               setAchps(updated);
                             }}
                             className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-amber-300 font-bold"
@@ -1019,7 +1111,9 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
                               const updated = [...achps];
                               const cop = Number(e.target.value);
                               updated[idx].cop = cop;
-                              updated[idx].powerkW = Number((a.coolingkW / Math.max(1, cop)).toFixed(1));
+                              if (cop > 0) {
+                                updated[idx].powerkW = Number((a.coolingkW / cop).toFixed(1));
+                              }
                               setAchps(updated);
                             }}
                             className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-sky-300 font-bold"
@@ -1457,17 +1551,21 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
               </div>
 
               <p className="text-slate-200 leading-relaxed">
-                无需变动已有管路架构与机房布局。将老旧主机替换为**超高效磁悬浮离心机组 (COP 6.8)**，水泵更换为**高效率变频水泵 (82%)**，锅炉更换为**低氮冷凝热水锅炉 (效率95%)**。
+                无需变动已有管路架构与机房布局。将原录入的加权平均 COP {step1Result.oldChillerCOP} 老旧主机替换为<strong className="text-blue-300">超高效磁悬浮离心机组 (COP {step1Result.newChillerCOP})</strong>，老旧水泵 (平均综合效率 {step1Result.oldPumpEff}%) 更换为<strong className="text-emerald-300">高效率变频水泵 ({step1Result.newPumpEff}%)</strong>，老旧锅炉 (平均效率 {step1Result.oldBoilerEff}%) 更换为<strong className="text-rose-300">低氮冷凝热水锅炉 (效率 {step1Result.newBoilerEff}%)</strong>。
               </p>
 
               <div className="grid grid-cols-3 gap-3 pt-1">
                 <div className="bg-slate-850 p-3.5 rounded-xl border border-slate-750">
                   <span className="text-slate-300 text-xs block">冷水主机 COP 提升</span>
-                  <span className="text-blue-300 font-bold text-base">3.9 &rarr; 6.8 (+74%)</span>
+                  <span className="text-blue-300 font-bold text-base">
+                    {step1Result.oldChillerCOP} &rarr; {step1Result.newChillerCOP} ({step1Result.chillerGainPercent >= 0 ? `+${step1Result.chillerGainPercent}%` : `${step1Result.chillerGainPercent}%`})
+                  </span>
                 </div>
                 <div className="bg-slate-850 p-3.5 rounded-xl border border-slate-750">
                   <span className="text-slate-300 text-xs block">水泵综合效率提升</span>
-                  <span className="text-emerald-300 font-bold text-base">58% &rarr; 82% (+41%)</span>
+                  <span className="text-emerald-300 font-bold text-base">
+                    {step1Result.oldPumpEff}% &rarr; {step1Result.newPumpEff}% (+{step1Result.pumpGainPercent}%)
+                  </span>
                 </div>
                 <div className="bg-slate-850 p-3.5 rounded-xl border border-slate-750">
                   <span className="text-slate-300 text-xs block">估算回收期</span>
@@ -1520,6 +1618,55 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
                   <span className="text-xs text-slate-400">* 电量取自所选真实品牌型号物理电量</span>
                 </div>
 
+                {/* 目标系统设计负荷指标与推荐标准计算总值设定卡片 */}
+                <div className="bg-slate-900/90 border border-slate-750 rounded-xl p-3.5 space-y-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center space-x-2 text-xs font-bold text-emerald-300">
+                      <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 rounded border border-emerald-500/30">推荐计算总值推导标准与指标设定</span>
+                      <span className="text-slate-300 font-normal">建筑面积: <strong className="text-white">{buildingArea.toLocaleString()} m²</strong></span>
+                    </div>
+                    <span className="text-[11px] text-slate-400">* 表格中推荐总值与负荷指标支持双向输入与自动联动</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                    <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between">
+                      <div>
+                        <span className="text-slate-300 font-semibold block">目标设计冷负荷指标 (W/m²)</span>
+                        <span className="text-[10px] text-slate-400">
+                          推荐冷负荷 = {buildingArea} × {targetCoolingIndex} ÷ 1000 = <strong className="text-blue-400">{((buildingArea * targetCoolingIndex) / 1000).toFixed(1)} kW</strong>
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <input
+                          type="number"
+                          value={targetCoolingIndex}
+                          onChange={(e) => setTargetCoolingIndex(Math.max(1, Number(e.target.value)))}
+                          className="w-20 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-center font-bold text-blue-300 text-sm focus:border-blue-400"
+                        />
+                        <span className="text-slate-400">W/m²</span>
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between">
+                      <div>
+                        <span className="text-slate-300 font-semibold block">目标设计热负荷指标 (W/m²)</span>
+                        <span className="text-[10px] text-slate-400">
+                          推荐热负荷 = {buildingArea} × {targetHeatingIndex} ÷ 1000 × 1.1 = <strong className="text-rose-400">{((buildingArea * targetHeatingIndex * 1.1) / 1000).toFixed(1)} kW</strong>
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <input
+                          type="number"
+                          value={targetHeatingIndex}
+                          onChange={(e) => setTargetHeatingIndex(Math.max(1, Number(e.target.value)))}
+                          className="w-20 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-center font-bold text-rose-300 text-sm focus:border-rose-400"
+                        />
+                        <span className="text-slate-400">W/m²</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 {/* 核心设备明细表格 */}
                 <div className="overflow-x-auto border border-slate-800 rounded-xl">
                   <table className="w-full text-left border-collapse text-sm">
@@ -1527,7 +1674,7 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
                       <tr className="bg-slate-900 text-slate-200 font-bold border-b border-slate-750">
                         <th className="py-3 px-3">主要空调设备名称</th>
                         <th className="py-3 px-3 text-amber-300">选定实际市场品牌型号</th>
-                        <th className="py-3 px-3">推荐标准计算总值</th>
+                        <th className="py-3 px-3 text-emerald-300">推荐标准计算总值 (可输入修改)</th>
                         <th className="py-3 px-3 text-blue-300">配置台数 (台)</th>
                         <th className="py-3 px-3 text-emerald-300">折算单台容量/流量</th>
                         <th className="py-3 px-3 text-blue-300">配置总值</th>
@@ -1567,7 +1714,25 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
                               </button>
                             )}
                           </td>
-                          <td className="py-3 px-3 font-semibold text-slate-400">{targetCalc.chillerCapacitykW.toFixed(1)} kW</td>
+                          <td className="py-3 px-3">
+                            <div className="flex items-center space-x-1">
+                              <input
+                                type="number"
+                                step="10"
+                                value={targetCalc.chillerCapacitykW > 0 ? Number(targetCalc.chillerCapacitykW.toFixed(1)) : ''}
+                                onChange={(e) => {
+                                  const val = Number(e.target.value);
+                                  if (val > 0 && buildingArea > 0) {
+                                    setTargetCoolingIndex(Number(((val * 1000) / buildingArea).toFixed(1)));
+                                  }
+                                }}
+                                title="直接输入推荐冷负荷总值(kW)，自动联动冷指标与水泵匹配流量"
+                                className="w-24 bg-slate-950 border border-slate-700 hover:border-blue-500 focus:border-blue-400 rounded px-2 py-1 text-blue-300 font-bold text-xs"
+                              />
+                              <span className="text-xs text-slate-400">kW</span>
+                            </div>
+                            <span className="text-[10px] text-slate-400 block mt-0.5">({targetCoolingIndex} W/m²)</span>
+                          </td>
                           <td className="py-3 px-3">
                             <input
                               type="number"
@@ -1627,7 +1792,25 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
                               </button>
                             )}
                           </td>
-                          <td className="py-3 px-3 font-semibold text-slate-400">{targetCalc.boilerCapacitykW.toFixed(1)} kW</td>
+                          <td className="py-3 px-3">
+                            <div className="flex items-center space-x-1">
+                              <input
+                                type="number"
+                                step="10"
+                                value={targetCalc.boilerCapacitykW > 0 ? Number(targetCalc.boilerCapacitykW.toFixed(1)) : ''}
+                                onChange={(e) => {
+                                  const val = Number(e.target.value);
+                                  if (val > 0 && buildingArea > 0) {
+                                    setTargetHeatingIndex(Number(((val / 1.10 * 1000) / buildingArea).toFixed(1)));
+                                  }
+                                }}
+                                title="直接输入推荐供热总值(kW)，自动联动热指标与热水泵匹配流量"
+                                className="w-24 bg-slate-950 border border-slate-700 hover:border-rose-500 focus:border-rose-400 rounded px-2 py-1 text-rose-300 font-bold text-xs"
+                              />
+                              <span className="text-xs text-slate-400">kW</span>
+                            </div>
+                            <span className="text-[10px] text-slate-400 block mt-0.5">({targetHeatingIndex} W/m² × 1.1)</span>
+                          </td>
                           <td className="py-3 px-3">
                             <input
                               type="number"
@@ -1917,7 +2100,25 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
                               </button>
                             )}
                           </td>
-                          <td className="py-3 px-3 font-semibold text-slate-400">{targetCalc.achpCoolingkW.toFixed(1)} kW</td>
+                          <td className="py-3 px-3">
+                            <div className="flex items-center space-x-1">
+                              <input
+                                type="number"
+                                step="10"
+                                value={targetCalc.achpCoolingkW > 0 ? Number(targetCalc.achpCoolingkW.toFixed(1)) : ''}
+                                onChange={(e) => {
+                                  const val = Number(e.target.value);
+                                  if (val > 0 && buildingArea > 0) {
+                                    setTargetCoolingIndex(Number(((val * 1000) / buildingArea).toFixed(1)));
+                                  }
+                                }}
+                                title="直接输入推荐总冷量(kW)，自动联动冷指标与水泵流量"
+                                className="w-24 bg-slate-950 border border-slate-700 hover:border-sky-500 focus:border-sky-400 rounded px-2 py-1 text-sky-300 font-bold text-xs"
+                              />
+                              <span className="text-xs text-slate-400">kW</span>
+                            </div>
+                            <span className="text-[10px] text-slate-400 block mt-0.5">({targetCoolingIndex} W/m²)</span>
+                          </td>
                           <td className="py-3 px-3">
                             <input
                               type="number"
@@ -1977,7 +2178,25 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
                               </button>
                             )}
                           </td>
-                          <td className="py-3 px-3 font-semibold text-slate-400">{targetCalc.vrfCoolingkW.toFixed(1)} kW</td>
+                          <td className="py-3 px-3">
+                            <div className="flex items-center space-x-1">
+                              <input
+                                type="number"
+                                step="10"
+                                value={targetCalc.vrfCoolingkW > 0 ? Number(targetCalc.vrfCoolingkW.toFixed(1)) : ''}
+                                onChange={(e) => {
+                                  const val = Number(e.target.value);
+                                  if (val > 0 && buildingArea > 0) {
+                                    setTargetCoolingIndex(Number(((val * 1000) / buildingArea).toFixed(1)));
+                                  }
+                                }}
+                                title="直接输入推荐总冷量(kW)，自动联动冷指标"
+                                className="w-24 bg-slate-950 border border-slate-700 hover:border-purple-500 focus:border-purple-400 rounded px-2 py-1 text-purple-300 font-bold text-xs"
+                              />
+                              <span className="text-xs text-slate-400">kW</span>
+                            </div>
+                            <span className="text-[10px] text-slate-400 block mt-0.5">({targetCoolingIndex} W/m²)</span>
+                          </td>
                           <td className="py-3 px-3">
                             <input
                               type="number"
@@ -2037,7 +2256,25 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
                               </button>
                             )}
                           </td>
-                          <td className="py-3 px-3 font-semibold text-slate-400">{targetCalc.districtHexCapacitykW.toFixed(1)} kW</td>
+                          <td className="py-3 px-3">
+                            <div className="flex items-center space-x-1">
+                              <input
+                                type="number"
+                                step="10"
+                                value={targetCalc.districtHexCapacitykW > 0 ? Number(targetCalc.districtHexCapacitykW.toFixed(1)) : ''}
+                                onChange={(e) => {
+                                  const val = Number(e.target.value);
+                                  if (val > 0 && buildingArea > 0) {
+                                    setTargetCoolingIndex(Number(((val * 1000) / buildingArea).toFixed(1)));
+                                  }
+                                }}
+                                title="直接输入推荐总换热量(kW)，自动联动冷指标"
+                                className="w-24 bg-slate-950 border border-slate-700 hover:border-cyan-500 focus:border-cyan-400 rounded px-2 py-1 text-cyan-300 font-bold text-xs"
+                              />
+                              <span className="text-xs text-slate-400">kW</span>
+                            </div>
+                            <span className="text-[10px] text-slate-400 block mt-0.5">({targetCoolingIndex} W/m²)</span>
+                          </td>
                           <td className="py-3 px-3">
                             <input
                               type="number"
@@ -2097,7 +2334,25 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
                               </button>
                             )}
                           </td>
-                          <td className="py-3 px-3 font-semibold text-slate-400">{targetCalc.splitTotalCapacitykW.toFixed(1)} kW</td>
+                          <td className="py-3 px-3">
+                            <div className="flex items-center space-x-1">
+                              <input
+                                type="number"
+                                step="10"
+                                value={targetCalc.splitTotalCapacitykW > 0 ? Number(targetCalc.splitTotalCapacitykW.toFixed(1)) : ''}
+                                onChange={(e) => {
+                                  const val = Number(e.target.value);
+                                  if (val > 0 && buildingArea > 0) {
+                                    setTargetCoolingIndex(Number(((val * 1000) / buildingArea).toFixed(1)));
+                                  }
+                                }}
+                                title="直接输入推荐总容量(kW)，自动联动冷指标"
+                                className="w-24 bg-slate-950 border border-slate-700 hover:border-emerald-500 focus:border-emerald-400 rounded px-2 py-1 text-emerald-300 font-bold text-xs"
+                              />
+                              <span className="text-xs text-slate-400">kW</span>
+                            </div>
+                            <span className="text-[10px] text-slate-400 block mt-0.5">({targetCoolingIndex} W/m²)</span>
+                          </td>
                           <td className="py-3 px-3">
                             <input
                               type="number"

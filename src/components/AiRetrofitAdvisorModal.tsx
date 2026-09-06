@@ -617,9 +617,12 @@ export const AiRetrofitAdvisorModal: React.FC<Props> = ({
                 </div>
               )}
 
-              {/* Quick Questions Tag Bar */}
-              <div className="flex items-center space-x-1.5 overflow-x-auto py-1 text-[11px] text-slate-300 scrollbar-none">
-                <span className="text-slate-400 font-bold whitespace-nowrap">快捷提问:</span>
+              {/* Quick Questions Tag Bar - 自动换行全览，彻底解决遮挡与显示不全 */}
+              <div className="flex flex-wrap items-center gap-1.5 py-1.5 text-xs text-slate-300 border-b border-slate-800/80 pb-2">
+                <span className="text-slate-400 font-bold flex items-center space-x-1 mr-1">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>快捷提问:</span>
+                </span>
                 {[
                   '使用一级泵系统还是二级泵系统？',
                   '选用磁悬浮还是变频螺杆更划算？',
@@ -630,7 +633,7 @@ export const AiRetrofitAdvisorModal: React.FC<Props> = ({
                   <button
                     key={idx}
                     onClick={() => handleQuickQuestion(q)}
-                    className="px-2.5 py-1 bg-slate-800/80 hover:bg-emerald-900/60 hover:text-emerald-300 border border-slate-700 hover:border-emerald-500/50 rounded-full whitespace-nowrap transition-colors cursor-pointer"
+                    className="px-2.5 py-1 bg-slate-800/90 hover:bg-emerald-900/60 hover:text-emerald-300 border border-slate-700 hover:border-emerald-500/50 rounded-full transition-colors cursor-pointer text-xs"
                   >
                     {q}
                   </button>
