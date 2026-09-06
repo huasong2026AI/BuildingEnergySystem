@@ -865,7 +865,7 @@ export function calculateEquipmentForSubItem(
         cwPumpCount += subChillerCount; // 冷却泵一机对一泵
 
         coolingTowerFlow += subCwFlow * 1.15;
-        coolingTowerFanPowerkW += subCwFlow * 1.15 * 0.18;
+        coolingTowerFanPowerkW += subCwFlow * 1.15 * 0.012;
         coolingTowerCount += subChillerCount; // 冷却塔一泵对一塔
 
         const subHwFlow = (subHeatLoad * 1.1 * 3.6) / (4.186 * deltaThw);
@@ -937,7 +937,7 @@ export function calculateEquipmentForSubItem(
         cwPumpCount = chillerCount; // 一机对一泵
 
         coolingTowerFlow = cwPumpFlow * 1.15;
-        coolingTowerFanPowerkW = coolingTowerFlow * 0.18;
+        coolingTowerFanPowerkW = coolingTowerFlow * 0.012;
         coolingTowerCount = chillerCount; // 一泵对一塔
 
         hwPumpFlow = (boilerCapacitykW * 3.6) / (4.186 * deltaThw);
@@ -1127,9 +1127,9 @@ export function calculateEquipmentForSubItem(
   if (custom.selectedTowerProduct) {
     coolingTowerFanPowerkW = custom.selectedTowerProduct.actualPowerkW * (custom.coolingTowerCount || coolingTowerCount);
   } else if (custom.coolingTowerFlow) {
-    coolingTowerFanPowerkW = custom.coolingTowerFlow * 0.18;
+    coolingTowerFanPowerkW = custom.coolingTowerFlow * 0.012;
   } else {
-    coolingTowerFanPowerkW = coolingTowerFlow * 0.18;
+    coolingTowerFanPowerkW = coolingTowerFlow * 0.012;
   }
 
   if (custom.hwPumpCount) hwPumpCount = custom.hwPumpCount;
@@ -1315,7 +1315,7 @@ export function checkDiscrepancies(
   }
 
   if (sysMeta.hasCoolingTower && custom.coolingTowerFlow && calc.coolingTowerFlow > 0) {
-    evaluateField('冷却塔', '处理流量', calc.coolingTowerFlow, custom.coolingTowerFlow, 'm³/h', 0.18);
+    evaluateField('冷却塔', '处理流量', calc.coolingTowerFlow, custom.coolingTowerFlow, 'm³/h', 0.012);
   }
 
   if (sysMeta.hasHotWaterPump && custom.hwPumpFlow && calc.hwPumpFlow > 0) {

@@ -65,7 +65,7 @@ export const EnergyAnalysisDashboard: React.FC<Props> = ({
             <span style="font-weight:bold;color:#f8fafc;">${item.value?.toLocaleString()}</span>
           </div>`;
         });
-        if (monthItem && monthItem.gasm3 > 0) {
+        if (hasGas && monthItem && monthItem.gasm3 > 0) {
           const gasCost = Math.round(monthItem.gasm3 * tariffConfig.gasPrice);
           const elecCost = Math.round(monthItem.totalCostRmb - gasCost);
           res += `<div style="margin-top:6px;padding-top:4px;border-top:1px dashed #334155;font-size:11px;color:#fbbf24;line-height:1.4;">
@@ -530,20 +530,24 @@ export const EnergyAnalysisDashboard: React.FC<Props> = ({
         </div>
 
         <div className="bg-slate-850 p-4 rounded-xl border border-slate-800 space-y-1">
-          <span className="text-[11px] text-slate-400 font-semibold block">全年天然气消耗量</span>
+          <span className="text-[11px] text-slate-400 font-semibold block">
+            {hasGas ? '全年天然气消耗量' : '天然气能源消耗'}
+          </span>
           <div className="text-lg font-bold text-amber-400">
-            {currentSummary.annualGasm3 > 0 ? (
+            {hasGas ? (
               <>
                 {currentSummary.annualGasm3.toLocaleString(undefined, { maximumFractionDigits: 0 })} <span className="text-xs font-normal text-slate-400">m³</span>
               </>
             ) : (
-              <span className="text-sm text-slate-400">0 m³ (全电热泵/VRV)</span>
+              <span className="text-sm text-slate-400 font-normal">0 m³ (全电冷热源·无燃气)</span>
             )}
           </div>
         </div>
 
         <div className="bg-slate-850 p-4 rounded-xl border border-slate-800 space-y-1">
-          <span className="text-[11px] text-slate-400 font-semibold block">全年运行总费用 (分时电费+气费)</span>
+          <span className="text-[11px] text-slate-400 font-semibold block">
+            {hasGas ? '全年运行总费用 (分时电费+燃气费)' : '全年运行总费用 (分时电费)'}
+          </span>
           <div className="text-lg font-bold text-emerald-400">
             {(currentSummary.annualCostRmb / 10000).toFixed(2)} <span className="text-xs font-normal text-slate-400">万元/年</span>
           </div>
@@ -687,8 +691,8 @@ export const EnergyAnalysisDashboard: React.FC<Props> = ({
               <Zap className="w-4 h-4 text-blue-400" />
               <span>
                 {isAllView 
-                  ? '全项目逐月用电量、天然气量与综合费用分布趋势' 
-                  : `【${activeSubItem?.name}】逐月用电量、天然气量与综合费用分布趋势`}
+                  ? (hasGas ? '全项目逐月用电量、天然气量与综合费用分布趋势' : '全项目逐月用电量与综合费用分布趋势')
+                  : (hasGas ? `【${activeSubItem?.name}】逐月用电量、天然气量与综合费用分布趋势` : `【${activeSubItem?.name}】逐月用电量与综合费用分布趋势`)}
               </span>
             </h3>
             {hasGas ? (
@@ -697,17 +701,24 @@ export const EnergyAnalysisDashboard: React.FC<Props> = ({
                 <span>橙柱为月天然气量 · 橙线已计气费</span>
               </span>
             ) : (
-              <span className="text-[10px] text-blue-300 font-bold bg-blue-500/15 px-2.5 py-1 rounded-lg border border-blue-500/30">
-                ⚡ 全电系统 · 燃气为 0 m³
+              <span className="text-[10px] text-emerald-300 font-bold bg-emerald-500/15 px-2.5 py-1 rounded-lg border border-emerald-500/30 flex items-center space-x-1">
+                <Zap className="w-3 h-3 text-emerald-400" />
+                <span>全电冷热源系统</span>
               </span>
             )}
           </div>
           <p className="text-[11px] text-slate-400">
             {hasGas 
               ? '橙色柱为每月天然气消耗量 (m³)，橙色折线【月度能耗费用】已精确包含【分时电费 + 锅炉天然气费】' 
-              : '展示各月主机与循环水泵分时电耗，橙色折线为各月综合运行电费'}
+              : '展示各月冷热源主机、循环水泵及末端逐月分时电耗，橙色折线为各月综合运行电费'}
           </p>
-          <ReactECharts option={monthlyChartOption} style={{ height: '300px', width: '100%' }} />
+          <ReactECharts 
+            key={`monthly-chart-${selectedSubItemId}-${hasGas ? 'gas' : 'nogas'}`}
+            option={monthlyChartOption} 
+            notMerge={true}
+            lazyUpdate={true}
+            style={{ height: '300px', width: '100%' }} 
+          />
         </div>
 
       </div>

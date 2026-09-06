@@ -377,9 +377,9 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
           count: chillerCnt
         });
 
-        // 冷却塔 (考虑 1.15 富裕系数，一机对一塔)
+        // 冷却塔 (考虑 1.15 富裕系数，一机对一塔，标准比耗电率 0.025 kW/(m³/h))
         const towerFlow = Number((cwFlow * 1.15).toFixed(0));
-        const towerFanPower = Number((towerFlow * 0.18).toFixed(1));
+        const towerFanPower = Number((towerFlow * 0.012).toFixed(1));
         setTowers([{
           id: 't-auto',
           modelName: '冷却塔 (冷却水散热)',

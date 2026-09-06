@@ -98,43 +98,84 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
     const primarySystemType = subItems[0]?.systemType || 'chiller_boiler';
     const currentSystemName = SYSTEM_TYPES_META[primarySystemType]?.name || '冷水机组 + 燃气锅炉系统';
 
-    // 构造各建筑子项的详细设备选型清单数据
+    // 构造各建筑子项的详细设备选型清单数据 (冷源配置、热源配置、水泵配比、水塔配置)
     const subItemDetails = calcs.map(({ item, calc }) => {
       const custom = item.customEquipment || {};
       const chCount = custom.chillerCount || calc.chillerCount || 1;
       const bCount = custom.boilerCount || calc.boilerCount || 1;
-
-      // 主机型号名称
-      const chillerDesc = custom.selectedChillerProduct 
-        ? `${chCount}台 × ${custom.selectedChillerProduct.ratedCapacitykW.toFixed(0)}kW (${custom.selectedChillerProduct.brand} ${custom.selectedChillerProduct.model}, COP ${custom.selectedChillerProduct.copOrEff || 6.2})`
-        : `${chCount}台 × ${(calc.chillerCapacitykW / Math.max(1, chCount)).toFixed(0)}kW (变频离心机/高效螺杆机, COP ${calc.chillerCOP.toFixed(2)})`;
-
-      // 锅炉/热源描述
       const isAchp = item.systemType === 'air_heat_pump';
       const isVrf = item.systemType === 'vrf';
+      const isDistrict = item.systemType === 'district_energy';
+      const isSplit = item.systemType === 'split_ac';
+
+      // 1. 冷源配置 (对于风冷热泵与VRV，冷热源是同一套机组)
+      let chillerDesc = '-';
+      if (isAchp) {
+        const achpCount = custom.achpCount || calc.achpCount || 1;
+        const cap = custom.selectedAchpProduct
+          ? custom.selectedAchpProduct.ratedCapacitykW
+          : (calc.achpCoolingkW / Math.max(1, achpCount));
+        const cop = custom.selectedAchpProduct?.copOrEff || 3.20;
+        const brand = custom.selectedAchpProduct?.brand ? `${custom.selectedAchpProduct.brand} ` : '';
+        const model = custom.selectedAchpProduct?.model || '风冷热泵机组';
+        chillerDesc = `${achpCount}台 × ${cap.toFixed(0)}kW (${brand}${model}夏季制冷, COP ${Number(cop).toFixed(2)})`;
+      } else if (isVrf) {
+        const vrfCount = custom.vrfCount || calc.vrfCount || Math.ceil((calc.vrfCoolingkW || calc.coolingLoadkW) / 60) || 1;
+        const cap = custom.selectedVrfProduct
+          ? custom.selectedVrfProduct.ratedCapacitykW
+          : ((calc.vrfCoolingkW || calc.coolingLoadkW) / Math.max(1, vrfCount));
+        const apf = custom.selectedVrfProduct?.copOrEff || 5.30;
+        const brand = custom.selectedVrfProduct?.brand ? `${custom.selectedVrfProduct.brand} ` : '';
+        chillerDesc = `${vrfCount}套 × ${cap.toFixed(0)}kW (${brand}变频多联机VRV室外机组, APF ${Number(apf).toFixed(2)})`;
+      } else if (isDistrict) {
+        const hexCount = custom.districtHexCount || calc.districtHexCount || 2;
+        const cap = calc.coolingLoadkW / Math.max(1, hexCount);
+        chillerDesc = `${hexCount}台 × ${cap.toFixed(0)}kW (板式换热机组, 市政冷网直供)`;
+      } else if (isSplit) {
+        const splitCount = custom.splitCount || calc.splitCount || Math.ceil(calc.coolingLoadkW / 7.2) || 1;
+        const cap = calc.coolingLoadkW / Math.max(1, splitCount);
+        chillerDesc = `${splitCount}套 × ${cap.toFixed(1)}kW (商用一级能效变频分体空调)`;
+      } else {
+        chillerDesc = custom.selectedChillerProduct 
+          ? `${chCount}台 × ${custom.selectedChillerProduct.ratedCapacitykW.toFixed(0)}kW (${custom.selectedChillerProduct.brand} ${custom.selectedChillerProduct.model}, COP ${custom.selectedChillerProduct.copOrEff || 6.2})`
+          : `${chCount}台 × ${(calc.chillerCapacitykW / Math.max(1, chCount)).toFixed(0)}kW (变频离心机/高效螺杆机, COP ${calc.chillerCOP.toFixed(2)})`;
+      }
+
+      // 2. 热源配置 (风冷热泵与VRV为同一冷热源)
       let boilerDesc = '-';
       if (isAchp) {
         const achpCount = custom.achpCount || calc.achpCount || 1;
-        boilerDesc = `${achpCount}台 × ${(calc.achpHeatingkW / Math.max(1, achpCount)).toFixed(0)}kW (风冷热泵冬季制热, COP ${calc.achpPowerkW > 0 ? (calc.achpHeatingkW / calc.achpPowerkW).toFixed(2) : '3.20'})`;
+        const heatCap = calc.achpHeatingkW / Math.max(1, achpCount);
+        const heatCop = calc.achpPowerkW > 0 ? (calc.achpHeatingkW / calc.achpPowerkW).toFixed(2) : '3.20';
+        boilerDesc = `${achpCount}台 × ${heatCap.toFixed(0)}kW (同冷源热泵机组冬季制热, COP ${heatCop})`;
       } else if (isVrf) {
-        boilerDesc = '多联机室外机自带热泵制热 (APF 5.30)';
+        boilerDesc = '同冷源多联机室外机自带热泵制热 (APF 5.30)';
+      } else if (isDistrict) {
+        const hexCount = custom.districtHexCount || calc.districtHexCount || 2;
+        const heatCap = calc.heatingLoadkW / Math.max(1, hexCount);
+        boilerDesc = `${hexCount}台 × ${heatCap.toFixed(0)}kW (板式换热机组, 市政热网直供)`;
+      } else if (isSplit) {
+        boilerDesc = '同冷源分体机自带电热泵制热 (APF 4.65)';
       } else {
         boilerDesc = custom.selectedBoilerProduct
           ? `${bCount}台 × ${custom.selectedBoilerProduct.ratedCapacitykW.toFixed(0)}kW (${custom.selectedBoilerProduct.brand} 真空锅炉, 效率 ${custom.selectedBoilerProduct.copOrEff || 95}%)`
           : `${bCount}台 × ${(calc.boilerCapacitykW / Math.max(1, bCount)).toFixed(0)}kW (全预混冷凝热水锅炉, 效率 ${calc.boilerEfficiency}%)`;
       }
 
-      // 水泵配置
-      const chwPumpDesc = `${calc.chwPumpCount || chCount}台 (流量 ${calc.chwPumpFlow.toFixed(0)}m³/h, 扬程 ${calc.chwPumpHead}m, 功率 ${calc.chwPumpPowerkW.toFixed(1)}kW)`;
-      const cwPumpDesc = calc.cwPumpCount > 0 
+      // 3. 水泵配置 (VRV 与分体机没有水泵，直接不写)
+      const hasWaterPumps = !isVrf && !isSplit && (calc.chwPumpFlow > 0 || calc.cwPumpFlow > 0 || calc.hwPumpFlow > 0);
+      const chwPumpDesc = (hasWaterPumps && calc.chwPumpFlow > 0 && calc.chwPumpPowerkW > 0)
+        ? `${calc.chwPumpCount || chCount}台 (流量 ${calc.chwPumpFlow.toFixed(0)}m³/h, 扬程 ${calc.chwPumpHead}m, 功率 ${calc.chwPumpPowerkW.toFixed(1)}kW)`
+        : '-';
+      const cwPumpDesc = (hasWaterPumps && calc.cwPumpCount > 0 && calc.cwPumpFlow > 0 && calc.cwPumpPowerkW > 0)
         ? `${calc.cwPumpCount}台 (流量 ${calc.cwPumpFlow.toFixed(0)}m³/h, 扬程 ${calc.cwPumpHead}m, 功率 ${calc.cwPumpPowerkW.toFixed(1)}kW)`
         : '-';
-      const hwPumpDesc = calc.hwPumpCount > 0 
+      const hwPumpDesc = (hasWaterPumps && calc.hwPumpCount > 0 && calc.hwPumpFlow > 0 && calc.hwPumpPowerkW > 0)
         ? `${calc.hwPumpCount}台 (流量 ${calc.hwPumpFlow.toFixed(0)}m³/h, 扬程 ${calc.hwPumpHead}m, 功率 ${calc.hwPumpPowerkW.toFixed(1)}kW)`
         : '-';
 
-      // 冷却塔
-      const towerDesc = calc.coolingTowerCount > 0
+      // 4. 冷却塔配置
+      const towerDesc = calc.coolingTowerCount > 0 && calc.coolingTowerFlow > 0
         ? `${calc.coolingTowerCount}台 (流量 ${calc.coolingTowerFlow.toFixed(0)}m³/h, 风机 ${calc.coolingTowerFanPowerkW.toFixed(1)}kW)`
         : '-';
 
@@ -149,6 +190,7 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
         heatingLoadkW: calc.heatingLoadkW,
         chillerDesc,
         boilerDesc,
+        hasWaterPumps,
         chwPumpDesc,
         cwPumpDesc,
         hwPumpDesc,
@@ -160,9 +202,9 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
     const detailedSubItemsText = subItemDetails.map((s, idx) => 
       `子项${idx + 1}【${s.name}】(${s.typeName}, 面积 ${s.area.toLocaleString()} m², 气候区: ${s.city})：\n` +
       `  • 设计冷负荷: ${s.coolingLoadkW.toLocaleString()} kW | 设计热负荷: ${s.heatingLoadkW.toLocaleString()} kW | 暖通系统: ${s.systemName}\n` +
-      `  • 冷水主机配置: ${s.chillerDesc}\n` +
-      `  • 供热设备配置: ${s.boilerDesc}\n` +
-      `  • 循环水泵组: 冷水泵 ${s.chwPumpDesc}; 冷却水泵 ${s.cwPumpDesc}; 热水泵 ${s.hwPumpDesc}\n` +
+      `  • 冷源配置: ${s.chillerDesc}\n` +
+      `  • 热源配置: ${s.boilerDesc}\n` +
+      `  • 循环水泵组: ${s.hasWaterPumps ? `冷水泵 ${s.chwPumpDesc}; 冷却水泵 ${s.cwPumpDesc}; 热水泵 ${s.hwPumpDesc}` : '无水系统循环水泵'}\n` +
       `  • 冷却塔配置: ${s.towerDesc}`
     ).join('\n\n');
 
@@ -586,7 +628,7 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
                     <Layers className="w-5 h-5 text-cyan-400" />
                     <div>
                       <h4 className="font-bold text-white text-sm">
-                        所有建筑子项冷热源设备选型配置清单明细表 (含主机、水泵、水塔、锅炉)
+                        所有建筑子项冷热源设备选型配置清单明细表 (含冷源、热源、水泵、水塔)
                       </h4>
                       <p className="text-[11px] text-slate-400">
                         严格依据《民用建筑供暖通风与空气调节设计规范》(GB 50736) 逐项推导选型
@@ -603,8 +645,8 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
                         <th className="py-2.5 px-3 whitespace-nowrap">子项建筑名称与业态</th>
                         <th className="py-2.5 px-2.5 text-right whitespace-nowrap">建筑面积</th>
                         <th className="py-2.5 px-2.5 text-right whitespace-nowrap">设计冷/热负荷</th>
-                        <th className="py-2.5 px-3">冷水机组/制冷主机配置</th>
-                        <th className="py-2.5 px-3">供热设备/锅炉配置</th>
+                        <th className="py-2.5 px-3">冷源配置</th>
+                        <th className="py-2.5 px-3">热源配置</th>
                         <th className="py-2.5 px-3">循环水泵组配比</th>
                         <th className="py-2.5 px-3">冷却塔配置</th>
                       </tr>
@@ -630,12 +672,20 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
                             {item.boilerDesc}
                           </td>
                           <td className="py-2.5 px-3 text-slate-300 font-sans">
-                            <div><span className="text-cyan-400">冷水泵:</span> {item.chwPumpDesc}</div>
-                            {item.cwPumpDesc !== '-' && (
-                              <div className="mt-0.5"><span className="text-blue-400">冷却泵:</span> {item.cwPumpDesc}</div>
-                            )}
-                            {item.hwPumpDesc !== '-' && (
-                              <div className="mt-0.5"><span className="text-rose-400">热水泵:</span> {item.hwPumpDesc}</div>
+                            {item.hasWaterPumps ? (
+                              <>
+                                {item.chwPumpDesc !== '-' && (
+                                  <div><span className="text-cyan-400">冷水泵:</span> {item.chwPumpDesc}</div>
+                                )}
+                                {item.cwPumpDesc !== '-' && (
+                                  <div className="mt-0.5"><span className="text-blue-400">冷却泵:</span> {item.cwPumpDesc}</div>
+                                )}
+                                {item.hwPumpDesc !== '-' && (
+                                  <div className="mt-0.5"><span className="text-rose-400">热水泵:</span> {item.hwPumpDesc}</div>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-slate-500">-</span>
                             )}
                           </td>
                           <td className="py-2.5 px-3 text-slate-300 font-sans">
