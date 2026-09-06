@@ -10,7 +10,7 @@ import { AiRetrofitAdvisorModal } from './AiRetrofitAdvisorModal';
 import type { EquipmentCategory, CatalogEquipmentItem } from '../data/equipmentCatalog';
 import type { 
   SystemType, BuildingSubItem, UserEquipmentOverrides, ExistingChillerDetail, ExistingBoilerDetail, ExistingPumpDetail, 
-  ExistingAchpDetail, ExistingVrfDetail, ExistingDistrictDetail, ExistingGshpDetail, ExistingSplitDetail, ExistingTowerDetail,
+  ExistingAchpDetail, ExistingVrfDetail, ExistingDistrictDetail, ExistingSplitDetail, ExistingTowerDetail,
   EnergyTariffConfig 
 } from '../types/hvac';
 
@@ -59,10 +59,6 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
 
   const [districts, setDistricts] = useState<ExistingDistrictDetail[]>([
     { id: 'd1', modelName: '区域板式换热器机组', capacitykW: 3000, pumpFlowm3h: 516, pumpPowerkW: 73, count: 2 }
-  ]);
-
-  const [gshps, setGshps] = useState<ExistingGshpDetail[]>([
-    { id: 'g1', modelName: '老旧地源热泵主机', coolingkW: 3000, powerkW: 666, cop: 4.5, groundFlowm3h: 600, groundPumpPowerkW: 78, loadFlowm3h: 516, loadPumpPowerkW: 73, count: 2 }
   ]);
 
   const [splits, setSplits] = useState<ExistingSplitDetail[]>([
@@ -217,10 +213,6 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
     } else if (existingSystemType === 'district_energy') {
       totalChillerCapkW = districts.reduce((a, b) => a + b.capacitykW * b.count, 0);
       totalPumpPowerkW = districts.reduce((a, b) => a + b.pumpPowerkW * b.count, 0);
-    } else if (existingSystemType === 'ground_heat_pump') {
-      totalChillerCapkW = gshps.reduce((a, b) => a + b.coolingkW * b.count, 0);
-      totalChillerPowerkW = gshps.reduce((a, b) => a + b.powerkW * b.count, 0);
-      totalPumpPowerkW = gshps.reduce((a, b) => a + (b.groundPumpPowerkW + b.loadPumpPowerkW) * b.count, 0);
     } else if (existingSystemType === 'split_ac') {
       totalChillerCapkW = splits.reduce((a, b) => a + b.capacitykW * b.count, 0);
       totalChillerPowerkW = splits.reduce((a, b) => a + b.powerkW * b.count, 0);
@@ -252,7 +244,7 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
       totalCost,
       carbonTons
     };
-  }, [existingSystemType, chillers, boilers, pumps, towers, achps, vrfs, districts, gshps, splits, operatingHours, electricityRate, gasRate]);
+  }, [existingSystemType, chillers, boilers, pumps, towers, achps, vrfs, districts, splits, operatingHours, electricityRate, gasRate]);
 
   // ⚡ 一键根据主机自动推导匹配水泵与冷却塔
   const handleAutoDerivePumpsAndTowers = () => {
@@ -1259,72 +1251,7 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
               </div>
             )}
 
-            {/* 8. 地源热泵系统 */}
-            {existingSystemType === 'ground_heat_pump' && (
-              <div className="bg-slate-850 p-4 rounded-xl border border-slate-800 space-y-2">
-                <span className="font-bold text-indigo-400 block border-b border-slate-750 pb-2">
-                  地源热泵主机与源侧/负荷侧水泵
-                </span>
-                {gshps.map((g, idx) => (
-                  <div key={g.id} className="grid grid-cols-4 gap-2 text-xs">
-                    <div>
-                      <span className="text-slate-300 block">主机容量(kW)</span>
-                      <input
-                        type="number"
-                        value={g.coolingkW}
-                        onChange={(e) => {
-                          const updated = [...gshps];
-                          updated[idx].coolingkW = Number(e.target.value);
-                          setGshps(updated);
-                        }}
-                        className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white font-bold"
-                      />
-                    </div>
-                    <div>
-                      <span className="text-slate-300 block">主机电功率(kW)</span>
-                      <input
-                        type="number"
-                        value={g.powerkW}
-                        onChange={(e) => {
-                          const updated = [...gshps];
-                          updated[idx].powerkW = Number(e.target.value);
-                          setGshps(updated);
-                        }}
-                        className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-amber-300 font-bold"
-                      />
-                    </div>
-                    <div>
-                      <span className="text-slate-300 block">地埋管泵功率(kW)</span>
-                      <input
-                        type="number"
-                        value={g.groundPumpPowerkW}
-                        onChange={(e) => {
-                          const updated = [...gshps];
-                          updated[idx].groundPumpPowerkW = Number(e.target.value);
-                          setGshps(updated);
-                        }}
-                        className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-teal-300 font-bold"
-                      />
-                    </div>
-                    <div>
-                      <span className="text-slate-300 block">台数</span>
-                      <input
-                        type="number"
-                        value={g.count}
-                        onChange={(e) => {
-                          const updated = [...gshps];
-                          updated[idx].count = Number(e.target.value);
-                          setGshps(updated);
-                        }}
-                        className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white font-bold"
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* 9. 分体空调系统 */}
+            {/* 8. 分体空调系统 */}
             {existingSystemType === 'split_ac' && (
               <div className="bg-slate-850 p-4 rounded-xl border border-slate-800 space-y-2">
                 <span className="font-bold text-amber-400 block border-b border-slate-750 pb-2">

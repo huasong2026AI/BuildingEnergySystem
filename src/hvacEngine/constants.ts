@@ -110,19 +110,9 @@ export const SYSTEM_TYPES_META: Record<SystemType, SystemTypeMeta> = {
     hasHotWaterPump: false,
     hasCoolingWaterPump: false
   },
-  ground_heat_pump: {
-    id: 'ground_heat_pump',
-    name: '6. 地源热泵系统',
-    description: '利用土壤浅层地热能换热，能效比 (COP) 极高，配备地埋管地源水泵与负荷侧水泵。',
-    primaryEquipment: ['地源热泵主机', '地埋管循环水泵', '负荷侧水泵'],
-    hasCoolingTower: false,
-    hasChilledWaterPump: true,
-    hasHotWaterPump: true,
-    hasCoolingWaterPump: false
-  },
   hybrid: {
     id: 'hybrid',
-    name: '7. 复合空调系统',
+    name: '6. 复合空调系统',
     description: '结合2种或以上系统形式（如冷水机组承担基底冷负荷，多联机承担峰值冷负荷与冬季采暖等）的复合冷热源系统。',
     primaryEquipment: ['冷水机组/多联机/热泵组合', '循环水泵/直蒸系统组合'],
     hasCoolingTower: true,

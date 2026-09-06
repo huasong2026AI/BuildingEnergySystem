@@ -733,11 +733,6 @@ export function calculateEquipmentForSubItem(
   let vrfPowerkW = 0;
   let vrfCount = 0;
 
-  let gshpCoolingkW = 0;
-  let gshpGroundPumpPowerkW = 0;
-  let gshpLoadPumpPowerkW = 0;
-  let gshpCount = 0;
-
   let districtHexCapacitykW = 0;
   let districtPumpPowerkW = 0;
 
@@ -900,28 +895,6 @@ export function calculateEquipmentForSubItem(
         splitPowerkW = splitTotalCapacitykW / splitAPF;
         break;
       }
-
-      case 'ground_heat_pump': {
-        gshpCoolingkW = coolingLoadkW * simFactor;
-        const gshpCOP = 5.6;
-        const gshpElectrickW = gshpCoolingkW / gshpCOP;
-        gshpCount = Math.ceil(gshpCoolingkW / 400);
-
-        const groundHeatRejection = gshpCoolingkW * (1 + 1 / gshpCOP);
-        const groundFlow = (groundHeatRejection * 3.6) / (4.186 * 4.5);
-        gshpGroundPumpPowerkW = (groundFlow * 32) / 247.7;
-
-        const loadFlow = (gshpCoolingkW * 3.6) / (4.186 * deltaTchw);
-        gshpLoadPumpPowerkW = (loadFlow * 26) / 247.7;
-
-        chwPumpFlow = loadFlow;
-        chwPumpPowerkW = gshpLoadPumpPowerkW;
-        chwPumpHead = 26;
-
-        chillerCapacitykW = gshpCoolingkW;
-        chillerPowerkW = gshpElectrickW;
-        break;
-      }
     }
   }
 
@@ -1052,8 +1025,6 @@ export function calculateEquipmentForSubItem(
     (sysMeta.hasHotWaterPump ? hwPumpPowerkW : 0) + 
     achpPowerkW + 
     vrfPowerkW + 
-    gshpGroundPumpPowerkW + 
-    gshpLoadPumpPowerkW + 
     districtPumpPowerkW + 
     splitPowerkW;
 
@@ -1099,10 +1070,6 @@ export function calculateEquipmentForSubItem(
     vrfCoolingkW,
     vrfPowerkW,
     vrfCount,
-    gshpCoolingkW,
-    gshpGroundPumpPowerkW,
-    gshpLoadPumpPowerkW,
-    gshpCount,
     districtHexCapacitykW,
     districtPumpPowerkW,
     splitTotalCapacitykW,

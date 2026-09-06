@@ -19,11 +19,10 @@ export interface BuildingTypeMeta {
 export type SystemType =
   | 'chiller_boiler'     // 1. 冷水机组 + 锅炉系统
   | 'air_heat_pump'      // 2. 风冷热泵系统
-  | 'vrf'                 // 3. 多联机系统 (VRF/VRV)
+  | 'vrf'                // 3. 多联机系统 (VRF/VRV)
   | 'district_energy'    // 4. 区域能源站系统
   | 'split_ac'           // 5. 分体空调系统
-  | 'ground_heat_pump'   // 6. 地源热泵系统
-  | 'hybrid';            // 7. 复合空调系统 (由上述2种或以上系统组合)
+  | 'hybrid';            // 6. 复合空调系统 (由上述2种或以上系统组合)
 
 export interface SystemTypeMeta {
   id: SystemType;
@@ -146,12 +145,6 @@ export interface EquipmentCalcResult {
   vrfPowerkW: number;
   vrfCount: number;
 
-  // 地源热泵
-  gshpCoolingkW: number;
-  gshpGroundPumpPowerkW: number;
-  gshpLoadPumpPowerkW: number;
-  gshpCount: number;
-
   // 区域能源站
   districtHexCapacitykW: number;
   districtPumpPowerkW: number;
@@ -210,9 +203,6 @@ export interface UserEquipmentOverrides {
   vrfCoolingkW?: number;
   vrfCount?: number;
   selectedVrfProduct?: SelectedBrandProduct;
-  
-  gshpCoolingkW?: number;
-  gshpCount?: number;
 }
 
 export interface EquipmentDiscrepancy {

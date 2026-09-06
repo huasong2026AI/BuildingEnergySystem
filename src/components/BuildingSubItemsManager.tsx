@@ -426,7 +426,7 @@ export const BuildingSubItemsManager: React.FC<Props> = ({
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
-            {['chiller_boiler', 'air_heat_pump', 'vrf', 'district_energy', 'ground_heat_pump'].map((sysKey) => {
+            {['chiller_boiler', 'air_heat_pump', 'vrf', 'district_energy', 'split_ac'].map((sysKey) => {
               const sysMeta = SYSTEM_TYPES_META[sysKey as SystemType];
               const subConfigs = activeItem.hybridSubSystems || [
                 { systemType: 'chiller_boiler', ratioPercent: 60 },
