@@ -345,10 +345,10 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
     if (totalCoolkW > 0 || totalHeatkW > 0) {
       const newPumps: ExistingPumpDetail[] = [];
       if (totalCoolkW > 0) {
-        // 冷水泵 (5℃ 温差: 7℃/12℃)
+        // 冷水泵 (5℃ 温差: 7℃/12℃，一机对一泵)
         const chwFlow = Number(((totalCoolkW * 3.6) / (4.186 * 5)).toFixed(0));
         const chwHead = 30;
-        const chwPower = Number(((chwFlow * chwHead) / 247.7).toFixed(1));
+        const chwPower = Number(((chwFlow * chwHead) / (4.2707 * 65)).toFixed(1));
         newPumps.push({
           id: 'p-chw-auto',
           modelName: '冷水水泵 (夏季冷水泵)',
@@ -357,15 +357,15 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
           headm: chwHead,
           powerkW: Number((chwPower / chillerCnt).toFixed(1)),
           efficiencyPercent: 65,
-          count: chillerCnt + 1
+          count: chillerCnt
         });
 
-        // 冷却水泵 (5℃ 温差: 32℃/37℃)
+        // 冷却水泵 (5℃ 温差: 32℃/37℃，一机对一泵)
         const avgCop = chillers[0]?.cop || 4.0;
         const qCond = totalCoolkW * (1 + 1 / avgCop);
         const cwFlow = Number(((qCond * 3.6) / (4.186 * 5)).toFixed(0));
         const cwHead = 26;
-        const cwPower = Number(((cwFlow * cwHead) / 247.7).toFixed(1));
+        const cwPower = Number(((cwFlow * cwHead) / (4.2707 * 65)).toFixed(1));
         newPumps.push({
           id: 'p-cw-auto',
           modelName: '冷却水水泵',
@@ -374,10 +374,10 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
           headm: cwHead,
           powerkW: Number((cwPower / chillerCnt).toFixed(1)),
           efficiencyPercent: 65,
-          count: chillerCnt + 1
+          count: chillerCnt
         });
 
-        // 冷却塔 (考虑 1.15 富裕系数)
+        // 冷却塔 (考虑 1.15 富裕系数，一机对一塔)
         const towerFlow = Number((cwFlow * 1.15).toFixed(0));
         const towerFanPower = Number((towerFlow * 0.18).toFixed(1));
         setTowers([{
@@ -390,10 +390,10 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
       }
 
       if (totalHeatkW > 0) {
-        // 独立热水泵 (10℃ 温差: 60℃/50℃)
+        // 独立热水泵 (10℃ 温差: 60℃/50℃，一炉对一泵)
         const hwFlow = Number(((totalHeatkW * 3.6) / (4.186 * 10)).toFixed(0));
         const hwHead = 22;
-        const hwPower = Number(((hwFlow * hwHead) / 247.7).toFixed(1));
+        const hwPower = Number(((hwFlow * hwHead) / (4.2707 * 65)).toFixed(1));
         newPumps.push({
           id: 'p-hw-auto',
           modelName: '锅炉独立热水泵 (冬季热水循环泵)',
@@ -402,7 +402,7 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
           headm: hwHead,
           powerkW: Number((hwPower / boilerCnt).toFixed(1)),
           efficiencyPercent: 65,
-          count: boilerCnt + 1
+          count: boilerCnt
         });
       }
 
@@ -471,24 +471,38 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
     return calculateSubItemEnergySummary(targetSubItem, [], tariffConfig);
   }, [targetSubItem, tariffConfig]);
 
-  // 步骤 2：更换系统形式 (完全依据目标选定品牌设备的真实输入电功率、8760h仿真能效和耗气量计算)
+  // 步骤 2：更换系统形式 (同口径冷热源系统精算：与左侧基准录入的冷热源设备保持严格同范围同口径)
   const step2Result = useMemo(() => {
-    // 采用与新建建筑完全一致的 8760h 仿真总电耗、天然气消耗与总运行费用
-    const newEleckWh = targetSimSummary.annualElectricitykWh;
-    const newGasm3 = targetSimSummary.annualGasm3;
-    const newTotalCost = targetSimSummary.annualCostRmb;
+    // 1. 提取目标新系统的冷热源系统设备电耗 (主机/热泵 + 水泵 + 冷却塔，排除未改造的末端风机，与既有基准100%同口径)
+    const plantEleckWh = targetSimSummary.monthlyData.reduce(
+      (sum, md) => sum + (md.coolingkWh + md.heatingkWh + md.pumpskWh + md.towerskWh),
+      0
+    );
+    // 全楼未改造末端空调箱/风机盘管风机电耗
+    const terminalsEleckWh = targetSimSummary.monthlyData.reduce(
+      (sum, md) => sum + (md.terminalsAndOtherkWh || 0),
+      0
+    );
 
-    // 拆分电费与气费 (若为区域能源站则包含外购计量费)
+    const newEleckWh = plantEleckWh;
+    const newGasm3 = targetSimSummary.annualGasm3;
+
+    // 拆分电费与气费 (若为区域能源站则包含外购冷热计量费)
     const newGasCost = newGasm3 * gasRate;
     const newElecCost = targetSystemType === 'district_energy'
-      ? Math.max(0, newTotalCost - (targetCalc.coolingLoadkW * operatingHours * 0.45 * 0.28))
-      : Math.max(0, newTotalCost - newGasCost);
+      ? (newEleckWh * electricityRate + (targetCalc.coolingLoadkW * operatingHours * 0.45 * 0.28))
+      : (newEleckWh * electricityRate);
 
+    const newTotalCost = newElecCost + newGasCost;
     const costSaved = baseline.totalCost - newTotalCost;
-    const carbonTons = targetSimSummary.annualCarbonTons;
+    const carbonTons = (newEleckWh * 0.581 + newGasm3 * 2.162) / 1000;
 
     return {
       title: `步骤二：更换系统形式为【${SYSTEM_TYPES_META[targetSystemType].name}】`,
+      plantEleckWh,
+      terminalsEleckWh,
+      newEleckWh,
+      newGasm3,
       elecCost: newElecCost,
       gasCost: newGasCost,
       totalCost: newTotalCost,
@@ -501,7 +515,7 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
       paybackYears: costSaved > 0 ? targetCapEx / (costSaved / 10000) : 0,
       targetSimSummary
     };
-  }, [baseline, targetSystemType, targetCalc, targetSimSummary, targetCapEx, operatingHours, gasRate]);
+  }, [baseline, targetSystemType, targetCalc, targetSimSummary, targetCapEx, operatingHours, gasRate, electricityRate]);
 
   // 步骤 3：AI 边缘计算智能群控与寻优
   const step3Result = useMemo(() => {
@@ -2514,6 +2528,15 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
                 <span className="text-xs text-slate-300 block">初投资 ¥{currentResult.capExRmbTenThousand}万</span>
               </div>
             </div>
+
+            {activeStep === 2 && (
+              <div className="flex flex-wrap items-center justify-between text-xs text-slate-400 bg-slate-950/70 px-3.5 py-2 rounded-xl border border-slate-800">
+                <span className="flex items-center space-x-1.5 text-emerald-400 font-medium">
+                  <span>✓ 严格按【同口径冷热源系统】进行能耗与费用对比（主机、水泵、水塔、锅炉）</span>
+                </span>
+                <span>全楼未改造空调末端风机年电耗约 {(step2Result.terminalsEleckWh / 10000).toFixed(1)} 万度 (未计入机房对比口径)</span>
+              </div>
+            )}
 
             <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 h-64">
               <ReactECharts option={getChartOption()} style={{ height: '100%', width: '100%' }} />
