@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Building2, Zap, DollarSign, FileText, Leaf, Maximize2, Minimize2, Wrench, Sparkles, Moon, SlidersHorizontal, Layers, BookOpen } from 'lucide-react';
+import { Building2, Zap, DollarSign, Leaf, Maximize2, Minimize2, Wrench, Sparkles, Moon, SlidersHorizontal, Layers, BookOpen } from 'lucide-react';
 import type { ProjectEnergySummary, EnergyTariffConfig } from '../types/hvac';
 
 interface HeaderProps {
@@ -191,10 +191,11 @@ export const Header: React.FC<HeaderProps> = ({
 
           <button
             onClick={onExportReport}
-            className="h-9.5 flex items-center space-x-1.5 px-3.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-md shadow-emerald-500/20 border border-emerald-400/30 transition-all cursor-pointer whitespace-nowrap"
+            className="h-9.5 flex items-center space-x-1.5 px-3.5 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 text-xs font-black shadow-lg shadow-emerald-500/25 border border-emerald-300/60 transition-all cursor-pointer whitespace-nowrap animate-pulse hover:animate-none"
+            title="生成由 Gemini 大模型赋能的工程级 AI 深度分析报告"
           >
-            <FileText className="w-3.5 h-3.5" />
-            <span>导出分析报告</span>
+            <Sparkles className="w-4 h-4 text-slate-950" />
+            <span>AI分析报告</span>
           </button>
         </div>
 

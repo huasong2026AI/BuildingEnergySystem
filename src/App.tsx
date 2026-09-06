@@ -7,6 +7,7 @@ import { Header } from './components/Header';
 import { EnergyTariffModal } from './components/EnergyTariffModal';
 import { EquipmentBrandManagerModal } from './components/EquipmentBrandManagerModal';
 import { ProjectPresentationModal } from './components/ProjectPresentationModal';
+import { AiAnalysisReportModal } from './components/AiAnalysisReportModal';
 import { BuildingSubItemsManager } from './components/BuildingSubItemsManager';
 import { EquipmentConfigTable } from './components/EquipmentConfigTable';
 import { InteractiveSystemSchematic } from './components/InteractiveSystemSchematic';
@@ -22,6 +23,7 @@ export function App() {
   const [isTariffModalOpen, setIsTariffModalOpen] = useState(false);
   const [isBrandCatalogModalOpen, setIsBrandCatalogModalOpen] = useState(false);
   const [isPresentationModalOpen, setIsPresentationModalOpen] = useState(false);
+  const [isAiReportModalOpen, setIsAiReportModalOpen] = useState(false);
 
   const [subItems, setSubItems] = useState<BuildingSubItem[]>(INITIAL_SUB_ITEMS);
   const [activeItemId, setActiveItemId] = useState<string>(INITIAL_SUB_ITEMS[0].id);
@@ -63,7 +65,7 @@ export function App() {
   };
 
   const handleExportReport = () => {
-    window.print();
+    setIsAiReportModalOpen(true);
   };
 
   return (
@@ -87,6 +89,16 @@ export function App() {
       <ProjectPresentationModal
         isOpen={isPresentationModalOpen}
         onClose={() => setIsPresentationModalOpen(false)}
+      />
+
+      {/* 0.3 AI Engineering Analysis & Decision Report Modal (Gemini 3.5 Engine) */}
+      <AiAnalysisReportModal
+        isOpen={isAiReportModalOpen}
+        onClose={() => setIsAiReportModalOpen(false)}
+        subItems={subItems}
+        projectSummary={summary}
+        tariffConfig={tariffConfig}
+        initialTab={activeTab === 'retrofit' ? 'retrofit' : 'new_building'}
       />
 
       {/* 1. Header with Top-Right Retrofit Entrance Button, Tariff Pill, Brand Catalog, Presentation PPT & Theme Switcher */}
