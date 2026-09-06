@@ -91,7 +91,7 @@ export function stageChillers(Q: number, chillersList: ChillerItemConfig[]): Act
         active.push({ type: largeChiller.type, capacity: L, load: Q_cap * ratio_l, cop_rated: largeChiller.cop_rated });
       }
     }
-  } else {
+  } else if (chillersList.length === 1) {
     const item = chillersList[0];
     const C = item.capacity;
     const n_max = item.count;
@@ -105,12 +105,40 @@ export function stageChillers(Q: number, chillersList: ChillerItemConfig[]): Act
       load: Q_cap / count,
       cop_rated: item.cop_rated
     }));
+  } else {
+    const allChillers: { type: string; capacity: number; cop_rated: number }[] = [];
+    for (const item of chillersList) {
+      for (let i = 0; i < item.count; i++) {
+        allChillers.push({ type: item.type, capacity: item.capacity, cop_rated: item.cop_rated });
+      }
+    }
+    let cumCap = 0;
+    const chosen: typeof allChillers = [];
+    for (const ch of allChillers) {
+      chosen.push(ch);
+      cumCap += ch.capacity;
+      if (cumCap >= Q) break;
+    }
+    const capTotal = chosen.reduce((sum, c) => sum + c.capacity, 0);
+    const Q_cap = Math.min(Q, capTotal);
+    active = chosen.map(ch => ({
+      type: ch.type,
+      capacity: ch.capacity,
+      load: Q_cap * (ch.capacity / capTotal),
+      cop_rated: ch.cop_rated
+    }));
   }
 
   return active.map(ch => ({
     ...ch,
     plr: Math.max(0.1, Math.min(1.0, ch.load / ch.capacity))
   }));
+}
+
+export interface CustomAuxPowers {
+  P_chwp_rated?: number;
+  P_cwp_rated?: number;
+  P_tower_rated?: number;
 }
 
 /**
@@ -120,14 +148,21 @@ export function optimizeChillerPlant(
   loadRecords: HourlyLoadRecord[],
   chillerConfig: RecommendedPlantConfig,
   f_pump_min = 30.0,
-  approach_rated = 4.0
+  approach_rated = 4.0,
+  customAuxPowers?: CustomAuxPowers
 ): OptimizedHourlyRecord[] {
   const chillers = chillerConfig.chillers;
   const Q_plant_rated = chillers.reduce((sum, c) => sum + c.capacity * c.count, 0);
 
-  const P_chwp_rated = 0.015 * Q_plant_rated;
-  const P_cwp_rated = 0.018 * Q_plant_rated;
-  const P_tower_rated = 0.008 * Q_plant_rated;
+  const P_chwp_rated = (customAuxPowers?.P_chwp_rated && customAuxPowers.P_chwp_rated > 0)
+    ? customAuxPowers.P_chwp_rated
+    : 0.015 * Q_plant_rated;
+  const P_cwp_rated = (customAuxPowers?.P_cwp_rated && customAuxPowers.P_cwp_rated > 0)
+    ? customAuxPowers.P_cwp_rated
+    : 0.018 * Q_plant_rated;
+  const P_tower_rated = (customAuxPowers?.P_tower_rated && customAuxPowers.P_tower_rated > 0)
+    ? customAuxPowers.P_tower_rated
+    : 0.008 * Q_plant_rated;
   const Q_rej_rated = Q_plant_rated * (1.0 + 1.0 / 6.0);
 
   const f_fan_min = 20.0;
@@ -171,11 +206,12 @@ export function optimizeChillerPlant(
     const t_cond_avg_base = t_cws_base + 0.5 * dt_cond_base;
     const f_cap_base = 1.0 + 0.025 * (32.5 - t_cond_avg_base);
 
+    // 基准冷机采用 GB 50189 标准限值：额定 COP 5.30，常规螺杆机部分负荷特性
     let base_P_chiller = 0;
     for (const ch of active) {
-      const f_plr = getPlrModifier(ch.type, ch.plr);
-      const cop_actual = ch.cop_rated * f_cap_base * f_plr;
-      base_P_chiller += ch.load / cop_actual;
+      const f_plr_base = 0.35 + 2.2 * ch.plr - 1.55 * (ch.plr * ch.plr);
+      const cop_base = 5.30 * f_cap_base * f_plr_base;
+      base_P_chiller += ch.load / cop_base;
     }
     const base_P_Total = base_P_chiller + base_P_chwp + base_P_cwp + base_P_tower;
 

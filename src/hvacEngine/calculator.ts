@@ -26,32 +26,114 @@ export function calculateSubItemEnergySummary(
   // 系统类型识别
   const isVrf = item.systemType === 'vrf';
   const isAchp = item.systemType === 'air_heat_pump';
+  const isHybrid = item.systemType === 'hybrid';
+  const custom = item.customEquipment || {};
 
-  // 冷机推荐选型与寻优配置（若为冷水机房系统）
-  const plantConfig = getRecommendedChillers(Q_peak_cool);
+  // 1. 冷水机房选型与深层设备参数打通 (冷水机组、水泵、水塔)
+  const chillerCount = custom.chillerCount || calc.chillerCount || 1;
+  const userChillerProduct = custom.selectedChillerProduct;
+  let activePlantConfig: import('./hourlyEngine/sizingEngine').RecommendedPlantConfig;
+
+  if (userChillerProduct) {
+    const isMaglev = userChillerProduct.name.includes('磁悬浮');
+    const isCentrif = userChillerProduct.name.includes('离心');
+    const chillerType = isMaglev ? '变频磁悬浮机组' : (isCentrif ? '变频离心机组' : '变频螺杆机');
+    const copRated = userChillerProduct.copOrEff || (userChillerProduct.actualPowerkW > 0 ? (userChillerProduct.ratedCapacitykW / userChillerProduct.actualPowerkW) : 6.2);
+    activePlantConfig = {
+      config_name: `${chillerCount}台 × ${userChillerProduct.ratedCapacitykW.toFixed(1)}kW ${userChillerProduct.name}`,
+      chillers: [{
+        type: chillerType,
+        capacity: userChillerProduct.ratedCapacitykW,
+        count: chillerCount,
+        cop_rated: copRated
+      }],
+      justification: `实际选型机组：${userChillerProduct.brand} ${userChillerProduct.model} (${userChillerProduct.name})，单台容量 ${userChillerProduct.ratedCapacitykW.toFixed(1)} kW，额定 COP ${copRated.toFixed(2)}。`
+    };
+  } else if (custom.chillerCapacitykW) {
+    const unitCap = custom.chillerCapacitykW / chillerCount;
+    activePlantConfig = {
+      config_name: `${chillerCount}台自定义冷水机组`,
+      chillers: [{
+        type: '高效变频螺杆机',
+        capacity: unitCap,
+        count: chillerCount,
+        cop_rated: 5.8
+      }],
+      justification: `用户配置：${chillerCount}台冷水机组，单台容量 ${unitCap.toFixed(1)} kW。`
+    };
+  } else {
+    activePlantConfig = getRecommendedChillers(Q_peak_cool);
+  }
+
+  // 提取实际选型水泵及冷却塔功率
+  const customPChwpRated = custom.selectedChwPumpProduct
+    ? custom.selectedChwPumpProduct.actualPowerkW * (custom.chwPumpCount || calc.chwPumpCount || chillerCount)
+    : calc.chwPumpPowerkW;
+  const customPCwpRated = custom.selectedCwPumpProduct
+    ? custom.selectedCwPumpProduct.actualPowerkW * (custom.cwPumpCount || calc.cwPumpCount || chillerCount)
+    : calc.cwPumpPowerkW;
+  const customPTowerRated = custom.selectedTowerProduct
+    ? custom.selectedTowerProduct.actualPowerkW * (custom.coolingTowerCount || calc.coolingTowerCount || chillerCount)
+    : calc.coolingTowerFanPowerkW;
+
   const activePlantConfigName = (() => {
     if (isAchp) {
-      const achpCount = item.customEquipment?.achpCount || calc.achpCount || 1;
-      if (item.customEquipment?.selectedAchpProduct) {
-        return `${achpCount}台 × ${item.customEquipment.selectedAchpProduct.ratedCapacitykW.toFixed(1)}kW ${item.customEquipment.selectedAchpProduct.name}`;
+      const achpCount = custom.achpCount || calc.achpCount || 1;
+      if (custom.selectedAchpProduct) {
+        return `${achpCount}台 × ${custom.selectedAchpProduct.ratedCapacitykW.toFixed(1)}kW ${custom.selectedAchpProduct.name}`;
       }
       return `${achpCount}台 × ${(calc.achpCoolingkW / Math.max(1, achpCount)).toFixed(0)}kW 特灵风冷热泵机组 (ACHP)`;
     }
     if (isVrf) {
-      const vrfCount = item.customEquipment?.vrfCount || calc.vrfCount || 1;
-      if (item.customEquipment?.selectedVrfProduct) {
-        return `${vrfCount}套 × ${item.customEquipment.selectedVrfProduct.ratedCapacitykW.toFixed(1)}kW ${item.customEquipment.selectedVrfProduct.name}`;
+      const vrfCount = custom.vrfCount || calc.vrfCount || 1;
+      if (custom.selectedVrfProduct) {
+        return `${vrfCount}套 × ${custom.selectedVrfProduct.ratedCapacitykW.toFixed(1)}kW ${custom.selectedVrfProduct.name}`;
       }
       return `${vrfCount}套 × 60kW 大金 VRV 智能变频多联机系统 (APF 5.30)`;
     }
-    const chillerCount = item.customEquipment?.chillerCount || calc.chillerCount || 1;
-    if (item.customEquipment?.selectedChillerProduct) {
-      return `${chillerCount}台 × ${item.customEquipment.selectedChillerProduct.ratedCapacitykW.toFixed(1)}kW ${item.customEquipment.selectedChillerProduct.name}`;
-    }
-    return plantConfig.config_name;
+    return activePlantConfig.config_name;
   })();
 
-  const optRecords = optimizeChillerPlant(hourlyLoadRecords, plantConfig, 30.0, 4.0);
+  const optRecords = optimizeChillerPlant(
+    hourlyLoadRecords,
+    activePlantConfig,
+    30.0,
+    4.0,
+    {
+      P_chwp_rated: customPChwpRated,
+      P_cwp_rated: customPCwpRated,
+      P_tower_rated: customPTowerRated
+    }
+  );
+
+  // 2. 真空锅炉真实热效率打通 (力聚全预混超低氮冷凝真空热水机组 104.5% ~ 106%)
+  const boilerProduct = custom.selectedBoilerProduct;
+  const boilerEfficiency = boilerProduct?.copOrEff
+    ? (boilerProduct.copOrEff > 2 ? boilerProduct.copOrEff / 100 : boilerProduct.copOrEff)
+    : 1.045;
+  const hwPumpRated = custom.selectedHwPumpProduct
+    ? custom.selectedHwPumpProduct.actualPowerkW * (custom.hwPumpCount || calc.hwPumpCount || 2)
+    : calc.hwPumpPowerkW;
+
+  // 3. VRV 多联机 APF 与制热能效真实打通
+  const vrfProduct = custom.selectedVrfProduct;
+  const vrfAPF = vrfProduct?.copOrEff || 5.30;
+  const vrfHeatCOP = vrfProduct ? (vrfAPF * 0.72) : 3.80;
+
+  // 4. 风冷热泵动态台数 (achpCount) 与真实 COP 打通
+  const achpCount = custom.achpCount || calc.achpCount || 1;
+  const achpProduct = custom.selectedAchpProduct;
+  const achpRatedCapCool = achpProduct ? achpProduct.ratedCapacitykW : (calc.achpCoolingkW / achpCount);
+  const achpRatedCapHeat = achpProduct ? (achpProduct.ratedCapacitykW * 1.05) : (calc.achpHeatingkW / achpCount);
+  const achpRatedCop = (achpProduct && achpProduct.actualPowerkW > 0)
+    ? (achpProduct.ratedCapacitykW / achpProduct.actualPowerkW)
+    : (achpProduct?.copOrEff || 3.45);
+  const achpChwPumpRated = custom.selectedChwPumpProduct
+    ? custom.selectedChwPumpProduct.actualPowerkW * (custom.chwPumpCount || achpCount)
+    : (calc.achpSummerPumpPowerkW || 30);
+  const achpHwPumpRated = custom.selectedHwPumpProduct
+    ? custom.selectedHwPumpProduct.actualPowerkW * (custom.hwPumpCount || achpCount)
+    : (calc.achpWinterPumpPowerkW || 25);
 
   // 8760h 分时电价数组
   const hoursOfDay = optRecords.map(r => r.hourOfDay);
@@ -147,37 +229,86 @@ export function calculateSubItemEnergySummary(
       let gas = 0;
 
       if (isVrf) {
-        // VRF 多联机系统：遵循 GB 21454 APF 全年性能系数 (5.30)，无水泵无冷却塔
+        // VRF 多联机系统：遵循 GB 21454 APF 全年性能系数与所选机型真实能效
         const partLoadFactor = 0.92 + 0.18 * Math.sin(loadRatio * Math.PI);
-        pCool = rec.Q_cool > 0 ? rec.Q_cool / (5.30 * partLoadFactor) : 0;
-        pHeatElec = rec.Q_heat > 0 ? rec.Q_heat / 3.80 : 0; // 电驱动热泵制热
+        pCool = rec.Q_cool > 0 ? rec.Q_cool / (vrfAPF * partLoadFactor) : 0;
+        pHeatElec = rec.Q_heat > 0 ? rec.Q_heat / vrfHeatCOP : 0; // 电驱动热泵制热
         pPump = 0;
         pTower = 0;
         pTerm = item.area * 0.003 * (rec.Q_cool > 0 || rec.Q_heat > 0 ? 1 : 0.1);
         gas = 0;
       } else if (isAchp) {
-        // 风冷热泵系统：真实继承用户在第2项中选型的具体品牌铭牌与水泵配置
-        const ratedCop = (item.customEquipment?.selectedAchpProduct && item.customEquipment.selectedAchpProduct.actualPowerkW > 0)
-          ? (item.customEquipment.selectedAchpProduct.ratedCapacitykW / item.customEquipment.selectedAchpProduct.actualPowerkW)
-          : 3.45;
-        const copAchp = ratedCop * (1 + 0.22 * Math.sin(loadRatio * Math.PI));
-        pCool = rec.Q_cool > 0 ? rec.Q_cool / copAchp : 0;
-        pHeatElec = rec.Q_heat > 0 ? rec.Q_heat / (ratedCop * 0.92) : 0; // 冬季电热泵制热
-        const pumpSummerRated = calc.achpSummerPumpPowerkW || 30;
-        const pumpWinterRated = calc.achpWinterPumpPowerkW || 25;
-        const pumpRated = rec.Q_cool > 0 ? pumpSummerRated : pumpWinterRated;
-        pPump = (rec.Q_cool > 0 || rec.Q_heat > 0) ? pumpRated * (0.35 + 0.65 * Math.max(loadRatio, 0.2)) : 0;
+        // 风冷热泵系统：按用户实际配置的台数 (achpCount) 进行多台梯级启停与部分负荷精算
+        if (rec.Q_cool > 0) {
+          let activeUnits = Math.ceil(rec.Q_cool / achpRatedCapCool);
+          activeUnits = Math.max(1, Math.min(achpCount, activeUnits));
+          const unitLoad = rec.Q_cool / activeUnits;
+          const plr = Math.max(0.15, Math.min(1.0, unitLoad / achpRatedCapCool));
+          const plrFactor = 0.65 + 1.25 * plr - 0.90 * (plr * plr);
+          pCool = rec.Q_cool / (achpRatedCop * plrFactor);
+        } else {
+          pCool = 0;
+        }
+
+        if (rec.Q_heat > 0) {
+          let activeUnitsHeat = Math.ceil(rec.Q_heat / achpRatedCapHeat);
+          activeUnitsHeat = Math.max(1, Math.min(achpCount, activeUnitsHeat));
+          const unitLoadHeat = rec.Q_heat / activeUnitsHeat;
+          const plrHeat = Math.max(0.15, Math.min(1.0, unitLoadHeat / achpRatedCapHeat));
+          const heatRatedCop = achpRatedCop * 0.92;
+          const plrFactorHeat = 0.75 + 0.80 * plrHeat - 0.55 * (plrHeat * plrHeat);
+          pHeatElec = rec.Q_heat / (heatRatedCop * plrFactorHeat);
+        } else {
+          pHeatElec = 0;
+        }
+
+        if (rec.Q_cool > 0) {
+          pPump = achpChwPumpRated * (0.35 + 0.65 * Math.min(1.0, rec.Q_cool / Math.max(1, calc.coolingLoadkW)));
+        } else if (rec.Q_heat > 0) {
+          pPump = achpHwPumpRated * (0.35 + 0.65 * Math.min(1.0, rec.Q_heat / Math.max(1, calc.heatingLoadkW)));
+        } else {
+          pPump = 0;
+        }
         pTower = 0; // 风冷无冷却塔
         pTerm = item.area * 0.006 * (rec.Q_cool > 0 || rec.Q_heat > 0 ? 1 : 0.1);
         gas = 0; // 风冷热泵冬季为电制热，天然气消耗为 0
+      } else if (isHybrid) {
+        // 混合多联+冷站系统
+        const subSystems = item.hybridSubSystems && item.hybridSubSystems.length > 0
+          ? item.hybridSubSystems
+          : [
+              { systemType: 'chiller_boiler' as const, ratioPercent: 60 },
+              { systemType: 'vrf' as const, ratioPercent: 40 }
+            ];
+        const chillerRatio = (subSystems.find(s => s.systemType === 'chiller_boiler')?.ratioPercent ?? 60) / 100;
+        const vrfRatio = (subSystems.find(s => s.systemType === 'vrf')?.ratioPercent ?? 40) / 100;
+
+        const pCoolChiller = rec.opt_P_Chiller * chillerRatio;
+        const partLoadFactor = 0.92 + 0.18 * Math.sin(loadRatio * Math.PI);
+        const pCoolVrf = rec.Q_cool > 0 ? (rec.Q_cool * vrfRatio) / (vrfAPF * partLoadFactor) : 0;
+        pCool = pCoolChiller + pCoolVrf;
+
+        pHeatElec = rec.Q_heat > 0 ? (rec.Q_heat * vrfRatio) / vrfHeatCOP : 0;
+
+        const pHwPump = rec.Q_heat > 0
+          ? hwPumpRated * (0.35 + 0.65 * Math.min(1.0, (rec.Q_heat * chillerRatio) / Math.max(1, calc.heatingLoadkW)))
+          : 0;
+        pPump = (rec.opt_P_CHWP + rec.opt_P_CWP) * chillerRatio + pHwPump;
+        pTower = rec.opt_P_Tower * chillerRatio;
+        pTerm = item.area * 0.006 * (rec.Q_cool > 0 || rec.Q_heat > 0 ? 1 : 0.1);
+        gas = rec.Q_heat > 0 ? (rec.Q_heat * chillerRatio) / (boilerEfficiency * 9.87) : 0;
       } else {
-        // 水冷冷机 + 燃气锅炉
+        // 水冷冷机 + 真空燃气热水机组
         pCool = rec.opt_P_Chiller;
-        pPump = rec.opt_P_CHWP + rec.opt_P_CWP;
+        const pHwPump = rec.Q_heat > 0
+          ? hwPumpRated * (0.35 + 0.65 * Math.min(1.0, rec.Q_heat / Math.max(1, calc.heatingLoadkW)))
+          : 0;
+        pPump = rec.opt_P_CHWP + rec.opt_P_CWP + pHwPump;
         pTower = rec.opt_P_Tower;
         pTerm = item.area * 0.008 * (rec.Q_cool > 0 || rec.Q_heat > 0 ? 1 : 0.1);
         if (rec.Q_heat > 0) {
-          gas = rec.Q_heat / (0.90 * 9.87); // 燃气锅炉耗气 (m³)
+          // 真空热水机组耗气 (m³)，天然气发热量按 9.87 kWh/m³
+          gas = rec.Q_heat / (boilerEfficiency * 9.87);
         }
       }
 
@@ -286,13 +417,17 @@ export function calculateSubItemEnergySummary(
   const savingsElectricitykWh = totBaseEleckWh - totOptEleckWh;
   const savingsRatePercent = totBaseEleckWh > 0 ? (savingsElectricitykWh / totBaseEleckWh) * 100.0 : 0.0;
 
-  // LCCA 比选
+  // LCCA 比选 (真实设备选型参数联动)
   const lccaResults = evaluateLcca(
     optRecords, item.area,
     tariff.peakElectricityPrice,
     tariff.flatElectricityPrice,
     tariff.valleyElectricityPrice,
-    tariff.gasPrice
+    tariff.gasPrice,
+    1000.0, 300.0, 1200.0, 350.0,
+    boilerEfficiency,
+    achpRatedCop, achpRatedCop * 0.92,
+    vrfAPF, vrfHeatCOP
   );
 
   return {
@@ -314,7 +449,7 @@ export function calculateSubItemEnergySummary(
     savingsRatePercent,
     lccaResults,
     chillerPlantConfigName: activePlantConfigName,
-    chillerPlantJustification: plantConfig.justification,
+    chillerPlantJustification: activePlantConfig.justification,
     tariffConfig: tariff,
     loadBins,
     scopCompliance
