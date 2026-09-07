@@ -413,13 +413,13 @@ ${dataContext.alternativeSystemsText}
 • 现状运行痛点与劣化：主机老化能效严重衰减 (实测综合 COP 仅约 ${dataContext.avgChillerCop})、循环水泵严重“大马拉小车”(设计扬程超标阀门节流损失达 30%+)、锅炉热效率偏低且碳排放高、缺乏群控调控。
 
 【现改造成目标冷热源配置 (改造后 Target)】：
-• 现改造目标系统形式：${dataContext.targetSystemName || '高效磁悬浮离心冷水机组 + 大温差输配 + 全预混冷凝真空锅炉/热泵 + AI 边缘群控系统'}
-• 改造后核心设备配置：${dataContext.targetEquipmentText || '选用无油磁悬浮变频离心冷机(额定满载COP 6.8+, IPLV>10.8); 7℃/14℃大温差低阻水泵组配IE5变频驱动器; 低氮真空冷凝热水锅炉(热效率98.5%); 部署AI自适应边缘节能控制箱'}
+• 现改造目标系统形式：【${dataContext.targetSystemName}】
+• 改造后核心设备配置：${dataContext.targetEquipmentText}
 
 【三大改造方案综合经济比选】：
 1. 方案一 (原系统高效更新)：初投资 ¥${dataContext.schemeA_Capex}万，年省费用 ¥${dataContext.schemeA_AnnualSavings}万 (节费率 ${dataContext.schemeA_SavingsRate}%)，静态回收期 ${dataContext.schemeA_Payback}年。
-2. 方案二 (磁悬浮+大温差+AI边缘群控)：初投资 ¥${dataContext.schemeB_Capex}万，年省费用 ¥${dataContext.schemeB_AnnualSavings}万 (节费率 ${dataContext.schemeB_SavingsRate}%)，静态回收期 ${dataContext.schemeB_Payback}年 (推荐方案)。
-3. 方案三 (热泵全电气化替代锅炉)：初投资 ¥${dataContext.schemeC_Capex}万，年省费用 ¥${dataContext.schemeC_AnnualSavings}万 (节费率 ${dataContext.schemeC_SavingsRate}%)，静态回收期 ${dataContext.schemeC_Payback}年。
+2. 方案二 (更换为【${dataContext.targetSystemName}】)：初投资 ¥${dataContext.schemeB_Capex}万，年省费用 ¥${dataContext.schemeB_AnnualSavings}万 (节费率 ${dataContext.schemeB_SavingsRate}%)，静态回收期 ${dataContext.schemeB_Payback}年 (推荐方案)。
+3. 方案三 (AI 边缘计算智能群控与寻优)：初投资 ¥${dataContext.schemeC_Capex}万，年省费用 ¥${dataContext.schemeC_AnnualSavings}万 (节费率 ${dataContext.schemeC_SavingsRate}%)，静态回收期 ${dataContext.schemeC_Payback}年。
 
 请按照以下结构生成严谨规范的既有建筑改造工程报告：
 一、原有建筑冷热源配置现状与能耗瓶颈深度诊断（详细介绍原有冷水主机、水泵、锅炉设备配置与能效衰减原因）
@@ -478,18 +478,19 @@ ${dataContext.detailedSubItemsText || dataContext.equipmentSummary}
    • **供热热效率偏低**：原大气式燃气热水锅炉排烟温度高达 160℃，热效率仅 82% 左右，天然气费用高且氮氧化物排放大。
 
 #### 二、 现改造成目标冷热源配置与技术演进方案
-基于改造方案指标与工程可行性，现改造成以下高能效冷热源配置：
-1. **冷源主机换代**：选用 **无油磁悬浮变频离心冷水机组**（满载 COP ≥ 6.8，IPLV ≥ 10.8，部分负荷黄金区间 COP 达 11.0 以上），完全消除润滑油膜热阻带来的能效长效衰减；
-2. **输配系统重构**：推行 **7℃/14℃（ΔT=7℃）大温差小流量系统**，更换高水力效率 (82%+) 水泵，加装 IE5 永磁变频控制器，水泵设计扬程优化降至 25m；
-3. **供热设备升级**：更换为 **全预混冷凝真空热水锅炉**（热效率 ≥ 98.5%，排烟温度低于 50℃，超低氮排放）或空气源热泵电气化替代；
-4. **控制系统数字化**：部署 **AI 边缘自适应冷站群控系统**，实时执行冷冻水供水温度自适应重置与冷却水逼近度寻优。
+基于改造方案技术经济指标与工程可行性，现改造成【**${dataContext.targetSystemName}**】高能效系统形式：
+1. **冷源主机换代**：${dataContext.targetChillerDesc || '选用一级能效变频主机，大幅消除油膜热阻恶化与低负荷惩罚'}；
+2. **输配系统重构**：${dataContext.targetPumpDesc || '水泵选型扬程精准匹配系统阻力，搭载 IE5 永磁变频驱动器'}；
+3. **供热设备升级**：${dataContext.targetBoilerDesc || '换装高效清洁供热设备或空气源热泵全电气化制热'}；
+4. **冷却系统/室外换热优化**：${dataContext.targetTowerDesc || '优化冷却塔或换装高效低噪风冷换热系统'}；
+5. **控制系统数字化**：部署 **AI 边缘自适应冷站群控系统**，实时执行供水温度自适应重置与负荷动态寻优。
 
 #### 三、 三大改造方案综合技术经济比选与优选裁定
 1. **方案对比结果汇总**：
    • **方案一 (原系统高效机组更换)**：初投资 ¥${dataContext.schemeA_Capex}万，年省费 ¥${dataContext.schemeA_AnnualSavings}万 (节费率 ${dataContext.schemeA_SavingsRate}%)，静态回收期 ${dataContext.schemeA_Payback}年；
-   • **方案二 (磁悬浮+大温差+AI群控，推荐)**：初投资 ¥${dataContext.schemeB_Capex}万，年省费 ¥${dataContext.schemeB_AnnualSavings}万 (节费率 ${dataContext.schemeB_SavingsRate}%)，静态回收期 ${dataContext.schemeB_Payback}年；
-   • **方案三 (热泵电气化全替代锅炉)**：初投资 ¥${dataContext.schemeC_Capex}万，年省费 ¥${dataContext.schemeC_AnnualSavings}万 (节费率 ${dataContext.schemeC_SavingsRate}%)，静态回收期 ${dataContext.schemeC_Payback}年。
-2. **注册工程师裁定**：**强烈推荐实施方案二**。方案二具有最佳的技术经济平衡度，年节能量显著且投资回收期适中（约 3.5 年），避免了方案一治理不彻底和方案三初期配电增容改造成本过高的问题。
+   • **方案二 (更换为【${dataContext.targetSystemName}】，推荐)**：初投资 ¥${dataContext.schemeB_Capex}万，年省费 ¥${dataContext.schemeB_AnnualSavings}万 (节费率 ${dataContext.schemeB_SavingsRate}%)，静态回收期 ${dataContext.schemeB_Payback}年；
+   • **方案三 (AI 边缘计算智能群控与寻优)**：初投资 ¥${dataContext.schemeC_Capex}万，年省费 ¥${dataContext.schemeC_AnnualSavings}万 (节费率 ${dataContext.schemeC_SavingsRate}%)，静态回收期 ${dataContext.schemeC_Payback}年。
+2. **注册工程师裁定**：**强烈推荐实施方案二（更换为【${dataContext.targetSystemName}】）**。方案二具有极佳的技术经济平衡度，年省运行费高达 ¥${dataContext.schemeB_AnnualSavings} 万元，静态回收期仅约 ${dataContext.schemeB_Payback} 年，不仅能从根本上根除老旧机房的能效衰减顽疾，还能大幅降低运营维护成本。
 
 #### 四、 不停产/不停业施工组织与工期割接方案
 为确保改造期间建筑正常营业办公与客流体验，施工组织采用“**四步无感轮替割接法**”：

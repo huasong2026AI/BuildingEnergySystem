@@ -12,7 +12,7 @@ import { BuildingSubItemsManager } from './components/BuildingSubItemsManager';
 import { EquipmentConfigTable } from './components/EquipmentConfigTable';
 import { InteractiveSystemSchematic } from './components/InteractiveSystemSchematic';
 import { EnergyAnalysisDashboard } from './components/EnergyAnalysisDashboard';
-import { RetrofitOptimizer } from './components/RetrofitOptimizer';
+import { RetrofitOptimizer, type RetrofitContextData } from './components/RetrofitOptimizer';
 import { 
   Building2, Sliders, Activity, BarChart3, AlertTriangle, Wrench, Sparkles 
 } from 'lucide-react';
@@ -24,6 +24,7 @@ export function App() {
   const [isBrandCatalogModalOpen, setIsBrandCatalogModalOpen] = useState(false);
   const [isPresentationModalOpen, setIsPresentationModalOpen] = useState(false);
   const [isAiReportModalOpen, setIsAiReportModalOpen] = useState(false);
+  const [retrofitContext, setRetrofitContext] = useState<RetrofitContextData | null>(null);
 
   const [subItems, setSubItems] = useState<BuildingSubItem[]>(INITIAL_SUB_ITEMS);
   const [activeItemId, setActiveItemId] = useState<string>(INITIAL_SUB_ITEMS[0].id);
@@ -99,6 +100,7 @@ export function App() {
         projectSummary={summary}
         tariffConfig={tariffConfig}
         initialTab={activeTab === 'retrofit' ? 'retrofit' : 'new_building'}
+        retrofitData={retrofitContext || undefined}
       />
 
       {/* 1. Header with Top-Right Retrofit Entrance Button, Tariff Pill, Brand Catalog, Presentation PPT & Theme Switcher */}
@@ -287,14 +289,15 @@ export function App() {
           </div>
         )}
 
-        {activeTab === 'retrofit' && (
-          <div className="space-y-6">
-            <RetrofitOptimizer
-              tariffConfig={tariffConfig}
-              onUpdateTariffConfig={setTariffConfig}
-            />
-          </div>
-        )}
+        {/* 5. 既有系统改造与 AI 智能寻优 (保持 DOM 常驻隐藏，绝不卸载重置用户输入状态) */}
+        <div className={activeTab === 'retrofit' ? 'space-y-6' : 'hidden'}>
+          <RetrofitOptimizer
+            tariffConfig={tariffConfig}
+            onUpdateTariffConfig={setTariffConfig}
+            onRetrofitContextChange={setRetrofitContext}
+            onOpenAiReport={() => setIsAiReportModalOpen(true)}
+          />
+        </div>
 
       </main>
 

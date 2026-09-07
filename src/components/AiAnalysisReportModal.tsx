@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import type { 
   BuildingSubItem, ProjectEnergySummary, EnergyTariffConfig, SystemType,
-  ExistingChillerDetail, ExistingBoilerDetail, ExistingPumpDetail, ExistingTowerDetail
+  UserEquipmentOverrides
 } from '../types/hvac';
 import { SYSTEM_TYPES_META, BUILDING_TYPES_META } from '../hvacEngine/constants';
 import { calculateEquipmentForSubItem } from '../hvacEngine/calculator';
@@ -13,6 +13,7 @@ import {
   getStoredLlmConfig, saveLlmConfig, generateComprehensiveAiReport,
   type LlmConfig 
 } from '../services/llmService';
+import type { RetrofitContextData } from './RetrofitOptimizer';
 
 interface Props {
   isOpen: boolean;
@@ -23,19 +24,7 @@ interface Props {
   tariffConfig: EnergyTariffConfig;
   initialTab?: 'new_building' | 'retrofit';
   // 既有建筑改造上下文数据 (若有)
-  retrofitData?: {
-    buildingName: string;
-    buildingArea: number;
-    existingSystemType: SystemType;
-    operatingHours: number;
-    electricityRate: number;
-    gasRate: number;
-    chillers: ExistingChillerDetail[];
-    boilers: ExistingBoilerDetail[];
-    pumps: ExistingPumpDetail[];
-    towers: ExistingTowerDetail[];
-    baselineCost: number;
-  };
+  retrofitData?: RetrofitContextData;
 }
 
 export const AiAnalysisReportModal: React.FC<Props> = ({
@@ -311,59 +300,243 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
         { id: 'p3', modelName: '锅炉独立热水泵 (冬季供热循环)', type: 'hw' as const, flowm3h: 206, headm: 25, powerkW: 24, efficiencyPercent: 58, count: 2 }
       ],
       towers: [{ id: 't1', modelName: '开式冷却塔 (散热冷却水)', flowm3h: 700, fanPowerkW: 18.5, count: 3 }],
-      baselineCost: 2985000
+      achps: [],
+      vrfs: [],
+      districts: [],
+      splits: [],
+      baseline: {
+        totalChillerCapkW: 6000,
+        totalChillerPowerkW: 1538,
+        totalBoilerCapkW: 4800,
+        totalBoilerGasFlow: 586,
+        totalPumpPowerkW: 493,
+        totalTowerPowerkW: 55.5,
+        totalElectricitykWh: 4426500,
+        totalGasm3: 1031360,
+        electricityCost: 3762525,
+        gasCost: 3609760,
+        districtEnergyCost: 0,
+        totalCost: 7372285,
+        carbonTons: 4801,
+        weightedChillerCop: 3.9,
+        weightedPumpEff: 58,
+        weightedBoilerEff: 82
+      },
+      targetSystemType: 'air_heat_pump' as SystemType,
+      targetSystemName: '风冷热泵系统',
+      targetCapEx: 280,
+      targetCustomEquipment: {},
+      targetCoolingIndex: 90,
+      targetHeatingIndex: 60,
+      targetCalc: null,
+      targetSubItem: null as any,
+      step1Result: null,
+      step2Result: null,
+      step3Result: null
     };
 
-    const totalChillerCap = d.chillers.reduce((a, b) => a + b.capacitykW * b.count, 0);
-    const totalPower = d.chillers.reduce((a, b) => a + b.powerkW * b.count, 0);
-    const avgChillerCop = totalPower > 0 ? totalChillerCap / totalPower : 3.9;
+    const exType = d.existingSystemType;
+    const isAchp = exType === 'air_heat_pump';
+    const isVrf = exType === 'vrf';
+    const isDistrict = exType === 'district_energy';
+    const isSplit = exType === 'split_ac';
 
-    // 原有设备明细文本
+    // 1. 动态生成既有冷源/主机明细描述
+    let existingCoolingText = '';
+    let avgChillerCop = 3.8;
+    if (isAchp && d.achps && d.achps.length > 0) {
+      existingCoolingText = d.achps.map(a => `${a.count}台 ${a.modelName || '风冷热泵机组'} (单台制冷${a.coolingkW}kW, 制热${a.heatingkW || Math.round(a.coolingkW * 0.8)}kW, 功率${a.powerkW}kW, COP ${a.cop})`).join('; ');
+      avgChillerCop = d.baseline?.weightedChillerCop || d.achps[0]?.cop || 3.0;
+    } else if (isVrf && d.vrfs && d.vrfs.length > 0) {
+      existingCoolingText = d.vrfs.map(v => `${v.count}组 ${v.modelName || 'VRF多联机室外机'} (单组制冷${v.coolingkW}kW, 功率${v.powerkW}kW, EER ${v.eer})`).join('; ');
+      avgChillerCop = d.baseline?.weightedChillerCop || d.vrfs[0]?.eer || 3.5;
+    } else if (isDistrict && d.districts && d.districts.length > 0) {
+      existingCoolingText = d.districts.map(dist => `${dist.count}台 ${dist.modelName || '区域板换机组'} (额定换热${dist.capacitykW}kW, 循环水泵${dist.pumpPowerkW}kW)`).join('; ');
+      avgChillerCop = 4.5;
+    } else if (isSplit && d.splits && d.splits.length > 0) {
+      existingCoolingText = d.splits.map(s => `${s.count}套 ${s.modelName || '分体空调主机'} (单台${s.capacitykW}kW, 功率${s.powerkW}kW, APF ${s.apf})`).join('; ');
+      avgChillerCop = d.baseline?.weightedChillerCop || d.splits[0]?.apf || 3.0;
+    } else {
+      existingCoolingText = (d.chillers && d.chillers.length > 0)
+        ? d.chillers.map(c => `${c.count}台 ${c.modelName} (单台${c.capacitykW}kW, 额定功率${c.powerkW}kW, 实测COP ${c.cop})`).join('; ')
+        : '暂未录入冷水机组';
+      avgChillerCop = d.baseline?.weightedChillerCop || 3.9;
+    }
+
+    // 2. 动态生成既有水泵明细描述
+    let existingPumpsText = '';
+    if (isVrf || isSplit) {
+      existingPumpsText = '无水系统循环水泵与管道 (冷媒直接蒸发膨胀系统)';
+    } else if (d.pumps && d.pumps.length > 0) {
+      existingPumpsText = d.pumps.map(p => `${p.count}台 ${p.modelName} (流量${p.flowm3h}m³/h, 扬程${p.headm}m, 功率${p.powerkW}kW, 效率${p.efficiencyPercent}%)`).join('; ');
+    } else {
+      existingPumpsText = '未配置独立水泵';
+    }
+
+    // 3. 动态生成既有供热热源明细描述
+    let existingHeatingText = '';
+    if (isAchp) {
+      existingHeatingText = '冬季由风冷热泵机组反向制热供暖，无需独立燃气热水锅炉';
+    } else if (isVrf) {
+      existingHeatingText = '冬季由VRF多联机室外机自带热泵制热供暖，无需独立燃气热水锅炉';
+    } else if (isDistrict) {
+      existingHeatingText = '市政集中热网板式换热器直供热水，无燃气锅炉';
+    } else if (isSplit) {
+      existingHeatingText = '分体空调自带电辅热/热泵制热，无集中供暖锅炉';
+    } else if (d.boilers && d.boilers.length > 0) {
+      existingHeatingText = d.boilers.map(b => `${b.count}台 ${b.modelName} (额定${b.capacitykW}kW, 耗气${b.gasFlowm3h}m³/h, 热效率${b.efficiencyPercent}%)`).join('; ');
+    } else {
+      existingHeatingText = '未配置独立供热燃气锅炉';
+    }
+
+    // 4. 动态生成既有冷却塔明细描述
+    let existingTowerText = '';
+    if (isAchp || isVrf || isSplit) {
+      existingTowerText = '无室外冷却塔 (空气自然对流风冷散热)';
+    } else if (d.towers && d.towers.length > 0) {
+      existingTowerText = d.towers.map(t => `${t.count}台 ${t.modelName} (循环流量${t.flowm3h}m³/h, 风机${t.fanPowerkW}kW)`).join('; ');
+    } else {
+      existingTowerText = '未配置冷却塔';
+    }
+
     const existingEquipmentText = 
-      `冷水主机: ${d.chillers.map(c => `${c.count}台 ${c.modelName}(单台${c.capacitykW}kW, 功率${c.powerkW}kW, 实测COP ${c.cop})`).join('; ')}; ` +
-      `循环水泵: ${d.pumps.map(p => `${p.count}台 ${p.modelName}(流量${p.flowm3h}m³/h, 扬程${p.headm}m, 功率${p.powerkW}kW, 效率${p.efficiencyPercent}%)`).join('; ')}; ` +
-      `供热锅炉: ${d.boilers.map(b => `${b.count}台 ${b.modelName}(额定${b.capacitykW}kW, 耗气${b.gasFlowm3h}m³/h, 热效率${b.efficiencyPercent}%)`).join('; ')}; ` +
-      `冷却塔: ${d.towers.map(t => `${t.count}台 ${t.modelName}(循环流量${t.flowm3h}m³/h, 风机${t.fanPowerkW}kW)`).join('; ')}`;
+      `既有系统: ${SYSTEM_TYPES_META[exType]?.name || exType}; ` +
+      `冷源配置: ${existingCoolingText}; ` +
+      `水泵配置: ${existingPumpsText}; ` +
+      `热源配置: ${existingHeatingText}; ` +
+      `冷却塔: ${existingTowerText}`;
 
-    // 改造后目标设备配置描述 (方案二 推荐配置)
-    const targetSystemName = '高效无油磁悬浮离心冷机 + 大温差输配 + 全预混冷凝真空锅炉 + AI 边缘群控系统';
+    // 5. 现改造成目标新冷热源设备配置 (100% 依据用户在步骤二中实际选择的目标系统与品牌选型)
+    const targetType = d.targetSystemType || 'air_heat_pump';
+    const targetSystemName = SYSTEM_TYPES_META[targetType]?.name || d.targetSystemName || '目标高效系统';
+    const targetCustom: UserEquipmentOverrides = d.targetCustomEquipment || {};
+    const targetCalc = d.targetCalc;
+
+    let targetChillerDesc = '';
+    let targetPumpDesc = '';
+    let targetBoilerDesc = '';
+    let targetTowerDesc = '';
+
+    if (targetType === 'air_heat_pump') {
+      const achpCount = targetCustom.achpCount || targetCalc?.achpCount || 6;
+      if (targetCustom.selectedAchpProduct) {
+        const p = targetCustom.selectedAchpProduct;
+        targetChillerDesc = `换装为 ${achpCount}台 × ${p.brand} ${p.model || p.name} 模块化超低温空气源热泵机组 (单台额定制冷${p.ratedCapacitykW}kW, 额定功率${p.actualPowerkW}kW, COP ${p.copOrEff || 3.45}, 冬季制热 COP 3.20)`;
+      } else {
+        const singleCap = targetCalc ? (targetCalc.achpCoolingkW / Math.max(1, achpCount)).toFixed(0) : '400';
+        targetChillerDesc = `换装为 ${achpCount}台 × ${singleCap}kW 高效模块化变频风冷热泵机组 (额定制冷 COP 3.45, 冬季制热 COP 3.20, 采用喷气增焓 EVI 低环境温度运行技术)`;
+      }
+      targetPumpDesc = `重构为高效变频冷热水泵组 (夏季冷水泵设计流量 ${targetCalc?.chwPumpFlow?.toFixed(0) || 500}m³/h, 扬程 25m; 冬季热水泵设计流量 ${targetCalc?.hwPumpFlow?.toFixed(0) || 400}m³/h, 扬程 22m; 搭载 IE5 永磁同步变频电机与变频器)`;
+      targetBoilerDesc = `冬季直接利用风冷热泵机组反向制热供暖，彻底拆除原有燃气锅炉与锅炉房，实现 100% 机房全电气化零燃气，免除特种设备年审与火灾隐患`;
+      targetTowerDesc = `取消原有冷却水系统与冷却塔，彻底消除屋顶飘水扰民、冷却水结垢腐蚀与冬季防冻排空维护难题`;
+    } else if (targetType === 'vrf') {
+      const vrfCount = targetCustom.vrfCount || targetCalc?.vrfCount || 20;
+      if (targetCustom.selectedVrfProduct) {
+        const p = targetCustom.selectedVrfProduct;
+        targetChillerDesc = `换装为 ${vrfCount}组 × ${p.brand} ${p.model || p.name} 全直流变频多联机室外机 (单台制冷${p.ratedCapacitykW}kW, 功率${p.actualPowerkW}kW, 综合能效比 APF ${p.copOrEff || 5.30})`;
+      } else {
+        const singleCap = targetCalc ? (targetCalc.vrfCoolingkW / Math.max(1, vrfCount)).toFixed(0) : '80';
+        targetChillerDesc = `换装为 ${vrfCount}组 × ${singleCap}kW 1级能效全直流变频 VRV 多联机室外机组 (综合性能系数 APF 达 5.30, 全天候部分负荷自主无极调速)`;
+      }
+      targetPumpDesc = `全系统采用冷媒直接蒸发膨胀 (DX) 循环，完全取消室内冷冻水/冷却水管网与循环水泵，彻底杜绝管道漏水泡顶与水力失衡风险`;
+      targetBoilerDesc = `冬季由 VRV 室外机自带热泵循环高效制热供暖，无需设置燃气锅炉与机房，实现建筑零燃气电气化`;
+      targetTowerDesc = `室外机采用高效全铝微通道风冷冷凝换热器，无需设置室外冷却塔与补水软化系统`;
+    } else {
+      // 水冷离心机组 / 磁悬浮系统 / 混合系统
+      const chCount = targetCustom.chillerCount || targetCalc?.chillerCount || 2;
+      if (targetCustom.selectedChillerProduct) {
+        const p = targetCustom.selectedChillerProduct;
+        targetChillerDesc = `换装为 ${chCount}台 × ${p.brand} ${p.model || p.name} 高效冷水机组 (单台制冷${p.ratedCapacitykW}kW, 额定功率${p.actualPowerkW}kW, 额定COP ${p.copOrEff || 6.8}, IPLV 10.92)`;
+      } else {
+        const singleCap = targetCalc ? (targetCalc.chillerCapacitykW / Math.max(1, chCount)).toFixed(0) : '3000';
+        targetChillerDesc = `换装为 ${chCount}台 × ${singleCap}kW 变频无油磁悬浮离心冷水机组 (额定满载 COP 6.85, IPLV 10.92, 部分负荷黄金工况 COP 最高达 11.5, 终身无润滑油传热衰减)`;
+      }
+
+      targetPumpDesc = `优化为 7℃/14℃ (ΔT=7℃) 大温差小流量变频泵组 (循环流量削减 28.57%, 扬程优化降至 24m, 配备 IE5 永磁同步电机与变频器, 输配节电 45%+)`;
+
+      const bCount = targetCustom.boilerCount || targetCalc?.boilerCount || 2;
+      if (targetCustom.selectedBoilerProduct) {
+        const p = targetCustom.selectedBoilerProduct;
+        targetBoilerDesc = `换装为 ${bCount}台 × ${p.brand} ${p.model || p.name} (单台${p.ratedCapacitykW}kW, 热效率${p.copOrEff || 98.5}%)`;
+      } else {
+        const singleCap = targetCalc ? (targetCalc.boilerCapacitykW / Math.max(1, bCount)).toFixed(0) : '2400';
+        targetBoilerDesc = `换装为 ${bCount}台 × ${singleCap}kW 全预混低氮冷凝真空热水锅炉 (排烟温度<50℃, 热效率提升至 98.5%, 节气 16.5%, 超低氮排放免年检)`;
+      }
+
+      targetTowerDesc = `利旧或换装为超低噪音高效开式/闭式冷却塔 (变频轴流风机, 比耗电率降至 0.012 kW/(m³/h) 以下)`;
+    }
+
     const targetEquipmentText = 
-      `冷水主机换装为 2台 × 3000kW 变频无油磁悬浮离心机组 (额定满载 COP 6.85, IPLV 10.92, 部分负荷 COP 最高达 11.5, 终身无润滑油传热衰减); ` +
-      `水泵系统重构为 7℃/14℃ (ΔT=7℃) 大温差小流量变频泵组 (循环水流量减少28.57%, 扬程优化降至 24m, 配备 IE5 永磁同步电机与变频器, 输配节电 45%+); ` +
-      `供热设备更换为 2台 × 2400kW 全预混低氮冷凝真空热水锅炉 (排烟温度<50℃, 热效率提升至 98.5%, 节气 16.5%); ` +
-      `部署 AI 边缘冷站智控系统 (冷冻水供水温度自适应重置 7~10.5℃, 冷却水逼近度自动寻优).`;
+      `冷源配置: ${targetChillerDesc}; ` +
+      `输配配置: ${targetPumpDesc}; ` +
+      `热源配置: ${targetBoilerDesc}; ` +
+      `冷却系统: ${targetTowerDesc}`;
+
+    // 6. 三大改造方案真实经济指标
+    const baselineCost = d.baseline?.totalCost || 2985000;
 
     // 方案一：原系统更换高效机组
-    const schemeA_SavingsRate = 22.5;
-    const schemeA_AnnualSavings = Number(((d.baselineCost * schemeA_SavingsRate) / 100 / 10000).toFixed(2));
-    const schemeA_Capex = 185;
-    const schemeA_Payback = (schemeA_Capex / schemeA_AnnualSavings).toFixed(1);
+    const s1 = d.step1Result;
+    const schemeA_SavingsRate = s1?.costSavedRmb > 0 
+      ? Number(((s1.costSavedRmb / baselineCost) * 100).toFixed(1))
+      : 22.5;
+    const schemeA_AnnualSavings = s1?.costSavedRmb > 0
+      ? Number((s1.costSavedRmb / 10000).toFixed(2))
+      : Number(((baselineCost * 0.225) / 10000).toFixed(2));
+    const schemeA_Capex = s1?.capExRmbTenThousand ?? 185;
+    const schemeA_Payback = s1?.paybackYears > 0
+      ? Number(s1.paybackYears.toFixed(1))
+      : Number((schemeA_Capex / Math.max(0.1, schemeA_AnnualSavings)).toFixed(1));
 
-    // 方案二：磁悬浮 + 大温差 + AI 群控 (推荐)
-    const schemeB_SavingsRate = 34.8;
-    const schemeB_AnnualSavings = Number(((d.baselineCost * schemeB_SavingsRate) / 100 / 10000).toFixed(2));
-    const schemeB_Capex = 360;
-    const schemeB_Payback = (schemeB_Capex / schemeB_AnnualSavings).toFixed(1);
+    // 方案二：更换系统形式 (用户实际选配的目标系统)
+    const s2 = d.step2Result;
+    const schemeB_SavingsRate = s2?.costSavedRmb > 0
+      ? Number(((s2.costSavedRmb / baselineCost) * 100).toFixed(1))
+      : 34.8;
+    const schemeB_AnnualSavings = s2?.costSavedRmb > 0
+      ? Number((s2.costSavedRmb / 10000).toFixed(2))
+      : Number(((baselineCost * 0.348) / 10000).toFixed(2));
+    const schemeB_Capex = s2?.capExRmbTenThousand ?? d.targetCapEx ?? 280;
+    const schemeB_Payback = s2?.paybackYears > 0
+      ? Number(s2.paybackYears.toFixed(1))
+      : Number((schemeB_Capex / Math.max(0.1, schemeB_AnnualSavings)).toFixed(1));
 
-    // 方案三：热泵电气化全替代
-    const schemeC_SavingsRate = 41.2;
-    const schemeC_AnnualSavings = Number(((d.baselineCost * schemeC_SavingsRate) / 100 / 10000).toFixed(2));
-    const schemeC_Capex = 480;
-    const schemeC_Payback = (schemeC_Capex / schemeC_AnnualSavings).toFixed(1);
+    // 方案三：AI 边缘计算智能群控与寻优
+    const s3 = d.step3Result;
+    const schemeC_SavingsRate = s3?.costSavedRmb > 0
+      ? Number(((s3.costSavedRmb / baselineCost) * 100).toFixed(1))
+      : 19.0;
+    const schemeC_AnnualSavings = s3?.costSavedRmb > 0
+      ? Number((s3.costSavedRmb / 10000).toFixed(2))
+      : Number(((baselineCost * 0.19) / 10000).toFixed(2));
+    const schemeC_Capex = s3?.capExRmbTenThousand ?? 35;
+    const schemeC_Payback = s3?.paybackYears > 0
+      ? Number(s3.paybackYears.toFixed(1))
+      : Number((schemeC_Capex / Math.max(0.1, schemeC_AnnualSavings)).toFixed(1));
 
     return {
       buildingName: d.buildingName,
       buildingArea: d.buildingArea,
-      existingSystemType: SYSTEM_TYPES_META[d.existingSystemType]?.name || '冷水机组 + 燃气锅炉系统',
-      baselineCost: d.baselineCost,
+      existingSystemType: SYSTEM_TYPES_META[exType]?.name || exType,
+      baselineCost,
       avgChillerCop: avgChillerCop.toFixed(2),
       existingEquipmentText,
+      existingCoolingText,
+      existingPumpsText,
+      existingHeatingText,
+      existingTowerText,
       targetSystemName,
       targetEquipmentText,
-      chillersList: d.chillers,
-      boilersList: d.boilers,
-      pumpsList: d.pumps,
-      towersList: d.towers,
+      targetChillerDesc,
+      targetPumpDesc,
+      targetBoilerDesc,
+      targetTowerDesc,
+      chillersList: d.chillers || [],
+      boilersList: d.boilers || [],
+      pumpsList: d.pumps || [],
+      towersList: d.towers || [],
+      achpsList: d.achps || [],
+      vrfsList: d.vrfs || [],
       schemeA_SavingsRate,
       schemeA_AnnualSavings,
       schemeA_Capex,
@@ -398,7 +571,7 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
   };
 
   useEffect(() => {
-    if (isOpen && !aiReportMarkdown) {
+    if (isOpen) {
       handleTriggerGenerateReport();
     }
   }, [isOpen, reportMode]);
@@ -754,7 +927,7 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
           ) : (
             <div className="space-y-6">
               
-              {/* 1. 既有建筑原有冷热源配置与现改造成冷热源配置 深度对比卡片 (用户明确要求的重点) */}
+              {/* 1. 既有建筑原有冷热源配置与现改造成冷热源配置 深度对比卡片 (原有配置 vs 现改造成配置) */}
               <div className="ai-report-section bg-slate-850 border border-slate-800 rounded-2xl p-5 space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-750 pb-3">
                   <div className="flex items-center space-x-2">
@@ -780,34 +953,41 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
                     <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                       <span className="font-bold text-rose-400 flex items-center space-x-1.5">
                         <span className="w-2 h-2 rounded-full bg-rose-500"></span>
-                        <span>【改造前】原有冷热源配置基准 (Baseline)</span>
+                        <span>【改造前】原有冷热源配置基准 (Baseline: {retrofitMetrics.existingSystemType})</span>
                       </span>
                       <span className="text-[11px] text-slate-400">高耗能 · 老化衰减</span>
                     </div>
 
-                    <div className="space-y-2 text-[11px]">
+                    <div className="space-y-2.5 text-[11px]">
                       <div>
-                        <span className="text-slate-400 block font-semibold">1. 既有冷水主机：</span>
+                        <span className="text-slate-400 block font-semibold">1. 既有冷源主机：</span>
                         <p className="text-slate-200 mt-0.5 leading-relaxed">
-                          {retrofitMetrics.chillersList.map(c => `${c.count}台 ${c.modelName} (单台${c.capacitykW}kW, 功率${c.powerkW}kW, COP ${c.cop})`).join('; ')}
+                          {retrofitMetrics.existingCoolingText}
                         </p>
-                        <span className="text-rose-400 text-[10px] block mt-0.5">痛点：管束结垢附着油膜，实际加权 COP 仅约 {retrofitMetrics.avgChillerCop}，低负荷能耗高。</span>
+                        <span className="text-rose-400 text-[10px] block mt-0.5">痛点：在役运行年限长，管束附着油膜与水垢，实际加权 COP 仅约 {retrofitMetrics.avgChillerCop}，部分负荷能耗高。</span>
                       </div>
 
                       <div>
                         <span className="text-slate-400 block font-semibold">2. 既有循环水泵：</span>
                         <p className="text-slate-200 mt-0.5 leading-relaxed">
-                          {retrofitMetrics.pumpsList.map(p => `${p.count}台 ${p.modelName} (流量${p.flowm3h}m³/h, 扬程${p.headm}m, 功率${p.powerkW}kW)`).join('; ')}
+                          {retrofitMetrics.existingPumpsText}
                         </p>
-                        <span className="text-rose-400 text-[10px] block mt-0.5">痛点：设计扬程过高 (35m)，实际水阻仅约 22m，阀门节流损失严重，严重大马拉小车。</span>
+                        <span className="text-rose-400 text-[10px] block mt-0.5">痛点：设计扬程裕度普遍偏大，实际水阻低，阀门节流损失与无效输配电耗偏高。</span>
                       </div>
 
                       <div>
-                        <span className="text-slate-400 block font-semibold">3. 既有供热锅炉：</span>
+                        <span className="text-slate-400 block font-semibold">3. 既有供热热源：</span>
                         <p className="text-slate-200 mt-0.5 leading-relaxed">
-                          {retrofitMetrics.boilersList.map(b => `${b.count}台 ${b.modelName} (额定${b.capacitykW}kW, 热效率${b.efficiencyPercent}%)`).join('; ')}
+                          {retrofitMetrics.existingHeatingText}
                         </p>
-                        <span className="text-rose-400 text-[10px] block mt-0.5">痛点：排烟温度高达 160℃，天然气浪费大，氮氧化物排放偏高。</span>
+                        <span className="text-rose-400 text-[10px] block mt-0.5">痛点：传统锅炉排烟温度高、热效率低，能耗与碳排放较大。</span>
+                      </div>
+
+                      <div>
+                        <span className="text-slate-400 block font-semibold">4. 既有冷却塔/室外换热：</span>
+                        <p className="text-slate-200 mt-0.5 leading-relaxed">
+                          {retrofitMetrics.existingTowerText}
+                        </p>
                       </div>
 
                       <div className="border-t border-slate-800 pt-2 flex justify-between items-center text-slate-300">
@@ -822,34 +1002,41 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
                     <div className="flex items-center justify-between border-b border-emerald-500/30 pb-2">
                       <span className="font-bold text-emerald-300 flex items-center space-x-1.5">
                         <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                        <span>【现改造】目标新冷热源配置方案 (Target)</span>
+                        <span>【现改造】目标新冷热源配置方案 ({retrofitMetrics.targetSystemName})</span>
                       </span>
                       <span className="text-[11px] text-emerald-400 font-bold">1级能效 · 绿色智能</span>
                     </div>
 
-                    <div className="space-y-2 text-[11px]">
+                    <div className="space-y-2.5 text-[11px]">
                       <div>
                         <span className="text-emerald-400 block font-semibold">1. 现改造成高效冷源主机：</span>
                         <p className="text-slate-200 mt-0.5 leading-relaxed">
-                          换装为 2台 × 3000kW 变频无油磁悬浮离心冷水机组 (满载 COP 6.85, IPLV 10.92, 部分负荷 COP 最高达 11.5)。
+                          {retrofitMetrics.targetChillerDesc}
                         </p>
-                        <span className="text-emerald-300 text-[10px] block mt-0.5">优势：无润滑油系统，换热管终身无油膜热阻衰减，启动电流仅 2A。</span>
+                        <span className="text-emerald-300 text-[10px] block mt-0.5">优势：达国标1级能效，高效部分负荷特性，避免油膜热阻恶化。</span>
                       </div>
 
                       <div>
-                        <span className="text-emerald-400 block font-semibold">2. 现改造成大温差小流量变频水泵：</span>
+                        <span className="text-emerald-400 block font-semibold">2. 现改造成循环水泵与输配系统：</span>
                         <p className="text-slate-200 mt-0.5 leading-relaxed">
-                          优化为 7℃/14℃ (ΔT=7℃) 大温差系统，更换高效水泵，扬程优化为 24m，配置 IE5 永磁变频驱动器。
+                          {retrofitMetrics.targetPumpDesc}
                         </p>
-                        <span className="text-emerald-300 text-[10px] block mt-0.5">优势：水系统循环流量削减 28.57%，输配电耗大幅降低 45% 以上。</span>
+                        <span className="text-emerald-300 text-[10px] block mt-0.5">优势：扬程精准匹配最不利环路水阻，搭载永磁同步变频，输配节能显著。</span>
                       </div>
 
                       <div>
-                        <span className="text-emerald-400 block font-semibold">3. 现改造成低氮冷凝真空热水锅炉：</span>
+                        <span className="text-emerald-400 block font-semibold">3. 现改造成高效供热热源：</span>
                         <p className="text-slate-200 mt-0.5 leading-relaxed">
-                          换装为 2台 × 2400kW 全预混冷凝真空热水锅炉 (排烟温度&lt;50℃，热效率 ≥ 98.5%)。
+                          {retrofitMetrics.targetBoilerDesc}
                         </p>
-                        <span className="text-emerald-300 text-[10px] block mt-0.5">优势：回收水蒸气汽化潜热，节省燃气 16.5%，超低氮排放免年审。</span>
+                        <span className="text-emerald-300 text-[10px] block mt-0.5">优势：大幅降低采暖季燃料或电力消耗，清洁低碳。</span>
+                      </div>
+
+                      <div>
+                        <span className="text-emerald-400 block font-semibold">4. 现改造成冷却塔/换热系统：</span>
+                        <p className="text-slate-200 mt-0.5 leading-relaxed">
+                          {retrofitMetrics.targetTowerDesc}
+                        </p>
                       </div>
 
                       <div className="border-t border-emerald-500/30 pt-2 flex justify-between items-center text-slate-300">
@@ -877,7 +1064,7 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
                   {/* 方案 A */}
                   <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 space-y-2">
                     <span className="font-bold text-blue-300 block text-xs">方案一：原系统更换常规高效机组</span>
-                    <p className="text-[11px] text-slate-400">保留原有水温工况与管网，仅更换一级能效变频主机并加装水泵变频。</p>
+                    <p className="text-[11px] text-slate-400">保留原有系统架构与水温工况，仅更换一级能效设备并加装水泵变频。</p>
                     <div className="space-y-1 font-mono text-[11px] pt-1">
                       <div className="flex justify-between"><span className="text-slate-400">预估初投资:</span><span className="text-white font-bold">¥{retrofitMetrics.schemeA_Capex}万</span></div>
                       <div className="flex justify-between"><span className="text-slate-400">年省运行费:</span><span className="text-emerald-400 font-bold">¥{retrofitMetrics.schemeA_AnnualSavings}万/年</span></div>
@@ -889,10 +1076,14 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
                   {/* 方案 B (推荐) */}
                   <div className="bg-emerald-950/30 p-4 rounded-xl border-2 border-emerald-500/60 space-y-2 relative shadow-md">
                     <div className="absolute -top-2.5 right-3 px-2 py-0.5 bg-emerald-500 text-slate-950 text-[10px] font-black rounded-full shadow">
-                      注册工程师推荐
+                      选型系统推荐
                     </div>
-                    <span className="font-bold text-emerald-300 block text-xs">方案二：磁悬浮+大温差+AI群控 (推荐)</span>
-                    <p className="text-[11px] text-slate-400">采用无油磁悬浮冷机搭配 7℃/14℃ 大温差与 AI 边缘群控自适应调控。</p>
+                    <span className="font-bold text-emerald-300 block text-xs truncate" title={`方案二：更换为【${retrofitMetrics.targetSystemName}】`}>
+                      方案二：更换为【{retrofitMetrics.targetSystemName}】
+                    </span>
+                    <p className="text-[11px] text-slate-400">
+                      将冷热源升级为【{retrofitMetrics.targetSystemName}】，实现设备能效跃迁与系统优化。
+                    </p>
                     <div className="space-y-1 font-mono text-[11px] pt-1">
                       <div className="flex justify-between"><span className="text-slate-400">预估初投资:</span><span className="text-white font-bold">¥{retrofitMetrics.schemeB_Capex}万</span></div>
                       <div className="flex justify-between"><span className="text-slate-400">年省运行费:</span><span className="text-emerald-400 font-bold">¥{retrofitMetrics.schemeB_AnnualSavings}万/年</span></div>
@@ -903,8 +1094,8 @@ export const AiAnalysisReportModal: React.FC<Props> = ({
 
                   {/* 方案 C */}
                   <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 space-y-2">
-                    <span className="font-bold text-purple-300 block text-xs">方案三：热泵电气化全替代锅炉</span>
-                    <p className="text-[11px] text-slate-400">拆除燃气锅炉，改用超低温空气源热泵/水源热泵，实现机房全电气化零燃气。</p>
+                    <span className="font-bold text-purple-300 block text-xs">方案三：AI 边缘计算智能群控与寻优</span>
+                    <p className="text-[11px] text-slate-400">部署 AI 边缘冷站智控箱与环境物联传感器，自适应重置供水温度与负荷调配。</p>
                     <div className="space-y-1 font-mono text-[11px] pt-1">
                       <div className="flex justify-between"><span className="text-slate-400">预估初投资:</span><span className="text-white font-bold">¥{retrofitMetrics.schemeC_Capex}万</span></div>
                       <div className="flex justify-between"><span className="text-slate-400">年省运行费:</span><span className="text-purple-300 font-bold">¥{retrofitMetrics.schemeC_AnnualSavings}万/年</span></div>

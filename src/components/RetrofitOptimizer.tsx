@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import ReactECharts from 'echarts-for-react';
 import { 
   Sparkles, Wrench, TrendingDown, Building, ShieldAlert, Cpu, Plus, Trash2, ShoppingBag, Check, Flame, Wind, Zap, Layers 
@@ -14,69 +14,175 @@ import type {
   EnergyTariffConfig 
 } from '../types/hvac';
 
+const RETROFIT_CACHE_KEY = 'hvac_retrofit_optimizer_cache_v3';
+
+export interface RetrofitContextData {
+  buildingName: string;
+  buildingArea: number;
+  existingSystemType: SystemType;
+  operatingHours: number;
+  electricityRate: number;
+  gasRate: number;
+  chillers: ExistingChillerDetail[];
+  boilers: ExistingBoilerDetail[];
+  pumps: ExistingPumpDetail[];
+  towers: ExistingTowerDetail[];
+  achps: ExistingAchpDetail[];
+  vrfs: ExistingVrfDetail[];
+  districts: ExistingDistrictDetail[];
+  splits: ExistingSplitDetail[];
+  baseline: {
+    totalChillerCapkW: number;
+    totalChillerPowerkW: number;
+    totalBoilerCapkW: number;
+    totalBoilerGasFlow: number;
+    totalPumpPowerkW: number;
+    totalTowerPowerkW: number;
+    totalElectricitykWh: number;
+    totalGasm3: number;
+    electricityCost: number;
+    gasCost: number;
+    districtEnergyCost: number;
+    totalCost: number;
+    carbonTons: number;
+    weightedChillerCop: number;
+    weightedPumpEff: number;
+    weightedBoilerEff: number;
+  };
+  targetSystemType: SystemType;
+  targetSystemName: string;
+  targetCapEx: number;
+  targetCustomEquipment: UserEquipmentOverrides;
+  targetCoolingIndex: number;
+  targetHeatingIndex: number;
+  targetCalc: any;
+  targetSubItem: BuildingSubItem;
+  step1Result: any;
+  step2Result: any;
+  step3Result: any;
+}
+
 interface RetrofitOptimizerProps {
   tariffConfig?: EnergyTariffConfig;
   onUpdateTariffConfig?: (cfg: EnergyTariffConfig) => void;
+  onRetrofitContextChange?: (data: RetrofitContextData) => void;
+  onOpenAiReport?: () => void;
 }
 
-export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConfig, onUpdateTariffConfig }) => {
+export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ 
+  tariffConfig, 
+  onUpdateTariffConfig,
+  onRetrofitContextChange,
+  onOpenAiReport
+}) => {
   const [isAiReportModalOpen, setIsAiReportModalOpen] = useState(false);
 
+  // 从 localStorage 恢复用户录入的数据（若有）
+  const initialCache = useMemo(() => {
+    try {
+      const raw = localStorage.getItem(RETROFIT_CACHE_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch (e) {
+      console.warn('Failed to parse cached retrofit data:', e);
+    }
+    return null;
+  }, []);
+
   // 1. 既有系统基本信息
-  const [existingSystemType, setExistingSystemType] = useState<SystemType>('chiller_boiler');
-  const [buildingName, setBuildingName] = useState<string>('某既有公共建筑及酒店');
-  const [buildingArea, setBuildingArea] = useState<number>(55000);
-  const [operatingHours, setOperatingHours] = useState<number>(3200);
-  const [electricityRate, setElectricityRate] = useState<number>(tariffConfig?.averageElectricityPrice ?? 0.85);
-  const [gasRate, setGasRate] = useState<number>(tariffConfig?.gasPrice ?? 3.50);
+  const [existingSystemType, setExistingSystemType] = useState<SystemType>(
+    initialCache?.existingSystemType || 'chiller_boiler'
+  );
+  const [buildingName, setBuildingName] = useState<string>(
+    initialCache?.buildingName || '某既有公共建筑及酒店'
+  );
+  const [buildingArea, setBuildingArea] = useState<number>(
+    initialCache?.buildingArea ?? 55000
+  );
+  const [operatingHours, setOperatingHours] = useState<number>(
+    initialCache?.operatingHours ?? 3200
+  );
+  const [electricityRate, setElectricityRate] = useState<number>(
+    initialCache?.electricityRate ?? tariffConfig?.averageElectricityPrice ?? 0.85
+  );
+  const [gasRate, setGasRate] = useState<number>(
+    initialCache?.gasRate ?? tariffConfig?.gasPrice ?? 3.50
+  );
 
   // 2. 7 种系统的详细既有设备明细录入（与新建建筑自动配置设备类型 100% 对齐）
-  const [chillers, setChillers] = useState<ExistingChillerDetail[]>([
-    { id: 'c1', modelName: '老旧螺杆/离心机组 A组', capacitykW: 3000, powerkW: 769, cop: 3.9, count: 2 }
-  ]);
+  const [chillers, setChillers] = useState<ExistingChillerDetail[]>(
+    initialCache?.chillers || [
+      { id: 'c1', modelName: '老旧螺杆/离心机组 A组', capacitykW: 3000, powerkW: 769, cop: 3.9, count: 2 }
+    ]
+  );
 
-  const [boilers, setBoilers] = useState<ExistingBoilerDetail[]>([
-    { id: 'b1', modelName: '老旧大气式燃气热水锅炉', capacitykW: 2400, powerkW: 18, gasFlowm3h: Number((2400 / (9.967 * 0.82)).toFixed(1)), efficiencyPercent: 82, count: 2 }
-  ]);
+  const [boilers, setBoilers] = useState<ExistingBoilerDetail[]>(
+    initialCache?.boilers || [
+      { id: 'b1', modelName: '老旧大气式燃气热水锅炉', capacitykW: 2400, powerkW: 18, gasFlowm3h: Number((2400 / (9.967 * 0.82)).toFixed(1)), efficiencyPercent: 82, count: 2 }
+    ]
+  );
 
-  const [pumps, setPumps] = useState<ExistingPumpDetail[]>([
-    { id: 'p1', modelName: '冷水水泵 (夏季冷水泵)', type: 'chw', flowm3h: 516, headm: 35, powerkW: 73, efficiencyPercent: 58, count: 3 },
-    { id: 'p2', modelName: '冷却水水泵', type: 'cw', flowm3h: 620, headm: 28, powerkW: 74, efficiencyPercent: 58, count: 3 },
-    { id: 'p3', modelName: '锅炉独立热水泵 (冬季热水循环泵)', type: 'hw', flowm3h: 206, headm: 25, powerkW: 24, efficiencyPercent: 58, count: 2 }
-  ]);
+  const [pumps, setPumps] = useState<ExistingPumpDetail[]>(
+    initialCache?.pumps || [
+      { id: 'p1', modelName: '冷水水泵 (夏季冷水泵)', type: 'chw', flowm3h: 516, headm: 35, powerkW: 73, efficiencyPercent: 58, count: 3 },
+      { id: 'p2', modelName: '冷却水水泵', type: 'cw', flowm3h: 620, headm: 28, powerkW: 74, efficiencyPercent: 58, count: 3 },
+      { id: 'p3', modelName: '锅炉独立热水泵 (冬季热水循环泵)', type: 'hw', flowm3h: 206, headm: 25, powerkW: 24, efficiencyPercent: 58, count: 2 }
+    ]
+  );
 
-  const [towers, setTowers] = useState<ExistingTowerDetail[]>([
-    { id: 't1', modelName: '冷却塔 (冷却水散热)', flowm3h: 700, fanPowerkW: 18.5, count: 3 }
-  ]);
+  const [towers, setTowers] = useState<ExistingTowerDetail[]>(
+    initialCache?.towers || [
+      { id: 't1', modelName: '冷却塔 (冷却水散热)', flowm3h: 700, fanPowerkW: 18.5, count: 3 }
+    ]
+  );
 
-  const [achps, setAchps] = useState<ExistingAchpDetail[]>([
-    { id: 'a1', modelName: '老旧风冷热泵主机模块', coolingkW: 3000, heatingkW: 2400, powerkW: 1000, cop: 3.0, count: 12 }
-  ]);
+  const [achps, setAchps] = useState<ExistingAchpDetail[]>(
+    initialCache?.achps || [
+      { id: 'a1', modelName: '老旧风冷热泵主机模块', coolingkW: 3000, heatingkW: 2400, powerkW: 1000, cop: 3.0, count: 12 }
+    ]
+  );
 
-  const [vrfs, setVrfs] = useState<ExistingVrfDetail[]>([
-    { id: 'v1', modelName: '老旧 VRF 多联机室外机', coolingkW: 3000, powerkW: 857, eer: 3.5, count: 50 }
-  ]);
+  const [vrfs, setVrfs] = useState<ExistingVrfDetail[]>(
+    initialCache?.vrfs || [
+      { id: 'v1', modelName: '老旧 VRF 多联机室外机', coolingkW: 3000, powerkW: 857, eer: 3.5, count: 50 }
+    ]
+  );
 
-  const [districts, setDistricts] = useState<ExistingDistrictDetail[]>([
-    { id: 'd1', modelName: '区域板式换热器机组', capacitykW: 3000, pumpFlowm3h: 516, pumpPowerkW: 73, count: 2 }
-  ]);
+  const [districts, setDistricts] = useState<ExistingDistrictDetail[]>(
+    initialCache?.districts || [
+      { id: 'd1', modelName: '区域板式换热器机组', capacitykW: 3000, pumpFlowm3h: 516, pumpPowerkW: 73, count: 2 }
+    ]
+  );
 
-  const [splits, setSplits] = useState<ExistingSplitDetail[]>([
-    { id: 's1', modelName: '老旧分体空调主机', capacitykW: 3000, powerkW: 1000, apf: 3.0, count: 1000 }
-  ]);
+  const [splits, setSplits] = useState<ExistingSplitDetail[]>(
+    initialCache?.splits || [
+      { id: 's1', modelName: '老旧分体空调主机', capacitykW: 3000, powerkW: 1000, apf: 3.0, count: 1000 }
+    ]
+  );
 
-  const [activeStep, setActiveStep] = useState<1 | 2 | 3>(1);
+  const [activeStep, setActiveStep] = useState<1 | 2 | 3>(
+    initialCache?.activeStep || 1
+  );
 
   // ----------------------------------------------------
   // 【步骤二：更换系统形式】 目标系统的详细设备明细（同新建项目格式）
   // ----------------------------------------------------
-  const [targetSystemType, setTargetSystemType] = useState<SystemType>('air_heat_pump');
-  const [targetCapEx, setTargetCapEx] = useState<number>(280); // 工程总初投资 CapEx (万元)
-  const [targetCustomEquipment, setTargetCustomEquipment] = useState<UserEquipmentOverrides>({});
+  const [targetSystemType, setTargetSystemType] = useState<SystemType>(
+    initialCache?.targetSystemType || 'air_heat_pump'
+  );
+  const [targetCapEx, setTargetCapEx] = useState<number>(
+    initialCache?.targetCapEx ?? 280
+  ); // 工程总初投资 CapEx (万元)
+  const [targetCustomEquipment, setTargetCustomEquipment] = useState<UserEquipmentOverrides>(
+    initialCache?.targetCustomEquipment || {}
+  );
   
   // 目标系统设计冷/热负荷指标（用户可自主修改，双向联动推荐计算总值）
-  const [targetCoolingIndex, setTargetCoolingIndex] = useState<number>(90);
-  const [targetHeatingIndex, setTargetHeatingIndex] = useState<number>(60);
+  const [targetCoolingIndex, setTargetCoolingIndex] = useState<number>(
+    initialCache?.targetCoolingIndex ?? 90
+  );
+  const [targetHeatingIndex, setTargetHeatingIndex] = useState<number>(
+    initialCache?.targetHeatingIndex ?? 60
+  );
 
   // 品牌选型模态框
   const [catalogModalState, setCatalogModalState] = useState<{
@@ -543,6 +649,83 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
     };
   }, [baseline, electricityRate, gasRate]);
 
+  // 实时持久化保存至 localStorage
+  useEffect(() => {
+    try {
+      const stateToCache = {
+        existingSystemType,
+        buildingName,
+        buildingArea,
+        operatingHours,
+        electricityRate,
+        gasRate,
+        chillers,
+        boilers,
+        pumps,
+        towers,
+        achps,
+        vrfs,
+        districts,
+        splits,
+        activeStep,
+        targetSystemType,
+        targetCapEx,
+        targetCustomEquipment,
+        targetCoolingIndex,
+        targetHeatingIndex
+      };
+      localStorage.setItem(RETROFIT_CACHE_KEY, JSON.stringify(stateToCache));
+    } catch (e) {
+      console.warn('Failed to save retrofit state to cache:', e);
+    }
+  }, [
+    existingSystemType, buildingName, buildingArea, operatingHours,
+    electricityRate, gasRate, chillers, boilers, pumps, towers,
+    achps, vrfs, districts, splits, activeStep, targetSystemType,
+    targetCapEx, targetCustomEquipment, targetCoolingIndex, targetHeatingIndex
+  ]);
+
+  // 向上级同步最新的既有建筑改造全量上下文数据
+  useEffect(() => {
+    if (onRetrofitContextChange) {
+      onRetrofitContextChange({
+        buildingName,
+        buildingArea,
+        existingSystemType,
+        operatingHours,
+        electricityRate,
+        gasRate,
+        chillers,
+        boilers,
+        pumps,
+        towers,
+        achps,
+        vrfs,
+        districts,
+        splits,
+        baseline,
+        targetSystemType,
+        targetSystemName: SYSTEM_TYPES_META[targetSystemType]?.name || targetSystemType,
+        targetCapEx,
+        targetCustomEquipment,
+        targetCoolingIndex,
+        targetHeatingIndex,
+        targetCalc,
+        targetSubItem,
+        step1Result,
+        step2Result,
+        step3Result
+      });
+    }
+  }, [
+    buildingName, buildingArea, existingSystemType, operatingHours,
+    electricityRate, gasRate, chillers, boilers, pumps, towers,
+    achps, vrfs, districts, splits, baseline, targetSystemType,
+    targetCapEx, targetCustomEquipment, targetCoolingIndex, targetHeatingIndex,
+    targetCalc, targetSubItem, step1Result, step2Result, step3Result,
+    onRetrofitContextChange
+  ]);
+
   const currentResult = activeStep === 1 ? step1Result : (activeStep === 2 ? step2Result : step3Result);
 
   // ECharts 对比图配置
@@ -628,7 +811,13 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({ tariffConf
           </div>
 
           <button
-            onClick={() => setIsAiReportModalOpen(true)}
+            onClick={() => {
+              if (onOpenAiReport) {
+                onOpenAiReport();
+              } else {
+                setIsAiReportModalOpen(true);
+              }
+            }}
             className="flex items-center space-x-2 px-5 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black rounded-xl text-xs shadow-lg shadow-emerald-500/25 border border-emerald-300/50 transition-all cursor-pointer shrink-0"
           >
             <Sparkles className="w-4 h-4 text-slate-950 animate-bounce" />
