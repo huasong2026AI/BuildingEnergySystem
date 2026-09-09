@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import ReactECharts from 'echarts-for-react';
 import { 
-  Sparkles, Wrench, TrendingDown, Building, ShieldAlert, Cpu, Plus, Trash2, ShoppingBag, Check, Flame, Wind, Zap, Layers 
+  Sparkles, Wrench, TrendingDown, Building, ShieldAlert, Cpu, Plus, Trash2, ShoppingBag, Check, Flame, Wind, Zap, Layers, Thermometer 
 } from 'lucide-react';
 import { SYSTEM_TYPES_META } from '../hvacEngine/constants';
 import { calculateEquipmentForSubItem, calculateSubItemEnergySummary } from '../hvacEngine/calculator';
@@ -184,6 +184,26 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({
     initialCache?.targetHeatingIndex ?? 60
   );
 
+  // 目标系统供回水设计水温工况与温差 (支持用户调节与实时联动推算)
+  const [targetChwSupplyTemp, setTargetChwSupplyTemp] = useState<number>(
+    initialCache?.targetChwSupplyTemp ?? 7
+  );
+  const [targetChwReturnTemp, setTargetChwReturnTemp] = useState<number>(
+    initialCache?.targetChwReturnTemp ?? 12
+  );
+  const [targetHwSupplyTemp, setTargetHwSupplyTemp] = useState<number>(
+    initialCache?.targetHwSupplyTemp ?? (initialCache?.targetSystemType === 'air_heat_pump' ? 45 : 60)
+  );
+  const [targetHwReturnTemp, setTargetHwReturnTemp] = useState<number>(
+    initialCache?.targetHwReturnTemp ?? (initialCache?.targetSystemType === 'air_heat_pump' ? 40 : 50)
+  );
+  const [targetCwSupplyTemp, setTargetCwSupplyTemp] = useState<number>(
+    initialCache?.targetCwSupplyTemp ?? 32
+  );
+  const [targetCwReturnTemp, setTargetCwReturnTemp] = useState<number>(
+    initialCache?.targetCwReturnTemp ?? 37
+  );
+
   // 品牌选型模态框
   const [catalogModalState, setCatalogModalState] = useState<{
     isOpen: boolean;
@@ -210,15 +230,56 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({
       heatingIndex: targetHeatingIndex,
       operatingHours: operatingHours,
       systemType: targetSystemType,
-      chwSupplyTemp: 7,
-      chwReturnTemp: 12,
-      hwSupplyTemp: targetSystemType === 'air_heat_pump' ? 45 : 60,
-      hwReturnTemp: targetSystemType === 'air_heat_pump' ? 40 : 50,
-      cwSupplyTemp: 32,
-      cwReturnTemp: 37,
+      chwSupplyTemp: targetChwSupplyTemp,
+      chwReturnTemp: targetChwReturnTemp,
+      hwSupplyTemp: targetHwSupplyTemp,
+      hwReturnTemp: targetHwReturnTemp,
+      cwSupplyTemp: targetCwSupplyTemp,
+      cwReturnTemp: targetCwReturnTemp,
       customEquipment: targetCustomEquipment
     };
-  }, [buildingName, buildingArea, operatingHours, targetSystemType, targetCustomEquipment, targetCoolingIndex, targetHeatingIndex]);
+  }, [
+    buildingName, 
+    buildingArea, 
+    operatingHours, 
+    targetSystemType, 
+    targetCustomEquipment, 
+    targetCoolingIndex, 
+    targetHeatingIndex,
+    targetChwSupplyTemp,
+    targetChwReturnTemp,
+    targetHwSupplyTemp,
+    targetHwReturnTemp,
+    targetCwSupplyTemp,
+    targetCwReturnTemp
+  ]);
+
+  // 当调节供回水温度时，清除水泵与冷却塔的用户手动静态覆盖量，使流量随新温差动态重新计算
+  const handleTargetWaterTempChange = (
+    type: 'chwSupply' | 'chwReturn' | 'hwSupply' | 'hwReturn' | 'cwSupply' | 'cwReturn', 
+    val: number
+  ) => {
+    const newCustom = { ...targetCustomEquipment };
+    if (type === 'chwSupply' || type === 'chwReturn') {
+      delete newCustom.chwPumpFlow;
+      delete newCustom.selectedChwPumpProduct;
+      if (type === 'chwSupply') setTargetChwSupplyTemp(val);
+      else setTargetChwReturnTemp(val);
+    } else if (type === 'hwSupply' || type === 'hwReturn') {
+      delete newCustom.hwPumpFlow;
+      delete newCustom.selectedHwPumpProduct;
+      if (type === 'hwSupply') setTargetHwSupplyTemp(val);
+      else setTargetHwReturnTemp(val);
+    } else if (type === 'cwSupply' || type === 'cwReturn') {
+      delete newCustom.cwPumpFlow;
+      delete newCustom.coolingTowerFlow;
+      delete newCustom.selectedCwPumpProduct;
+      delete newCustom.selectedTowerProduct;
+      if (type === 'cwSupply') setTargetCwSupplyTemp(val);
+      else setTargetCwReturnTemp(val);
+    }
+    setTargetCustomEquipment(newCustom);
+  };
 
   const targetCalc = useMemo(() => {
     return calculateEquipmentForSubItem(targetSubItem);
@@ -518,6 +579,82 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({
     }
   };
 
+  // ⚡ 目标新系统：一键根据主机自动推导匹配水泵与冷却塔
+  const handleAutoDeriveTargetPumpsAndTowers = () => {
+    const updatedCustom = { ...targetCustomEquipment };
+
+    if (targetSystemType === 'air_heat_pump') {
+      // 1. 风冷热泵系统
+      const achpCount = targetCustomEquipment.achpCount || targetCalc.achpCount || 1;
+      const totalCoolkW = targetCustomEquipment.achpCoolingkW || targetCalc.achpCoolingkW;
+      const totalHeatkW = targetCalc.achpHeatingkW || (totalCoolkW * 0.85);
+      const deltaTchw = Math.max(1, targetChwReturnTemp - targetChwSupplyTemp);
+      const deltaThw = Math.max(1, Math.abs(targetHwSupplyTemp - targetHwReturnTemp));
+
+      const chwFlow = Number(((totalCoolkW * 3.6) / (4.186 * deltaTchw)).toFixed(0));
+      const hwFlow = Number(((totalHeatkW * 3.6) / (4.186 * deltaThw)).toFixed(0));
+
+      // 冷水泵 (一机对一泵)
+      updatedCustom.chwPumpCount = achpCount;
+      updatedCustom.chwPumpFlow = chwFlow;
+      delete updatedCustom.selectedChwPumpProduct;
+
+      // 热水泵 (一机对一泵)
+      updatedCustom.hwPumpCount = achpCount;
+      updatedCustom.hwPumpFlow = hwFlow;
+      delete updatedCustom.selectedHwPumpProduct;
+
+      setTargetCustomEquipment(updatedCustom);
+      return;
+    }
+
+    if (targetSystemType === 'chiller_boiler' || targetSystemType === 'hybrid') {
+      // 2. 水冷冷水机组 + 燃气锅炉系统
+      const chillerCount = targetCustomEquipment.chillerCount || targetCalc.chillerCount || 1;
+      const boilerCount = targetCustomEquipment.boilerCount || targetCalc.boilerCount || 1;
+      const totalCoolkW = targetCustomEquipment.chillerCapacitykW || targetCalc.chillerCapacitykW;
+      const totalHeatkW = targetCustomEquipment.boilerCapacitykW || targetCalc.boilerCapacitykW;
+
+      const deltaTchw = Math.max(1, targetChwReturnTemp - targetChwSupplyTemp);
+      const deltaTcw = Math.max(1, targetCwReturnTemp - targetCwSupplyTemp);
+      const deltaThw = Math.max(1, Math.abs(targetHwSupplyTemp - targetHwReturnTemp));
+
+      // 冷水泵 (一机对一泵)
+      if (totalCoolkW > 0) {
+        const chwFlow = Number(((totalCoolkW * 3.6) / (4.186 * deltaTchw)).toFixed(0));
+        updatedCustom.chwPumpCount = chillerCount;
+        updatedCustom.chwPumpFlow = chwFlow;
+        delete updatedCustom.selectedChwPumpProduct;
+
+        // 冷却水泵 (一机对一泵)
+        const chillerCop = targetCustomEquipment.selectedChillerProduct?.ratedCapacitykW && targetCustomEquipment.selectedChillerProduct?.actualPowerkW
+          ? (targetCustomEquipment.selectedChillerProduct.ratedCapacitykW / targetCustomEquipment.selectedChillerProduct.actualPowerkW)
+          : 5.5;
+        const qCond = totalCoolkW * (1 + 1 / chillerCop);
+        const cwFlow = Number(((qCond * 3.6) / (4.186 * deltaTcw)).toFixed(0));
+        updatedCustom.cwPumpCount = chillerCount;
+        updatedCustom.cwPumpFlow = cwFlow;
+        delete updatedCustom.selectedCwPumpProduct;
+
+        // 冷却塔 (一机对一塔，富裕系数 1.15)
+        const towerFlow = Number((cwFlow * 1.15).toFixed(0));
+        updatedCustom.coolingTowerCount = chillerCount;
+        updatedCustom.coolingTowerFlow = towerFlow;
+        delete updatedCustom.selectedTowerProduct;
+      }
+
+      // 锅炉独立热水泵 (一炉对一泵)
+      if (totalHeatkW > 0) {
+        const hwFlow = Number(((totalHeatkW * 3.6) / (4.186 * deltaThw)).toFixed(0));
+        updatedCustom.hwPumpCount = boilerCount;
+        updatedCustom.hwPumpFlow = hwFlow;
+        delete updatedCustom.selectedHwPumpProduct;
+      }
+
+      setTargetCustomEquipment(updatedCustom);
+    }
+  };
+
   // 步骤 1：维持原系统，仅更换老旧高效设备方案
   const step1Result = useMemo(() => {
     const oldCop = baseline.weightedChillerCop || 3.9;
@@ -672,7 +809,13 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({
         targetCapEx,
         targetCustomEquipment,
         targetCoolingIndex,
-        targetHeatingIndex
+        targetHeatingIndex,
+        targetChwSupplyTemp,
+        targetChwReturnTemp,
+        targetHwSupplyTemp,
+        targetHwReturnTemp,
+        targetCwSupplyTemp,
+        targetCwReturnTemp
       };
       localStorage.setItem(RETROFIT_CACHE_KEY, JSON.stringify(stateToCache));
     } catch (e) {
@@ -1813,12 +1956,25 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({
 
               {/* 子步骤 2.2: 目标新系统的完整设备明细表 + 品牌库选型 */}
               <div className="bg-slate-850 p-4.5 rounded-xl border border-slate-750 space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-750 pb-2">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-750 pb-2.5">
                   <div className="flex items-center space-x-2 text-emerald-300 font-bold text-base">
                     <span className="w-6 h-6 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center font-black text-xs">2.2</span>
                     <span>第二步：【{targetSysMeta.name}】主要设备选型 (支持品牌库真实型号选型)</span>
                   </div>
-                  <span className="text-xs text-slate-400">* 电量取自所选真实品牌型号物理电量</span>
+                  <div className="flex items-center space-x-2">
+                    {(targetSystemType === 'chiller_boiler' || targetSystemType === 'air_heat_pump' || targetSystemType === 'hybrid') && (
+                      <button
+                        type="button"
+                        onClick={handleAutoDeriveTargetPumpsAndTowers}
+                        className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-lg flex items-center space-x-1.5 shadow-md hover:shadow-emerald-900/40 transition-all cursor-pointer"
+                        title="根据所选主机与锅炉容量/台数及设计供回水温差，一键自动推导匹配水泵与冷却塔"
+                      >
+                        <Zap className="w-3.5 h-3.5" />
+                        <span>⚡ 一键根据主机自动推导匹配</span>
+                      </button>
+                    )}
+                    <span className="text-xs text-slate-400">* 电量取自所选真实品牌型号物理电量</span>
+                  </div>
                 </div>
 
                 {/* 目标系统设计负荷指标与推荐标准计算总值设定卡片 */}
@@ -1869,6 +2025,113 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({
                     </div>
                   </div>
                 </div>
+
+                {/* 目标系统设计水温工况与系统温差调整卡片 (系统1与系统2支持调节供回水温差) */}
+                {(targetSystemType === 'chiller_boiler' || targetSystemType === 'air_heat_pump' || targetSystemType === 'hybrid') && (
+                  <div className="bg-slate-900/80 border border-slate-750 rounded-xl p-3.5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-bold text-slate-200 flex items-center space-x-2">
+                        <Thermometer className="w-4 h-4 text-blue-400" />
+                        <span>设计水温工况与系统温差调整 (支持步长 0.5°C，调整温差将自动联动推算水泵与冷却塔流量)</span>
+                      </h3>
+                      <span className="text-[11px] text-emerald-400 font-medium">温差越大，水泵输配流量与电耗越低</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+                      {/* 冷水供回水温度 */}
+                      {targetSysMeta.hasChilledWaterPump && (
+                        <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between">
+                          <div>
+                            <span className="text-slate-300 font-bold block">冷冻水供回水温度</span>
+                            <span className="text-[11px] text-slate-400">
+                              设计温差 ΔT = <strong className="text-blue-400">{Math.max(1, targetChwReturnTemp - targetChwSupplyTemp).toFixed(1)} ℃</strong>
+                            </span>
+                          </div>
+                          <div className="flex items-center space-x-1.5">
+                            <input
+                              type="number"
+                              step="0.5"
+                              value={targetChwSupplyTemp}
+                              onChange={e => handleTargetWaterTempChange('chwSupply', Number(e.target.value))}
+                              className="w-14 bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-center font-bold text-blue-400 focus:outline-none focus:border-blue-500"
+                            />
+                            <span className="text-slate-500">/</span>
+                            <input
+                              type="number"
+                              step="0.5"
+                              value={targetChwReturnTemp}
+                              onChange={e => handleTargetWaterTempChange('chwReturn', Number(e.target.value))}
+                              className="w-14 bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-center font-bold text-blue-400 focus:outline-none focus:border-blue-500"
+                            />
+                            <span className="text-slate-400">℃</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 冷却水进出水温度 (仅水冷系统) */}
+                      {targetSysMeta.hasCoolingWaterPump && targetSysMeta.hasCoolingTower && (
+                        <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between">
+                          <div>
+                            <span className="text-slate-300 font-bold block">冷却水进出水温度</span>
+                            <span className="text-[11px] text-slate-400">
+                              设计温差 ΔT = <strong className="text-emerald-400">{Math.max(1, targetCwReturnTemp - targetCwSupplyTemp).toFixed(1)} ℃</strong>
+                            </span>
+                          </div>
+                          <div className="flex items-center space-x-1.5">
+                            <input
+                              type="number"
+                              step="0.5"
+                              value={targetCwSupplyTemp}
+                              onChange={e => handleTargetWaterTempChange('cwSupply', Number(e.target.value))}
+                              className="w-14 bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-center font-bold text-emerald-400 focus:outline-none focus:border-emerald-500"
+                            />
+                            <span className="text-slate-500">/</span>
+                            <input
+                              type="number"
+                              step="0.5"
+                              value={targetCwReturnTemp}
+                              onChange={e => handleTargetWaterTempChange('cwReturn', Number(e.target.value))}
+                              className="w-14 bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-center font-bold text-emerald-400 focus:outline-none focus:border-emerald-500"
+                            />
+                            <span className="text-slate-400">℃</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 热水供回水温度 */}
+                      {targetSysMeta.hasHotWaterPump && (
+                        <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between">
+                          <div>
+                            <span className="text-slate-300 font-bold block">
+                              {targetSystemType === 'air_heat_pump' ? '热泵供回水温度' : '锅炉热水供回水温度'}
+                            </span>
+                            <span className="text-[11px] text-slate-400">
+                              设计温差 ΔT = <strong className="text-rose-400">{Math.max(1, Math.abs(targetHwSupplyTemp - targetHwReturnTemp)).toFixed(1)} ℃</strong>
+                            </span>
+                          </div>
+                          <div className="flex items-center space-x-1.5">
+                            <input
+                              type="number"
+                              step="0.5"
+                              value={targetHwSupplyTemp}
+                              onChange={e => handleTargetWaterTempChange('hwSupply', Number(e.target.value))}
+                              className="w-14 bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-center font-bold text-rose-400 focus:outline-none focus:border-rose-500"
+                            />
+                            <span className="text-slate-500">/</span>
+                            <input
+                              type="number"
+                              step="0.5"
+                              value={targetHwReturnTemp}
+                              onChange={e => handleTargetWaterTempChange('hwReturn', Number(e.target.value))}
+                              className="w-14 bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-center font-bold text-rose-400 focus:outline-none focus:border-rose-500"
+                            />
+                            <span className="text-slate-400">℃</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* 核心设备明细表格 */}
                 <div className="overflow-x-auto border border-slate-800 rounded-xl">
@@ -2038,236 +2301,6 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({
                           </td>
                           <td className="py-3 px-3 font-bold text-rose-400">
                             {targetCustomEquipment.selectedBoilerProduct ? `${targetCustomEquipment.selectedBoilerProduct.gasFlowm3h || '-'} m³/h/台` : `${(targetCalc.boilerGasFlow / targetCalc.boilerCount).toFixed(1)} m³/h (理论)`}
-                          </td>
-                        </tr>
-                      )}
-
-                      {/* 冷水水泵 */}
-                      {targetSysMeta.hasChilledWaterPump && targetCalc.chwPumpFlow > 0 && (
-                        <tr className="hover:bg-slate-800/60 transition-colors">
-                          <td className="py-3 px-3 font-bold text-white">冷水水泵 (夏季冷水泵)</td>
-                          <td className="py-3 px-3">
-                            {targetCustomEquipment.selectedChwPumpProduct ? (
-                              <div className="space-y-1">
-                                <span className="px-2 py-0.5 bg-blue-500/20 text-blue-300 font-bold text-xs rounded border border-blue-500/30 inline-flex items-center space-x-1">
-                                  <Check className="w-3.5 h-3.5 text-blue-400" />
-                                  <span>{targetCustomEquipment.selectedChwPumpProduct.brand} {targetCustomEquipment.selectedChwPumpProduct.model}</span>
-                                </span>
-                                <button
-                                  onClick={() => openCatalogModal('pump', '冷水水泵', (targetCustomEquipment.chwPumpFlow || targetCalc.chwPumpFlow) / (targetCustomEquipment.chwPumpCount || targetCalc.chwPumpCount), 'selectedChwPumpProduct')}
-                                  className="text-xs text-blue-400 hover:text-white underline block"
-                                >
-                                  更换品牌型号
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => openCatalogModal('pump', '冷水水泵', (targetCustomEquipment.chwPumpFlow || targetCalc.chwPumpFlow) / (targetCustomEquipment.chwPumpCount || targetCalc.chwPumpCount), 'selectedChwPumpProduct')}
-                                className="px-2.5 py-1 bg-blue-600/30 hover:bg-blue-600 text-blue-200 hover:text-white rounded text-xs font-bold border border-blue-500/40 flex items-center space-x-1 transition-all"
-                              >
-                                <ShoppingBag className="w-3.5 h-3.5" />
-                                <span>从品牌库选水泵</span>
-                              </button>
-                            )}
-                          </td>
-                          <td className="py-3 px-3 font-semibold text-slate-400">{targetCalc.chwPumpFlow.toFixed(1)} m³/h</td>
-                          <td className="py-3 px-3">
-                            <input
-                              type="number"
-                              min={1}
-                              max={10}
-                              value={targetCustomEquipment.chwPumpCount ?? targetCalc.chwPumpCount}
-                              onChange={(e) => handleTargetCustomChange('chwPumpCount', Number(e.target.value))}
-                              className="w-16 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-center font-bold text-blue-300 text-sm"
-                            />
-                          </td>
-                          <td className="py-3 px-3 font-bold text-emerald-400">
-                            {((targetCustomEquipment.chwPumpFlow || targetCalc.chwPumpFlow) / (targetCustomEquipment.chwPumpCount || targetCalc.chwPumpCount)).toFixed(1)} m³/h/台
-                          </td>
-                          <td className="py-3 px-3">
-                            <input
-                              type="number"
-                              value={targetCustomEquipment.chwPumpFlow ?? ''}
-                              placeholder={targetCalc.chwPumpFlow.toFixed(1)}
-                              onChange={(e) => handleTargetCustomChange('chwPumpFlow', e.target.value ? Number(e.target.value) : undefined)}
-                              className="w-28 bg-slate-950 border border-slate-700 rounded px-2.5 py-1 text-white font-bold text-sm"
-                            />
-                          </td>
-                          <td className="py-3 px-3 font-bold text-amber-300">
-                            {targetCustomEquipment.selectedChwPumpProduct ? `${targetCustomEquipment.selectedChwPumpProduct.actualPowerkW} kW/台` : `${(targetCalc.chwPumpPowerkW / targetCalc.chwPumpCount).toFixed(1)} kW (理论)`}
-                          </td>
-                        </tr>
-                      )}
-
-                      {/* 冬季热水循环泵 */}
-                      {targetSysMeta.hasHotWaterPump && targetCalc.hwPumpFlow > 0 && (
-                        <tr className="hover:bg-slate-800/60 transition-colors">
-                          <td className="py-3 px-3 font-bold text-white">
-                            {targetSystemType === 'air_heat_pump' ? '冬季热水循环泵' : '锅炉独立热水泵 (冬季热水循环泵)'}
-                          </td>
-                          <td className="py-3 px-3">
-                            {targetCustomEquipment.selectedHwPumpProduct ? (
-                              <div className="space-y-1">
-                                <span className="px-2 py-0.5 bg-rose-500/20 text-rose-300 font-bold text-xs rounded border border-rose-500/30 inline-flex items-center space-x-1">
-                                  <Check className="w-3.5 h-3.5 text-rose-400" />
-                                  <span>{targetCustomEquipment.selectedHwPumpProduct.brand} {targetCustomEquipment.selectedHwPumpProduct.model}</span>
-                                </span>
-                                <button
-                                  onClick={() => openCatalogModal('pump', '热水水泵', (targetCustomEquipment.hwPumpFlow || targetCalc.hwPumpFlow) / (targetCustomEquipment.hwPumpCount || targetCalc.hwPumpCount), 'selectedHwPumpProduct')}
-                                  className="text-xs text-rose-400 hover:text-white underline block"
-                                >
-                                  更换品牌型号
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => openCatalogModal('pump', '热水水泵', (targetCustomEquipment.hwPumpFlow || targetCalc.hwPumpFlow) / (targetCustomEquipment.hwPumpCount || targetCalc.hwPumpCount), 'selectedHwPumpProduct')}
-                                className="px-2.5 py-1 bg-rose-600/30 hover:bg-rose-600 text-rose-200 hover:text-white rounded text-xs font-bold border border-rose-500/40 flex items-center space-x-1 transition-all"
-                              >
-                                <ShoppingBag className="w-3.5 h-3.5" />
-                                <span>从品牌库选水泵</span>
-                              </button>
-                            )}
-                          </td>
-                          <td className="py-3 px-3 font-semibold text-slate-400">{targetCalc.hwPumpFlow.toFixed(1)} m³/h</td>
-                          <td className="py-3 px-3">
-                            <input
-                              type="number"
-                              min={1}
-                              max={10}
-                              value={targetCustomEquipment.hwPumpCount ?? targetCalc.hwPumpCount}
-                              onChange={(e) => handleTargetCustomChange('hwPumpCount', Number(e.target.value))}
-                              className="w-16 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-center font-bold text-rose-300 text-sm"
-                            />
-                          </td>
-                          <td className="py-3 px-3 font-bold text-emerald-400">
-                            {((targetCustomEquipment.hwPumpFlow || targetCalc.hwPumpFlow) / (targetCustomEquipment.hwPumpCount || targetCalc.hwPumpCount)).toFixed(1)} m³/h/台
-                          </td>
-                          <td className="py-3 px-3">
-                            <input
-                              type="number"
-                              value={targetCustomEquipment.hwPumpFlow ?? ''}
-                              placeholder={targetCalc.hwPumpFlow.toFixed(1)}
-                              onChange={(e) => handleTargetCustomChange('hwPumpFlow', e.target.value ? Number(e.target.value) : undefined)}
-                              className="w-28 bg-slate-950 border border-slate-700 rounded px-2.5 py-1 text-white font-bold text-sm"
-                            />
-                          </td>
-                          <td className="py-3 px-3 font-bold text-amber-300">
-                            {targetCustomEquipment.selectedHwPumpProduct ? `${targetCustomEquipment.selectedHwPumpProduct.actualPowerkW} kW/台` : `${(targetCalc.hwPumpPowerkW / targetCalc.hwPumpCount).toFixed(1)} kW (理论)`}
-                          </td>
-                        </tr>
-                      )}
-
-                      {/* 冷却水水泵 */}
-                      {targetSysMeta.hasCoolingWaterPump && targetCalc.cwPumpFlow > 0 && (
-                        <tr className="hover:bg-slate-800/60 transition-colors">
-                          <td className="py-3 px-3 font-bold text-white">冷却水水泵</td>
-                          <td className="py-3 px-3">
-                            {targetCustomEquipment.selectedCwPumpProduct ? (
-                              <div className="space-y-1">
-                                <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 font-bold text-xs rounded border border-emerald-500/30 inline-flex items-center space-x-1">
-                                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                                  <span>{targetCustomEquipment.selectedCwPumpProduct.brand} {targetCustomEquipment.selectedCwPumpProduct.model}</span>
-                                </span>
-                                <button
-                                  onClick={() => openCatalogModal('pump', '冷却水水泵', (targetCustomEquipment.cwPumpFlow || targetCalc.cwPumpFlow) / (targetCustomEquipment.cwPumpCount || targetCalc.cwPumpCount), 'selectedCwPumpProduct')}
-                                  className="text-xs text-emerald-400 hover:text-white underline block"
-                                >
-                                  更换品牌型号
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => openCatalogModal('pump', '冷却水水泵', (targetCustomEquipment.cwPumpFlow || targetCalc.cwPumpFlow) / (targetCustomEquipment.cwPumpCount || targetCalc.cwPumpCount), 'selectedCwPumpProduct')}
-                                className="px-2.5 py-1 bg-emerald-600/30 hover:bg-emerald-600 text-emerald-200 hover:text-white rounded text-xs font-bold border border-emerald-500/40 flex items-center space-x-1 transition-all"
-                              >
-                                <ShoppingBag className="w-3.5 h-3.5" />
-                                <span>从品牌库选水泵</span>
-                              </button>
-                            )}
-                          </td>
-                          <td className="py-3 px-3 font-semibold text-slate-400">{targetCalc.cwPumpFlow.toFixed(1)} m³/h</td>
-                          <td className="py-3 px-3">
-                            <input
-                              type="number"
-                              min={1}
-                              max={10}
-                              value={targetCustomEquipment.cwPumpCount ?? targetCalc.cwPumpCount}
-                              onChange={(e) => handleTargetCustomChange('cwPumpCount', Number(e.target.value))}
-                              className="w-16 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-center font-bold text-emerald-300 text-sm"
-                            />
-                          </td>
-                          <td className="py-3 px-3 font-bold text-emerald-400">
-                            {((targetCustomEquipment.cwPumpFlow || targetCalc.cwPumpFlow) / (targetCustomEquipment.cwPumpCount || targetCalc.cwPumpCount)).toFixed(1)} m³/h/台
-                          </td>
-                          <td className="py-3 px-3">
-                            <input
-                              type="number"
-                              value={targetCustomEquipment.cwPumpFlow ?? ''}
-                              placeholder={targetCalc.cwPumpFlow.toFixed(1)}
-                              onChange={(e) => handleTargetCustomChange('cwPumpFlow', e.target.value ? Number(e.target.value) : undefined)}
-                              className="w-28 bg-slate-950 border border-slate-700 rounded px-2.5 py-1 text-white font-bold text-sm"
-                            />
-                          </td>
-                          <td className="py-3 px-3 font-bold text-amber-300">
-                            {targetCustomEquipment.selectedCwPumpProduct ? `${targetCustomEquipment.selectedCwPumpProduct.actualPowerkW} kW/台` : `${(targetCalc.cwPumpPowerkW / targetCalc.cwPumpCount).toFixed(1)} kW (理论)`}
-                          </td>
-                        </tr>
-                      )}
-
-                      {/* 冷却塔 */}
-                      {targetSysMeta.hasCoolingTower && targetCalc.coolingTowerFlow > 0 && (
-                        <tr className="hover:bg-slate-800/60 transition-colors">
-                          <td className="py-3 px-3 font-bold text-white">冷却塔 (冷却水散热)</td>
-                          <td className="py-3 px-3">
-                            {targetCustomEquipment.selectedTowerProduct ? (
-                              <div className="space-y-1">
-                                <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 font-bold text-xs rounded border border-emerald-500/30 inline-flex items-center space-x-1">
-                                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                                  <span>{targetCustomEquipment.selectedTowerProduct.brand} {targetCustomEquipment.selectedTowerProduct.model}</span>
-                                </span>
-                                <button
-                                  onClick={() => openCatalogModal('cooling_tower', '冷却塔', (targetCustomEquipment.coolingTowerFlow || targetCalc.coolingTowerFlow) / (targetCustomEquipment.coolingTowerCount || targetCalc.coolingTowerCount), 'selectedTowerProduct')}
-                                  className="text-xs text-emerald-400 hover:text-white underline block"
-                                >
-                                  更换品牌型号
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => openCatalogModal('cooling_tower', '冷却塔', (targetCustomEquipment.coolingTowerFlow || targetCalc.coolingTowerFlow) / (targetCustomEquipment.coolingTowerCount || targetCalc.coolingTowerCount), 'selectedTowerProduct')}
-                                className="px-2.5 py-1 bg-emerald-600/30 hover:bg-emerald-600 text-emerald-200 hover:text-white rounded text-xs font-bold border border-emerald-500/40 flex items-center space-x-1 transition-all"
-                              >
-                                <ShoppingBag className="w-3.5 h-3.5" />
-                                <span>从品牌库选型</span>
-                              </button>
-                            )}
-                          </td>
-                          <td className="py-3 px-3 font-semibold text-slate-400">{targetCalc.coolingTowerFlow.toFixed(1)} m³/h</td>
-                          <td className="py-3 px-3">
-                            <input
-                              type="number"
-                              min={1}
-                              max={10}
-                              value={targetCustomEquipment.coolingTowerCount ?? targetCalc.coolingTowerCount}
-                              onChange={(e) => handleTargetCustomChange('coolingTowerCount', Number(e.target.value))}
-                              className="w-16 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-center font-bold text-emerald-300 text-sm"
-                            />
-                          </td>
-                          <td className="py-3 px-3 font-bold text-emerald-400">
-                            {((targetCustomEquipment.coolingTowerFlow || targetCalc.coolingTowerFlow) / (targetCustomEquipment.coolingTowerCount || targetCalc.coolingTowerCount)).toFixed(1)} m³/h/台
-                          </td>
-                          <td className="py-3 px-3">
-                            <input
-                              type="number"
-                              value={targetCustomEquipment.coolingTowerFlow ?? ''}
-                              placeholder={targetCalc.coolingTowerFlow.toFixed(1)}
-                              onChange={(e) => handleTargetCustomChange('coolingTowerFlow', e.target.value ? Number(e.target.value) : undefined)}
-                              className="w-28 bg-slate-950 border border-slate-700 rounded px-2.5 py-1 text-white font-bold text-sm"
-                            />
-                          </td>
-                          <td className="py-3 px-3 font-bold text-amber-300">
-                            {targetCustomEquipment.selectedTowerProduct ? `${targetCustomEquipment.selectedTowerProduct.actualPowerkW} kW/台` : `${(targetCalc.coolingTowerFanPowerkW / targetCalc.coolingTowerCount).toFixed(1)} kW (理论)`}
                           </td>
                         </tr>
                       )}
@@ -2583,6 +2616,236 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({
                           </td>
                         </tr>
                       )}
+                      {/* 冷水水泵 */}
+                      {targetSysMeta.hasChilledWaterPump && targetCalc.chwPumpFlow > 0 && (
+                        <tr className="hover:bg-slate-800/60 transition-colors">
+                          <td className="py-3 px-3 font-bold text-white">冷水水泵 (夏季冷水泵)</td>
+                          <td className="py-3 px-3">
+                            {targetCustomEquipment.selectedChwPumpProduct ? (
+                              <div className="space-y-1">
+                                <span className="px-2 py-0.5 bg-blue-500/20 text-blue-300 font-bold text-xs rounded border border-blue-500/30 inline-flex items-center space-x-1">
+                                  <Check className="w-3.5 h-3.5 text-blue-400" />
+                                  <span>{targetCustomEquipment.selectedChwPumpProduct.brand} {targetCustomEquipment.selectedChwPumpProduct.model}</span>
+                                </span>
+                                <button
+                                  onClick={() => openCatalogModal('pump', '冷水水泵', (targetCustomEquipment.chwPumpFlow || targetCalc.chwPumpFlow) / (targetCustomEquipment.chwPumpCount || targetCalc.chwPumpCount), 'selectedChwPumpProduct')}
+                                  className="text-xs text-blue-400 hover:text-white underline block"
+                                >
+                                  更换品牌型号
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => openCatalogModal('pump', '冷水水泵', (targetCustomEquipment.chwPumpFlow || targetCalc.chwPumpFlow) / (targetCustomEquipment.chwPumpCount || targetCalc.chwPumpCount), 'selectedChwPumpProduct')}
+                                className="px-2.5 py-1 bg-blue-600/30 hover:bg-blue-600 text-blue-200 hover:text-white rounded text-xs font-bold border border-blue-500/40 flex items-center space-x-1 transition-all"
+                              >
+                                <ShoppingBag className="w-3.5 h-3.5" />
+                                <span>从品牌库选水泵</span>
+                              </button>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 font-semibold text-slate-400">{targetCalc.chwPumpFlow.toFixed(1)} m³/h</td>
+                          <td className="py-3 px-3">
+                            <input
+                              type="number"
+                              min={1}
+                              max={10}
+                              value={targetCustomEquipment.chwPumpCount ?? targetCalc.chwPumpCount}
+                              onChange={(e) => handleTargetCustomChange('chwPumpCount', Number(e.target.value))}
+                              className="w-16 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-center font-bold text-blue-300 text-sm"
+                            />
+                          </td>
+                          <td className="py-3 px-3 font-bold text-emerald-400">
+                            {((targetCustomEquipment.chwPumpFlow || targetCalc.chwPumpFlow) / (targetCustomEquipment.chwPumpCount || targetCalc.chwPumpCount)).toFixed(1)} m³/h/台
+                          </td>
+                          <td className="py-3 px-3">
+                            <input
+                              type="number"
+                              value={targetCustomEquipment.chwPumpFlow ?? ''}
+                              placeholder={targetCalc.chwPumpFlow.toFixed(1)}
+                              onChange={(e) => handleTargetCustomChange('chwPumpFlow', e.target.value ? Number(e.target.value) : undefined)}
+                              className="w-28 bg-slate-950 border border-slate-700 rounded px-2.5 py-1 text-white font-bold text-sm"
+                            />
+                          </td>
+                          <td className="py-3 px-3 font-bold text-amber-300">
+                            {targetCustomEquipment.selectedChwPumpProduct ? `${targetCustomEquipment.selectedChwPumpProduct.actualPowerkW} kW/台` : `${(targetCalc.chwPumpPowerkW / targetCalc.chwPumpCount).toFixed(1)} kW (理论)`}
+                          </td>
+                        </tr>
+                      )}
+
+                      {/* 冷却水水泵 */}
+                      {targetSysMeta.hasCoolingWaterPump && targetCalc.cwPumpFlow > 0 && (
+                        <tr className="hover:bg-slate-800/60 transition-colors">
+                          <td className="py-3 px-3 font-bold text-white">冷却水水泵</td>
+                          <td className="py-3 px-3">
+                            {targetCustomEquipment.selectedCwPumpProduct ? (
+                              <div className="space-y-1">
+                                <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 font-bold text-xs rounded border border-emerald-500/30 inline-flex items-center space-x-1">
+                                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                  <span>{targetCustomEquipment.selectedCwPumpProduct.brand} {targetCustomEquipment.selectedCwPumpProduct.model}</span>
+                                </span>
+                                <button
+                                  onClick={() => openCatalogModal('pump', '冷却水水泵', (targetCustomEquipment.cwPumpFlow || targetCalc.cwPumpFlow) / (targetCustomEquipment.cwPumpCount || targetCalc.cwPumpCount), 'selectedCwPumpProduct')}
+                                  className="text-xs text-emerald-400 hover:text-white underline block"
+                                >
+                                  更换品牌型号
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => openCatalogModal('pump', '冷却水水泵', (targetCustomEquipment.cwPumpFlow || targetCalc.cwPumpFlow) / (targetCustomEquipment.cwPumpCount || targetCalc.cwPumpCount), 'selectedCwPumpProduct')}
+                                className="px-2.5 py-1 bg-emerald-600/30 hover:bg-emerald-600 text-emerald-200 hover:text-white rounded text-xs font-bold border border-emerald-500/40 flex items-center space-x-1 transition-all"
+                              >
+                                <ShoppingBag className="w-3.5 h-3.5" />
+                                <span>从品牌库选水泵</span>
+                              </button>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 font-semibold text-slate-400">{targetCalc.cwPumpFlow.toFixed(1)} m³/h</td>
+                          <td className="py-3 px-3">
+                            <input
+                              type="number"
+                              min={1}
+                              max={10}
+                              value={targetCustomEquipment.cwPumpCount ?? targetCalc.cwPumpCount}
+                              onChange={(e) => handleTargetCustomChange('cwPumpCount', Number(e.target.value))}
+                              className="w-16 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-center font-bold text-emerald-300 text-sm"
+                            />
+                          </td>
+                          <td className="py-3 px-3 font-bold text-emerald-400">
+                            {((targetCustomEquipment.cwPumpFlow || targetCalc.cwPumpFlow) / (targetCustomEquipment.cwPumpCount || targetCalc.cwPumpCount)).toFixed(1)} m³/h/台
+                          </td>
+                          <td className="py-3 px-3">
+                            <input
+                              type="number"
+                              value={targetCustomEquipment.cwPumpFlow ?? ''}
+                              placeholder={targetCalc.cwPumpFlow.toFixed(1)}
+                              onChange={(e) => handleTargetCustomChange('cwPumpFlow', e.target.value ? Number(e.target.value) : undefined)}
+                              className="w-28 bg-slate-950 border border-slate-700 rounded px-2.5 py-1 text-white font-bold text-sm"
+                            />
+                          </td>
+                          <td className="py-3 px-3 font-bold text-amber-300">
+                            {targetCustomEquipment.selectedCwPumpProduct ? `${targetCustomEquipment.selectedCwPumpProduct.actualPowerkW} kW/台` : `${(targetCalc.cwPumpPowerkW / targetCalc.cwPumpCount).toFixed(1)} kW (理论)`}
+                          </td>
+                        </tr>
+                      )}
+
+                      {/* 冬季热水循环泵 */}
+                      {targetSysMeta.hasHotWaterPump && targetCalc.hwPumpFlow > 0 && (
+                        <tr className="hover:bg-slate-800/60 transition-colors">
+                          <td className="py-3 px-3 font-bold text-white">
+                            {targetSystemType === 'air_heat_pump' ? '冬季热水循环泵' : '锅炉独立热水泵 (冬季热水循环泵)'}
+                          </td>
+                          <td className="py-3 px-3">
+                            {targetCustomEquipment.selectedHwPumpProduct ? (
+                              <div className="space-y-1">
+                                <span className="px-2 py-0.5 bg-rose-500/20 text-rose-300 font-bold text-xs rounded border border-rose-500/30 inline-flex items-center space-x-1">
+                                  <Check className="w-3.5 h-3.5 text-rose-400" />
+                                  <span>{targetCustomEquipment.selectedHwPumpProduct.brand} {targetCustomEquipment.selectedHwPumpProduct.model}</span>
+                                </span>
+                                <button
+                                  onClick={() => openCatalogModal('pump', '热水水泵', (targetCustomEquipment.hwPumpFlow || targetCalc.hwPumpFlow) / (targetCustomEquipment.hwPumpCount || targetCalc.hwPumpCount), 'selectedHwPumpProduct')}
+                                  className="text-xs text-rose-400 hover:text-white underline block"
+                                >
+                                  更换品牌型号
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => openCatalogModal('pump', '热水水泵', (targetCustomEquipment.hwPumpFlow || targetCalc.hwPumpFlow) / (targetCustomEquipment.hwPumpCount || targetCalc.hwPumpCount), 'selectedHwPumpProduct')}
+                                className="px-2.5 py-1 bg-rose-600/30 hover:bg-rose-600 text-rose-200 hover:text-white rounded text-xs font-bold border border-rose-500/40 flex items-center space-x-1 transition-all"
+                              >
+                                <ShoppingBag className="w-3.5 h-3.5" />
+                                <span>从品牌库选水泵</span>
+                              </button>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 font-semibold text-slate-400">{targetCalc.hwPumpFlow.toFixed(1)} m³/h</td>
+                          <td className="py-3 px-3">
+                            <input
+                              type="number"
+                              min={1}
+                              max={10}
+                              value={targetCustomEquipment.hwPumpCount ?? targetCalc.hwPumpCount}
+                              onChange={(e) => handleTargetCustomChange('hwPumpCount', Number(e.target.value))}
+                              className="w-16 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-center font-bold text-rose-300 text-sm"
+                            />
+                          </td>
+                          <td className="py-3 px-3 font-bold text-emerald-400">
+                            {((targetCustomEquipment.hwPumpFlow || targetCalc.hwPumpFlow) / (targetCustomEquipment.hwPumpCount || targetCalc.hwPumpCount)).toFixed(1)} m³/h/台
+                          </td>
+                          <td className="py-3 px-3">
+                            <input
+                              type="number"
+                              value={targetCustomEquipment.hwPumpFlow ?? ''}
+                              placeholder={targetCalc.hwPumpFlow.toFixed(1)}
+                              onChange={(e) => handleTargetCustomChange('hwPumpFlow', e.target.value ? Number(e.target.value) : undefined)}
+                              className="w-28 bg-slate-950 border border-slate-700 rounded px-2.5 py-1 text-white font-bold text-sm"
+                            />
+                          </td>
+                          <td className="py-3 px-3 font-bold text-amber-300">
+                            {targetCustomEquipment.selectedHwPumpProduct ? `${targetCustomEquipment.selectedHwPumpProduct.actualPowerkW} kW/台` : `${(targetCalc.hwPumpPowerkW / targetCalc.hwPumpCount).toFixed(1)} kW (理论)`}
+                          </td>
+                        </tr>
+                      )}
+
+                      {/* 冷却塔 */}
+                      {targetSysMeta.hasCoolingTower && targetCalc.coolingTowerFlow > 0 && (
+                        <tr className="hover:bg-slate-800/60 transition-colors">
+                          <td className="py-3 px-3 font-bold text-white">冷却塔 (冷却水散热)</td>
+                          <td className="py-3 px-3">
+                            {targetCustomEquipment.selectedTowerProduct ? (
+                              <div className="space-y-1">
+                                <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 font-bold text-xs rounded border border-emerald-500/30 inline-flex items-center space-x-1">
+                                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                  <span>{targetCustomEquipment.selectedTowerProduct.brand} {targetCustomEquipment.selectedTowerProduct.model}</span>
+                                </span>
+                                <button
+                                  onClick={() => openCatalogModal('cooling_tower', '冷却塔', (targetCustomEquipment.coolingTowerFlow || targetCalc.coolingTowerFlow) / (targetCustomEquipment.coolingTowerCount || targetCalc.coolingTowerCount), 'selectedTowerProduct')}
+                                  className="text-xs text-emerald-400 hover:text-white underline block"
+                                >
+                                  更换品牌型号
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => openCatalogModal('cooling_tower', '冷却塔', (targetCustomEquipment.coolingTowerFlow || targetCalc.coolingTowerFlow) / (targetCustomEquipment.coolingTowerCount || targetCalc.coolingTowerCount), 'selectedTowerProduct')}
+                                className="px-2.5 py-1 bg-emerald-600/30 hover:bg-emerald-600 text-emerald-200 hover:text-white rounded text-xs font-bold border border-emerald-500/40 flex items-center space-x-1 transition-all"
+                              >
+                                <ShoppingBag className="w-3.5 h-3.5" />
+                                <span>从品牌库选型</span>
+                              </button>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 font-semibold text-slate-400">{targetCalc.coolingTowerFlow.toFixed(1)} m³/h</td>
+                          <td className="py-3 px-3">
+                            <input
+                              type="number"
+                              min={1}
+                              max={10}
+                              value={targetCustomEquipment.coolingTowerCount ?? targetCalc.coolingTowerCount}
+                              onChange={(e) => handleTargetCustomChange('coolingTowerCount', Number(e.target.value))}
+                              className="w-16 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-center font-bold text-emerald-300 text-sm"
+                            />
+                          </td>
+                          <td className="py-3 px-3 font-bold text-emerald-400">
+                            {((targetCustomEquipment.coolingTowerFlow || targetCalc.coolingTowerFlow) / (targetCustomEquipment.coolingTowerCount || targetCalc.coolingTowerCount)).toFixed(1)} m³/h/台
+                          </td>
+                          <td className="py-3 px-3">
+                            <input
+                              type="number"
+                              value={targetCustomEquipment.coolingTowerFlow ?? ''}
+                              placeholder={targetCalc.coolingTowerFlow.toFixed(1)}
+                              onChange={(e) => handleTargetCustomChange('coolingTowerFlow', e.target.value ? Number(e.target.value) : undefined)}
+                              className="w-28 bg-slate-950 border border-slate-700 rounded px-2.5 py-1 text-white font-bold text-sm"
+                            />
+                          </td>
+                          <td className="py-3 px-3 font-bold text-amber-300">
+                            {targetCustomEquipment.selectedTowerProduct ? `${targetCustomEquipment.selectedTowerProduct.actualPowerkW} kW/台` : `${(targetCalc.coolingTowerFanPowerkW / targetCalc.coolingTowerCount).toFixed(1)} kW (理论)`}
+                          </td>
+                        </tr>
+                      )}
+
                     </tbody>
                   </table>
                 </div>
