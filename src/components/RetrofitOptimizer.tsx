@@ -2185,7 +2185,7 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({
                               <input
                                 type="number"
                                 step="10"
-                                value={targetCalc.chillerCapacitykW > 0 ? Number(targetCalc.chillerCapacitykW.toFixed(1)) : ''}
+                                value={targetCalc.coolingLoadkW > 0 ? Number(targetCalc.coolingLoadkW.toFixed(1)) : ''}
                                 onChange={(e) => {
                                   const val = Number(e.target.value);
                                   if (val > 0 && buildingArea > 0) {
@@ -2263,7 +2263,7 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({
                               <input
                                 type="number"
                                 step="10"
-                                value={targetCalc.boilerCapacitykW > 0 ? Number(targetCalc.boilerCapacitykW.toFixed(1)) : ''}
+                                value={targetCalc.heatingLoadkW > 0 ? Number((targetCalc.heatingLoadkW * 1.1).toFixed(1)) : ''}
                                 onChange={(e) => {
                                   const val = Number(e.target.value);
                                   if (val > 0 && buildingArea > 0) {
@@ -2341,7 +2341,7 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({
                               <input
                                 type="number"
                                 step="10"
-                                value={targetCalc.achpCoolingkW > 0 ? Number(targetCalc.achpCoolingkW.toFixed(1)) : ''}
+                                value={targetCalc.coolingLoadkW > 0 ? Number(targetCalc.coolingLoadkW.toFixed(1)) : ''}
                                 onChange={(e) => {
                                   const val = Number(e.target.value);
                                   if (val > 0 && buildingArea > 0) {
@@ -2419,7 +2419,7 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({
                               <input
                                 type="number"
                                 step="10"
-                                value={targetCalc.vrfCoolingkW > 0 ? Number(targetCalc.vrfCoolingkW.toFixed(1)) : ''}
+                                value={targetCalc.coolingLoadkW > 0 ? Number(targetCalc.coolingLoadkW.toFixed(1)) : ''}
                                 onChange={(e) => {
                                   const val = Number(e.target.value);
                                   if (val > 0 && buildingArea > 0) {
@@ -2497,7 +2497,7 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({
                               <input
                                 type="number"
                                 step="10"
-                                value={targetCalc.districtHexCapacitykW > 0 ? Number(targetCalc.districtHexCapacitykW.toFixed(1)) : ''}
+                                value={targetCalc.coolingLoadkW > 0 ? Number(targetCalc.coolingLoadkW.toFixed(1)) : ''}
                                 onChange={(e) => {
                                   const val = Number(e.target.value);
                                   if (val > 0 && buildingArea > 0) {
@@ -2575,7 +2575,7 @@ export const RetrofitOptimizer: React.FC<RetrofitOptimizerProps> = ({
                               <input
                                 type="number"
                                 step="10"
-                                value={targetCalc.splitTotalCapacitykW > 0 ? Number(targetCalc.splitTotalCapacitykW.toFixed(1)) : ''}
+                                value={targetCalc.coolingLoadkW > 0 ? Number(targetCalc.coolingLoadkW.toFixed(1)) : ''}
                                 onChange={(e) => {
                                   const val = Number(e.target.value);
                                   if (val > 0 && buildingArea > 0) {
